@@ -54,7 +54,7 @@ their logic, and touches nothing outside `.claude/`.
    }
    ```
 
-   One entry per `guard-*.sh` that was copied (as of v0.3.0: `guard-shopify-cli.sh`, `guard-protected-branch.sh`,
+   One entry per `guard-*.sh` that was copied (currently `guard-shopify-cli.sh`, `guard-protected-branch.sh`,
    `guard-package-manager.sh`). Do not register `lib.sh`; it is sourced by the guards.
 
 6. **Verify.** Run one blocked and one allowed case through the vendored guard, for example:
