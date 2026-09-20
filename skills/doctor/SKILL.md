@@ -31,7 +31,7 @@ Checks the consumer repo you are in, never the kit itself. Report findings as a 
 
 4. **Check vendored hooks.** For every `${CLAUDE_PROJECT_DIR}/.claude/hooks/kit/*.sh`, line 2 must read
    `# shopify-app-kit v<kit.version>` where `kit.version` comes from the manifest. Report each mismatch or missing
-   file (`lib.sh` and `guard-shopify-cli.sh` are expected in v0.1.0). Compare `kit.version` with the plugin's own
+   file (`lib.sh` and `guard-shopify-cli.sh` are expected since v0.1.0). Compare `kit.version` with the plugin's own
    version in `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json`; a lower `kit.version` means a sync is due.
 
 5. **Check settings registration.** `${CLAUDE_PROJECT_DIR}/.claude/settings.json` must register each vendored
