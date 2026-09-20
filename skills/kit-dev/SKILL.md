@@ -22,6 +22,7 @@ Fixtures use invented names (`example-app`, `example-dev`).
 | `schemas/` | manifest JSON Schema (draft 2020-12), `additionalProperties: false` at the top level only |
 | `skills/<name>/SKILL.md` | skills; `name` must equal the directory, description must contain "Use when" |
 | `skills/<name>/references/*.md` | depth for a skill (plain markdown, no frontmatter, ends with a `Sources:` line); the SKILL.md links each |
+| `skills/<name>/scripts/*.{mjs,sh}` | zero-dependency scripts a skill runs, each linked from its SKILL.md and syntax-checked by the parity test; today `skills/new-app/scripts/` (`apply-overlay.mjs`, `validate-manifest.mjs`, `smoke-guards.sh`), exercised by `test/new-app.test.mjs` against a stand-in template |
 | `agents/<name>.md` | review subagents launched by the `review` skill and the review roster; read-only, manifest-aware |
 | `workflows/<name>.js` | Workflow scripts (plain JavaScript, `export const meta` first) that orchestrate the agents; loaded as `/shopify-app-kit:<name>` |
 | `lessons/INDEX.md`, `lessons/README.md` | the lessons catalogue and its extraction discipline; homes are reference files or agent sections |
@@ -54,6 +55,11 @@ A skill whose steps need rationale keeps the SKILL.md short (numbered steps that
 title, `##` sections whose headings become the anchors `lessons/INDEX.md` points at, and a final
 `Sources: app-1 (...); app-2 (...).` line. Every reference file must be linked from its SKILL.md and be the home of
 at least one lesson; the parity and lessons tests enforce both.
+
+A skill that must do the same thing every time (copy, substitute, validate) puts the mechanics in
+`skills/<name>/scripts/` as `.mjs` (node: builtins only) or `.sh` files, each starting with a comment that names
+the file and what it does, linked from the SKILL.md, and covered by a test that runs it against a fixture
+(`test/new-app.test.mjs` for `skills/new-app/scripts/`). The parity test syntax-checks every script.
 
 ## Add a lesson
 

@@ -1,7 +1,7 @@
 ---
 name: doctor
-description: Validate this repo's .claude/shopify-app.json against the kit schema, print its app facts, and report vendored-hook or settings drift. Use when starting work in a Shopify app repo, after a kit sync, or when a guard hook blocked something unexpectedly.
-allowed-tools: Read, Grep, Glob, Bash(jq *), Bash(cat *), Bash(bash *), Bash(sed *), Bash(ls *)
+description: Validate this repo's .claude/shopify-app.json against the kit schema, print its app facts, report vendored-hook or settings drift, and check the companion plugin. Use when starting work in a Shopify app repo, after a kit sync, or when a guard hook blocked something unexpectedly.
+allowed-tools: Read, Grep, Glob, Bash(jq *), Bash(cat *), Bash(bash *), Bash(sed *), Bash(ls *), Bash(claude plugin list)
 ---
 
 # shopify-app-kit doctor
@@ -40,5 +40,16 @@ Checks the consumer repo you are in, never the kit itself. Report findings as a 
    `bash "$CLAUDE_PROJECT_DIR/.claude/hooks/kit/<guard>.sh"`. A guard that is vendored but not registered never
    fires. Also confirm `enabledPlugins` pins `shopify-app-kit@shopify-app-kit`.
 
-6. **Report.** One line per problem, each with the fix: repair the manifest key, run `/shopify-app-kit:sync`, or add
-   the settings snippet the sync skill prints. If everything is clean, say so in one line.
+6. **Check the companion plugin.** The hook's output from step 2 ends with the companion lines: a warning when
+   `claude plugin list` runs and does not list `shopify-ai-toolkit` (the fix is the install command it prints),
+   and an info line while `~/.config/shopify-ai-toolkit/opt-out` is absent (telemetry is on; the line says how to
+   opt out). Relay both as findings, not blockers; when the `claude` binary is absent there is nothing to report.
+   What the companion covers and what the kit covers is in `references/companion.md`.
+
+7. **Report.** One line per problem, each with the fix: repair the manifest key, run `/shopify-app-kit:sync`, add
+   the settings snippet the sync skill prints, or install the companion. If everything is clean, say so in one line.
+
+## References
+
+- `references/companion.md`: the split between the official companion plugin and the kit, where the kit's
+  skills call it, install and opt-out.

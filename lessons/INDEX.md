@@ -109,6 +109,11 @@ home exists, every anchor matches a heading, and every reference file is the hom
 | mcp-21 | Write tools are cheap and reversible, each naming what undoes it; irreversible actions stay dashboard actions or `human:account` issues | rule | skills/mcp-connector/references/rate-limits-and-cost.md#cheap-reversible-writes-only | app-2, app-3 |
 | mcp-22 | Operator skills ship from the app as a ZIP per skill built at release time; the parity check greps them for renamed tools | recipe | skills/mcp-connector/references/skills-distribution.md#skills-ship-from-the-app | app-2 |
 | mcp-23 | Distributed skill frontmatter is limited to `name, description, license, compatibility, metadata, allowed-tools`; the upload validator rejects any other key | rule | skills/mcp-connector/references/skills-distribution.md#six-portable-frontmatter-fields | app-2 |
+| new-1 | The scaffold ends at one local commit; the remote, the registration, the hosting app, the database and every secret are `human:account` steps on the checklist | rule | skills/new-app/references/scaffold.md#why-the-skill-never-touches-an-account | app-1, app-3, app-2 |
+| new-2 | The shell never overwrites a template file: text gets a delimited kit section, JSON is deep-merged with the template winning, anything else is set aside | rule | skills/new-app/references/scaffold.md#the-overlays-merge-rules | app-2 |
+| new-3 | Carry over only `app/` modules and `prisma/` migrations that pass the new repo's tests; never a donor's `.engine/`, `.claude/`, CI or auth plumbing | rule | skills/new-app/references/carry-over.md#what-crosses-and-what-does-not | app-3, app-2 |
+| new-4 | Re-key the donor's ADR log into `docs/adr/` keeping numbers, then run the isolation probes and tripwires before the first push | recipe | skills/new-app/references/carry-over.md#before-the-first-push | app-3 |
+| kit-1 | The companion plugin answers what the platform does; the kit answers what this repo's manifest requires, and a kit skill says "unverified" without the companion | rule | skills/doctor/references/companion.md#the-split | app-1, app-3 |
 
 ## History
 

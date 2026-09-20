@@ -7,8 +7,9 @@ allowed-tools: Read, Grep, Glob, Edit, Write, Bash(jq *), Bash(cat *), Bash(grep
 # shopify-app-kit admin-api
 
 The Admin API fails in ways that return HTTP 200: throttles, business-rule errors, silently substituted versions,
-stale caches. Every step below exists because one of those was once mistaken for success. Detail and rationale live
-in `references/`; the steps are the contract.
+stale caches. Every step below exists because one of those was once mistaken for success. The companion plugin
+(`shopify-ai-toolkit`) answers "what does the Admin API do"; this skill answers "what does this repo's manifest
+require". Detail and rationale live in `references/`; the steps are the contract.
 
 ## Steps
 
@@ -27,9 +28,10 @@ in `references/`; the steps are the contract.
    handlers. Fix parity in the same change, and update the manifest when a topic is genuinely new
    (`references/webhooks.md`).
 
-4. **Use the Shopify Dev MCP when it is configured.** Call `learn_shopify_api` first, then the schema introspection
-   and documentation search tools to confirm that every field, mutation, input type and webhook topic you rely on
-   exists in `apiVersion.expected`. Without the MCP, say that the shape is unverified and keep the change minimal.
+4. **Verify the shape with the companion's `shopify-dev` skill when the plugin is installed** (docs and schema
+   search, GraphQL validation): confirm that every field, mutation, input type and webhook topic you rely on
+   exists in `apiVersion.expected`. Without the plugin, say that the shape is unverified and keep the change
+   minimal.
 
 5. **Write the call through the app's one GraphQL transport** (never inline in a route, never exported from a
    server-action module). On any non-empty `userErrors` in a mutation response, throw. Retry on `THROTTLED` and
@@ -50,11 +52,9 @@ in `references/`; the steps are the contract.
 
 ## References
 
-- `references/api-version-drift.md`: client pin vs per-topic webhook versions, logging the version header,
-  silent fallback to the oldest supported version, a bump as its own PR.
+- `references/api-version-drift.md`: client pin vs per-topic webhook versions, silent fallback, a bump is its own PR.
 - `references/webhooks.md`: raw-body HMAC, the single preamble wrapper, compliance topics, key-presence reads.
-- `references/graphql-errors.md`: `THROTTLED` on 200, `userErrors` is a failed write, retry policy, transport
-  module must not be an RPC endpoint.
-- `references/metaobjects-and-app-accessors.md`: `$app:` prefix, CDN edge cache lag, entitlement as app-data
-  metafields.
+- `references/graphql-errors.md`: `THROTTLED` on 200, `userErrors` is a failed write, retry policy, the
+  transport is not an RPC endpoint.
+- `references/metaobjects-and-app-accessors.md`: `$app:` prefix, CDN edge cache lag, entitlement as app-data.
 - `references/distribution-is-one-way.md`: custom vs public is locked at creation; one process, one registration.

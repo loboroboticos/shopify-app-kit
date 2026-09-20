@@ -65,7 +65,7 @@
   },
   "docs": {
     "adrDir": "docs/adr",
-    "mapFile": "README.md",
+    "mapFile": "docs/README.md",
     "mapHeading": "## Docs map"
   },
   "checks": {

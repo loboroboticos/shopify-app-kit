@@ -7,8 +7,8 @@ allowed-tools: Read, Grep, Glob, Bash(jq *), Bash(cat *), Bash(ls *), Bash(shopi
 # shopify-app-kit dev-loop
 
 `shopify app dev` rewrites the dev registration's URLs to a throwaway tunnel and leaves them there. This skill
-makes every session start with the right config and end with the registration restored. The traps behind each step
-are in `references/cli-traps.md`; read it before the first session in a repo you have not run before.
+makes every session start with the right config and end with the registration restored (traps: `references/cli-traps.md`).
+The companion plugin's `shopify-use-shopify-cli` skill is the CLI reference when installed; `--config` and `app dev clean` stay here.
 
 ## Steps
 
@@ -56,5 +56,5 @@ are in `references/cli-traps.md`; read it before the first session in a repo you
 
 ## References
 
-- `references/cli-traps.md`: the four CLI traps (implicit default config, `automatically_update_urls_on_dev`,
-  the expiring quick tunnel, the missing `clean`) and the handle-prefix rule for dev vs production extensions.
+- `references/cli-traps.md`: the four CLI traps (implicit default config, `automatically_update_urls_on_dev`, the
+  expiring quick tunnel, the missing `clean`) and the handle-prefix rule for dev vs production extensions.

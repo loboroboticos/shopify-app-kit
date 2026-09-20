@@ -2,7 +2,7 @@
 
 <!-- CLAUDE.md (shopify-app-kit template). The always-loaded instructions file. It stays under 200 lines and
      holds only what a session needs most of the time; mechanics move to path-scoped .claude/rules/*.md, facts
-     to the document that owns them (see the Docs map in README.md). The manifest .claude/shopify-app.json owns
+     to the document that owns them (see the Docs map in docs/README.md). The manifest .claude/shopify-app.json owns
      every tooling fact; do not restate its values here. -->
 
 ## What this is
@@ -36,7 +36,7 @@ Each is enforced by the named hook or test; the sentence here is the pointer, no
 
 ## Pointers
 
-- Docs map: `README.md`, "Docs map" section; one owner per fact.
+- Docs map: `docs/README.md`, "Docs map" section; one owner per fact.
 - Decisions: `docs/adr/` (`SEEDS.md` lists the ones still to take).
 - Path-scoped rules: `.claude/rules/` (billing, prisma, docs, PRs and issues).
 - Kit skills: `/shopify-app-kit:doctor`, `/shopify-app-kit:sync`, `/shopify-app-kit:review`, and the

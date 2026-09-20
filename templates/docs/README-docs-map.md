@@ -1,6 +1,7 @@
 <!-- docs/README-docs-map.md (shopify-app-kit template)
-     The shape of the docs map. Paste the section below into the file the manifest names as docs.mapFile
-     (usually README.md) under the heading docs.mapHeading (usually "## Docs map"), then delete this file.
+     The shape of the docs map. The new-app skill writes it to the file the manifest names as docs.mapFile
+     (docs/README.md in the starter manifest) under the heading docs.mapHeading ("## Docs map"), keeping only
+     the rows whose file exists; by hand, paste the section below there and delete this file.
      test/docs-consistency.test.mjs reads the same two manifest keys and fails when a file under docs/ has
      no row here. -->
 

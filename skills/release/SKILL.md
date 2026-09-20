@@ -15,34 +15,37 @@ performs on push. Never merge, never run a protected workflow by hand, never tou
 
 1. **Read the manifest.** From `${CLAUDE_PROJECT_DIR}/.claude/shopify-app.json` take `branches` (default,
    protected, promotion), `deploy` (targets, protectedWorkflows, scaleToZeroBeforeMigrate), `billing` (live,
-   testFlag), `shopifyCli.configs.deploy`, `shopifyCli.deployPolicy`, `app.handles` and `paths.extensions`.
+   testFlag, method), `shopifyCli.configs.deploy`, `shopifyCli.deployPolicy`, `app.handles` and `paths.extensions`.
 
-2. **Promotion (`beta`).** Open the PR with the step 6 checklist as its body, then stop:
+2. **App Store review check (public apps).** When the app is public (`billing.method` is `app-pricing`, or its
+   distribution is the App Store) and the companion plugin is installed, run its `shopify-app-store-review` skill
+   before opening the promotion PR and attach its summary to the PR body; without the plugin, say so in the body.
+
+3. **Promotion (`beta`).** Open the PR with the step 7 checklist as its body, then stop:
    `gh pr create --base <promotion.to> --head <promotion.from>`. The merge is the human gate; the kit's
    `guard-protected-branch` hook blocks `gh pr merge` and pushes to the protected branch, so do not try.
 
-3. **Extension release (`extension`).** When `deployPolicy` is `operator-only`, say so and hand the command to
-   the operator. Otherwise run `shopify app deploy --config <configs.deploy>`, then verify: fetch a storefront
-   page that renders the extension and confirm an asset URL carries the released slug `<handle>-<N>` for the
-   production handle in `app.handles`. A dev handle there means the wrong registration deployed (the `dev-loop`
-   skill's `cli-traps.md` has the prefix rule).
+4. **Extension release (`extension`).** When `deployPolicy` is `operator-only`, say so and hand the command to
+   the operator. Otherwise run `shopify app deploy --config <configs.deploy>`, then verify: a storefront page that
+   renders the extension must carry the released slug `<handle>-<N>` for the production handle in `app.handles`
+   in an asset URL; a dev handle there means the wrong registration deployed (`dev-loop`'s `cli-traps.md`).
 
-4. **Server release (`server`).** The server ships when `deploy.targets.<t>.workflow` runs, and that workflow is
-   dispatched by a push to its branch, never by `gh workflow run` (the guard blocks protected workflows). Say
-   which branch to push or which PR to merge. When the release carries a migration and
-   `deploy.scaleToZeroBeforeMigrate` is true, scale the app to zero before the migration step
-   (`fly scale count 0 -a <target.fly>` or the platform's equivalent): a running app swallows webhooks
-   mid-migration (`references/migrations-and-zero-downtime.md`).
+5. **Server release (`server`).** The server ships when `deploy.targets.<t>.workflow` runs, dispatched by a push
+   to its branch, never by `gh workflow run` (the guard blocks protected workflows). Say which branch to push or
+   which PR to merge. When the release carries a migration and `deploy.scaleToZeroBeforeMigrate` is true, scale
+   the app to zero before the migration step (`fly scale count 0 -a <target.fly>` or the platform's equivalent):
+   a running app swallows webhooks mid-migration (`references/migrations-and-zero-downtime.md`).
 
-5. **Billing.** When `billing.live` is true, say before any billing-related step that a subscribe, upgrade or
+6. **Billing.** When `billing.live` is true, say before any billing-related step that a subscribe, upgrade or
    plan change against the production registration is a real charge to a real merchant. The only agent-safe
    billing path is the test flag (`billing.testFlag`) under the dev registration
    (`references/billing-live-posture.md`).
 
-6. **Checklist.** End with one the operator can paste into the PR:
+7. **Checklist.** End with one the operator can paste into the PR:
 
    ```
    - [ ] CI green on <from>; migrate diff clean; tripwires green
+   - [ ] App Store review check (public app): summary attached / companion not installed
    - [ ] Migration in this release? scale to zero first (scaleToZeroBeforeMigrate): yes / no
    - [ ] Extension version to release: <handle>-<N>; verified in an asset URL after deploy
    - [ ] Server target(s): <workflow> on push to <branch>
@@ -52,9 +55,6 @@ performs on push. Never merge, never run a protected workflow by hand, never tou
 
 ## References
 
-- `references/billing-live-posture.md`: test flag per environment, tier names are data, cache invalidation as a
-  contract, the reconcile job, comp access as a ledger, separate ledgers.
-- `references/migrations-and-zero-downtime.md`: migrate rehearsal and drift check in CI, migrating through the
-  branch, release command not boot, scale to zero.
-- `references/ci-posture.md`: SHA pins, least privilege, concurrency, cron minutes, self-listing paths filters,
-  scheduled-workflow liveness, secret scanning, failure-issue action, one reusable verify gate.
+- `references/billing-live-posture.md`: test flag per environment, tier names are data, cache invalidation, the reconcile job, comp ledgers.
+- `references/migrations-and-zero-downtime.md`: migrate rehearsal and drift check in CI, migrate through the branch, release command not boot, scale to zero.
+- `references/ci-posture.md`: SHA pins, least privilege, concurrency, cron minutes, self-listing paths filters, scheduled-workflow liveness, secret scanning, failure-issue action, one verify gate.
