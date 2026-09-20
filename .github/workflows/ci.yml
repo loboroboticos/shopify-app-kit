@@ -1,0 +1,62 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: tests, plugin validation, version bump
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Unit tests (node:test, zero dependencies)
+        run: node --test "test/**/*.test.mjs"
+
+      - name: Install the Claude Code CLI (non-blocking)
+        id: cli
+        continue-on-error: true
+        run: |
+          if npm i -g @anthropic-ai/claude-code; then
+            echo "installed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::Could not install @anthropic-ai/claude-code; skipping 'claude plugin validate . --strict'. Run it locally before merging."
+            echo "installed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: claude plugin validate . --strict
+        if: steps.cli.outputs.installed == 'true'
+        run: |
+          claude plugin validate . --strict
+          claude plugin validate .claude-plugin/plugin.json --strict
+          claude plugin validate skills --strict
+
+      - name: Version bump check (PRs to main)
+        if: github.event_name == 'pull_request' && github.base_ref == 'main'
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          changed="$(git diff --name-only "origin/main...HEAD" -- skills agents hooks workflows schemas .mcp.json .claude-plugin || true)"
+          if [ -z "$changed" ]; then
+            echo "No plugin-visible files changed; no version bump required."
+            exit 0
+          fi
+          echo "Plugin-visible files changed:"; printf '  %s\n' $changed
+          head_version="$(jq -r .version .claude-plugin/plugin.json)"
+          base_version="$(git show origin/main:.claude-plugin/plugin.json 2>/dev/null | jq -r .version 2>/dev/null || echo '<none>')"
+          echo "origin/main version: $base_version; this PR: $head_version"
+          if [ "$head_version" = "$base_version" ]; then
+            echo "::error file=.claude-plugin/plugin.json::skills/, agents/, hooks/, workflows/, schemas/, .mcp.json or .claude-plugin/ changed but the plugin version did not. Bump .claude-plugin/plugin.json (and the '# shopify-app-kit vX.Y.Z' hook headers) and add a CHANGELOG entry."
+            exit 1
+          fi
