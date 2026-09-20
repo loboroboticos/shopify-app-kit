@@ -349,6 +349,22 @@ describe('doctor.sh', () => {
     assert.doesNotMatch(r.stdout, /does not satisfy schema v1/);
   });
 
+  test('prints expiring-token and billing-method facts when the manifest carries them', () => {
+    const r = runHook('doctor.sh', { manifest: path.join(fixtures, 'multi-tenant-app.json'), event: 'SessionStart' });
+    assert.equal(r.status, 0, r.stderr);
+    assert.match(r.stdout, /OK \(schema v1, kit\.version 0\.1\.0\)/);
+    assert.doesNotMatch(r.stdout, /unknown top-level key/);
+    assert.match(r.stdout, /Expiring offline tokens: yes\./);
+    assert.match(r.stdout, /Billing method: app-pricing\./);
+  });
+
+  test('omits the expiring-token and billing-method facts when the manifest lacks them', () => {
+    const r = runHook('doctor.sh', { manifest: npmRoot, event: 'SessionStart' });
+    assert.equal(r.status, 0, r.stderr);
+    assert.doesNotMatch(r.stdout, /Expiring offline tokens/);
+    assert.doesNotMatch(r.stdout, /Billing method/);
+  });
+
   test('still reports an unrelated unknown top-level key', () => {
     const m = JSON.parse(fs.readFileSync(path.join(fixtures, 'annotated-app.json'), 'utf8'));
     m.$notes = 'x';

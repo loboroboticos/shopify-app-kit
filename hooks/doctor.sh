@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shopify-app-kit v0.6.0
+# shopify-app-kit v0.7.0
 # hooks/doctor.sh: SessionStart briefing for a consumer repo. Validates .claude/shopify-app.json structurally
 # (required keys, enums, patterns of schema v1), prints one paragraph of facts to stdout, and reports vendored-hook
 # drift. Never exits non-zero. Silent when the repo has no manifest (it is not a consumer).
@@ -33,7 +33,7 @@ problems="$(jq -r '
   def isstr: type == "string";
   def isobj: type == "object";
   def strarr: type == "array" and all(.[]; type == "string");
-  def known: ["$schema","$comment","kit","app","shopifyCli","branches","packageManagers","paths","apiVersion","webhooks","scopes","deploy","billing","database","checks"];
+  def known: ["$schema","$comment","kit","app","shopifyCli","branches","packageManagers","paths","apiVersion","webhooks","scopes","deploy","billing","database","checks","auth","docs"];
   prob(isobj; "manifest must be a JSON object")
   + prob(.kit.schemaVersion == 1; "kit.schemaVersion must be 1")
   + prob((.kit.version == null) or (.kit.version | isstr); "kit.version must be a string or null")
@@ -75,7 +75,10 @@ mf '
   + "Shopify CLI configs: \(if cfgs == "" then "none" else cfgs end). "
   + "Policies: app dev \(.shopifyCli.devPolicy | s), app deploy \(.shopifyCli.deployPolicy | s), config use \(.shopifyCli.configUsePolicy | s), theme dev from root \(.shopifyCli.themeDevFromRoot | s). "
   + "Package managers: \(if pm == "" then "none" else pm end). "
-  + "API version \(.apiVersion.expected | s). Guard hooks read this manifest and fail closed when it is missing."
+  + "API version \(.apiVersion.expected | s). "
+  + (if .auth.expiringOfflineTokens == null then "" else "Expiring offline tokens: \(if .auth.expiringOfflineTokens then "yes" else "no" end). " end)
+  + (if .billing.method == null then "" else "Billing method: \(.billing.method). " end)
+  + "Guard hooks read this manifest and fail closed when it is missing."
 '
 
 # Vendored-hook drift: each .claude/hooks/kit/*.sh header should match kit.version.

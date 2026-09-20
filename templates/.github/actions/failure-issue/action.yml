@@ -1,0 +1,52 @@
+# .github/actions/failure-issue/action.yml (shopify-app-kit template)
+# Composite action for scheduled workflows: search the open issues, comment on the match or create one. One
+# open issue per failure family, however many times the schedule fires. Called with `if: failure()` (or an
+# outcome check) by dependency-audit.yml and any other schedule: workflow. Needs `issues: write` in the
+# calling workflow's permissions.
+name: failure-issue
+description: Open an issue for a failed scheduled run, or comment on the open one (idempotent per open issue).
+
+inputs:
+  title:
+    description: Title of the issue to create when none is open.
+    required: true
+  search:
+    description: 'GitHub issue search query that finds the open issue (for example "<title> in:title").'
+    required: true
+  labels:
+    description: Comma-separated labels to apply on creation.
+    required: false
+    default: ''
+  body-file:
+    description: Path to a markdown file used as the issue body or the comment.
+    required: true
+  token:
+    description: Token with issues:write (github.token is enough).
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Comment on the open issue or create it
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        GH_REPO: ${{ github.repository }}
+        TITLE: ${{ inputs.title }}
+        SEARCH: ${{ inputs.search }}
+        LABELS: ${{ inputs.labels }}
+        BODY_FILE: ${{ inputs['body-file'] }}
+      run: |
+        set -euo pipefail
+        existing="$(gh issue list --search "$SEARCH" --state open --json number --jq '.[0].number // empty')"
+        if [ -n "$existing" ]; then
+          echo "Commenting on open issue #$existing"
+          gh issue comment "$existing" --body-file "$BODY_FILE"
+        else
+          echo "Creating issue: $TITLE"
+          if [ -n "$LABELS" ]; then
+            gh issue create --title "$TITLE" --body-file "$BODY_FILE" --label "$LABELS"
+          else
+            gh issue create --title "$TITLE" --body-file "$BODY_FILE"
+          fi
+        fi

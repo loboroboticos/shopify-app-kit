@@ -1,0 +1,116 @@
+# .github/workflows/ci.yml (shopify-app-kit template)
+# The verify gate. Runs on every PR to the default and protected branches and can be called by the deploy
+# workflows (workflow_call) so what ships is what PRs verified. Reads nothing at runtime; the branch names,
+# package manager and server directory were substituted from .claude/shopify-app.json (branches.*,
+# packageManagers, paths.server) when the repo was scaffolded.
+name: ci
+
+on:
+  pull_request:
+    branches: ['{{DEFAULT_BRANCH}}', '{{PROTECTED_BRANCH}}']
+  workflow_call:
+
+# Least privilege: nothing here writes to the repository.
+permissions:
+  contents: read
+
+# A newer push to the same ref supersedes the running check.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: '{{SERVER_DIR}}'
+
+jobs:
+  verify:
+    name: install, audit, generate, typecheck, test, build
+    runs-on: ubuntu-latest
+    steps:
+      # Actions are pinned by commit SHA (the tag is the trailing comment); .github/dependabot.yml bumps them.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+
+      # corepack activates the package manager pinned in package.json ("packageManager"); a no-op for npm.
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Install with a frozen lockfile
+        run: |
+          case "{{PACKAGE_MANAGER}}" in
+            npm) npm ci ;;
+            pnpm) pnpm install --frozen-lockfile ;;
+            *) echo "::error::unknown package manager"; exit 1 ;;
+          esac
+
+      - name: Dependency audit (High and Critical fail the PR)
+        run: '{{PACKAGE_MANAGER}} audit --audit-level=high'
+
+      - name: Generate the Prisma client
+        run: '{{PACKAGE_MANAGER}} exec prisma generate'
+
+      - name: Typecheck
+        run: '{{PACKAGE_MANAGER}} run typecheck'
+
+      - name: Test
+        run: '{{PACKAGE_MANAGER}} run test'
+
+      - name: Build
+        run: '{{PACKAGE_MANAGER}} run build'
+
+  migrations:
+    name: migrate deploy from empty, then diff against the schema
+    runs-on: ubuntu-latest
+    services:
+      # A throwaway database. The credentials are the service container's, exist for the life of the job,
+      # and are allowlisted by name in .gitleaks.toml.
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_ci
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/app_ci
+      DIRECT_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/app_ci
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Install with a frozen lockfile
+        run: |
+          case "{{PACKAGE_MANAGER}}" in
+            npm) npm ci ;;
+            pnpm) pnpm install --frozen-lockfile ;;
+            *) echo "::error::unknown package manager"; exit 1 ;;
+          esac
+
+      # From an empty database: catches a malformed, destructive or out-of-order migration that only worked
+      # on the author's dirty local database.
+      - name: prisma migrate deploy from empty
+        run: '{{PACKAGE_MANAGER}} exec prisma migrate deploy'
+
+      # The applied migrations must produce exactly the schema: a schema edit shipped without a migration,
+      # or a migration that drifted from the schema, exits non-zero here.
+      - name: prisma migrate diff (schema vs applied migrations)
+        run: >-
+          {{PACKAGE_MANAGER}} exec prisma migrate diff
+          --from-url "$DATABASE_URL"
+          --to-schema-datamodel prisma/schema.prisma
+          --exit-code

@@ -1,0 +1,74 @@
+{
+  "$schema": "https://raw.githubusercontent.com/loboroboticos/shopify-app-kit/main/schemas/shopify-app.v1.schema.json",
+  "$comment": ".claude/shopify-app.json (shopify-app-kit template). The starter manifest: a public embedded app with expiring offline tokens, App Pricing and RLS Postgres. Every guard hook, the doctor and the skills read this file; repoint $schema at a tag after the first /shopify-app-kit:sync.",
+  "kit": {
+    "schemaVersion": 1,
+    "version": null
+  },
+  "app": {
+    "name": "{{APP_NAME}}",
+    "kind": "embedded-app",
+    "handles": {
+      "prod": "example-app",
+      "dev": "example-app-dev-1"
+    }
+  },
+  "shopifyCli": {
+    "configs": {
+      "dev": "example-dev",
+      "deploy": "example"
+    },
+    "requireConfigFlag": true,
+    "devPolicy": "config-required",
+    "deployPolicy": "config-required",
+    "configUsePolicy": "allowed",
+    "themeDevFromRoot": "block"
+  },
+  "branches": {
+    "default": "{{DEFAULT_BRANCH}}",
+    "protected": ["{{PROTECTED_BRANCH}}"],
+    "promotion": null
+  },
+  "packageManagers": {
+    "{{SERVER_DIR}}": "{{PACKAGE_MANAGER}}"
+  },
+  "paths": {
+    "server": "{{SERVER_DIR}}",
+    "shopifyServer": "{{SERVER_DIR}}/app/shopify.server.ts",
+    "appTomls": ["shopify.app.example.toml", "shopify.app.example-dev.toml"],
+    "webhookHandlers": "{{SERVER_DIR}}/app/routes",
+    "prisma": "{{SERVER_DIR}}/prisma"
+  },
+  "apiVersion": {
+    "expected": "2026-07",
+    "pins": ["{{SERVER_DIR}}/app/shopify.server.ts", "shopify.app.example.toml", "shopify.app.example-dev.toml"]
+  },
+  "auth": {
+    "expiringOfflineTokens": true
+  },
+  "webhooks": {
+    "topics": ["app/uninstalled", "app/scopes_update"],
+    "compliance": true
+  },
+  "scopes": {
+    "required": ["read_products"],
+    "optional": []
+  },
+  "billing": {
+    "live": false,
+    "testFlag": "BILLING_TEST",
+    "method": "app-pricing"
+  },
+  "database": {
+    "provider": "supabase",
+    "rls": true
+  },
+  "docs": {
+    "adrDir": "docs/adr",
+    "mapFile": "README.md",
+    "mapHeading": "## Docs map"
+  },
+  "checks": {
+    "tripwireDir": "test"
+  }
+}

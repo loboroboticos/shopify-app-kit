@@ -1,0 +1,31 @@
+{
+  "$comment": ".claude/settings.json (shopify-app-kit template). Pins the kit's marketplace and plugin, registers the three vendored guards (copied to .claude/hooks/kit/ by /shopify-app-kit:sync) under PreToolUse, and the bootstrap hook that installs the plugins in a remote session. The guards read .claude/shopify-app.json and fail closed without it.",
+  "extraKnownMarketplaces": {
+    "shopify-app-kit": {
+      "source": { "source": "github", "repo": "loboroboticos/shopify-app-kit" }
+    }
+  },
+  "enabledPlugins": {
+    "shopify-app-kit@shopify-app-kit": true,
+    "shopify-ai-toolkit@claude-plugins-official": true
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/kit-bootstrap.sh\"" }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/kit/guard-shopify-cli.sh\"" },
+          { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/kit/guard-protected-branch.sh\"" },
+          { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/kit/guard-package-manager.sh\"" }
+        ]
+      }
+    ]
+  }
+}

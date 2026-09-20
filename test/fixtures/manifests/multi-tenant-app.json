@@ -1,0 +1,79 @@
+{
+  "$comment": "Example manifest for a public multi-tenant app: RLS Postgres, expiring offline tokens, App Pricing, a docs map and an ADR directory.",
+  "kit": {
+    "schemaVersion": 1,
+    "version": "0.1.0"
+  },
+  "app": {
+    "name": "Example Tenant App",
+    "kind": "embedded-app",
+    "handles": {
+      "prod": "example-tenant-app",
+      "dev": "example-tenant-app-dev-1"
+    }
+  },
+  "shopifyCli": {
+    "configs": {
+      "dev": "example-dev",
+      "deploy": "example"
+    },
+    "requireConfigFlag": true,
+    "devPolicy": "config-required",
+    "deployPolicy": "config-required",
+    "configUsePolicy": "allowed",
+    "themeDevFromRoot": "block"
+  },
+  "branches": {
+    "default": "main",
+    "protected": [
+      "main"
+    ],
+    "promotion": null
+  },
+  "packageManagers": {
+    ".": "npm"
+  },
+  "paths": {
+    "server": ".",
+    "shopifyServer": "app/shopify.server.ts",
+    "appTomls": [
+      "shopify.app.example.toml",
+      "shopify.app.example-dev.toml"
+    ],
+    "webhookHandlers": "app/routes",
+    "prisma": "prisma"
+  },
+  "apiVersion": {
+    "expected": "2026-07",
+    "pins": [
+      "app/shopify.server.ts"
+    ]
+  },
+  "auth": {
+    "expiringOfflineTokens": true
+  },
+  "webhooks": {
+    "topics": [
+      "app/uninstalled",
+      "app/scopes_update"
+    ],
+    "compliance": true
+  },
+  "billing": {
+    "live": false,
+    "testFlag": "BILLING_TEST",
+    "method": "app-pricing"
+  },
+  "database": {
+    "provider": "supabase",
+    "rls": true
+  },
+  "docs": {
+    "adrDir": "docs/adr",
+    "mapFile": "README.md",
+    "mapHeading": "## Docs map"
+  },
+  "checks": {
+    "tripwireDir": "test/claude"
+  }
+}
