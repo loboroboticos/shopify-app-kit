@@ -1,0 +1,8 @@
+version: 2
+updates:
+  # CI actions are pinned by commit SHA in .github/workflows/*.yml; Dependabot bumps the pins (and the trailing
+  # version comment) so they do not go stale.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

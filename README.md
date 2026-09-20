@@ -15,6 +15,8 @@ The repo root is the plugin root and its own marketplace.
 | `agents/review-correctness.md` | Bugs, breakage, security and devex, plus every manifest contract: auth boundaries, API version pins, webhook coverage and compliance, scopes, CLI configs, protected workflows, billing test flag, shop-scoped queries and migrations. |
 | `agents/review-quality.md` | Harsh maintainability review against the app's canonical layers (Shopify server module, thin routes, one GraphQL home, per-topic webhooks, shop-scoped data layer), file-size limit from `checks.fileSize`, spaghetti growth, code-judo simplifications. |
 | `hooks/guard-shopify-cli.sh` | PreToolUse guard for `shopify app dev`, `shopify app deploy`, `shopify app config use`, `<pm> run deploy` and `shopify theme dev`, driven by the manifest's `shopifyCli` policies. Fails closed when the manifest or `jq` is missing. |
+| `hooks/guard-protected-branch.sh` | PreToolUse guard for `git push`, `gh pr merge`, `gh pr edit --base`, `gh api` writes and `gh workflow run`, driven by `branches.protected` and `deploy.protectedWorkflows`. Lets the session open a promotion PR, never land one. Fails closed when the manifest, `jq` or a PR's base cannot be read. |
+| `hooks/guard-package-manager.sh` | PreToolUse guard that keeps `pnpm` and `npm` in the directories `packageManagers` maps them to (exact entry; effective directory after `cd`, `pnpm -C`, `npm --prefix`). Fails closed when the manifest or `jq` is missing. |
 | `hooks/lib.sh` | Shared bash the guards source: manifest resolution, block messages, path normalisation, heredoc stripping, command splitting with `cd` tracking. |
 | `hooks/doctor.sh` | SessionStart briefing: validates the manifest structurally, prints the app facts, reports vendored-hook drift. Silent in repos without a manifest. |
 | `/shopify-app-kit:doctor` | Same checks, on demand, plus settings-registration drift. |
@@ -57,7 +59,9 @@ The repo root is the plugin root and its own marketplace.
          {
            "matcher": "Bash",
            "hooks": [
-             { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/kit/guard-shopify-cli.sh\"" }
+             { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/kit/guard-shopify-cli.sh\"" },
+             { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/kit/guard-protected-branch.sh\"" },
+             { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/kit/guard-package-manager.sh\"" }
            ]
          }
        ]
@@ -117,7 +121,10 @@ Keys the hooks read:
 | `shopifyCli.configUsePolicy` | same enum | `shopify app config use X`: X must be a manifest config / blocked outright / passes. |
 | `shopifyCli.configs.{dev,deploy}` | config names | Required when the matching policy is `config-required`. A `--config` value that differs from the manifest is blocked: a wrong config is worse than a missing one. |
 | `shopifyCli.themeDevFromRoot` | `block` / `allow` | `shopify theme dev` whose effective directory (after `cd` / `--path`) is the repo root is blocked. A `cd` to a non-literal path before it fails closed. |
-| `packageManagers` | `{ "<dir>": "npm" \| "pnpm" }` | Read by the doctor now; the package-manager guard arrives in a later version. |
+| `branches.protected` | non-empty array | `git push` to one of these (explicit refspec, `--all`/`--mirror`, or an implicit/`HEAD` push from a checkout on one), `gh pr merge` into one, `gh pr edit --base` onto one, and `gh api` writes to `pulls/<n>/merge`, `/merges`, `git/refs/heads/<branch>` or a `mergePullRequest` mutation are blocked. An empty array fails closed. |
+| `branches.default`, `branches.promotion` | branch name; `{ from, to }` or `null` | Only quoted in the block message: "Target `<default>` instead; Claude may open a `<from> -> <to>` promotion PR when asked, never merge it." `gh pr create --base <protected>` is allowed for exactly that. |
+| `deploy.protectedWorkflows` | workflow file names | `gh workflow run` of one of these is blocked, matched by file name, by `.github/workflows/<file>`, or by the workflow's `name:` read from the consumer's `.github/workflows/<file>`. |
+| `packageManagers` | `{ "<dir>": "npm" \| "pnpm" }` | `pnpm …` in a directory mapped to `npm`, and `npm install\|ci\|i\|add\|update\|uninstall\|run …` in a directory mapped to `pnpm`, are blocked. The directory is the effective one after `cd`/`pushd`/`popd`, `pnpm -C`/`--dir` or `npm --prefix`, looked up as an exact repo-relative entry (`"."` = root); unmapped directories are left alone (no nearest-ancestor lookup yet). A `cd` to a non-literal path before a guarded command fails closed. |
 
 `operator-only` blocks tell the session to ask the maintainer to run the command from their terminal.
 Block messages start with `Blocked by shopify-app-kit/<hook>:` and end with
@@ -165,3 +172,8 @@ claude --plugin-dir .                # /shopify-app-kit:doctor should be listed
 See `/shopify-app-kit:kit-dev` (skills/kit-dev/SKILL.md) for how to add hooks, skills and agents, and how to
 release. Any change under `skills/`, `agents/`, `hooks/`, `workflows/`, `schemas/`, `.mcp.json` or `.claude-plugin/`
 needs a version bump; CI checks it on PRs to `main`.
+
+## License
+
+MIT (see `LICENSE`). The two review agents are adapted from Cursor's Thermos plugin, also MIT; its notice is
+reproduced in the third-party section of `LICENSE`.

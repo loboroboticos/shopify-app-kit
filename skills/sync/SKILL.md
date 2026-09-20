@@ -44,7 +44,9 @@ their logic, and touches nothing outside `.claude/`.
          {
            "matcher": "Bash",
            "hooks": [
-             { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/kit/guard-shopify-cli.sh\"" }
+             { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/kit/guard-shopify-cli.sh\"" },
+             { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/kit/guard-protected-branch.sh\"" },
+             { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/kit/guard-package-manager.sh\"" }
            ]
          }
        ]
@@ -52,7 +54,8 @@ their logic, and touches nothing outside `.claude/`.
    }
    ```
 
-   One entry per `guard-*.sh` that was copied. Do not register `lib.sh`; it is sourced by the guards.
+   One entry per `guard-*.sh` that was copied (as of v0.3.0: `guard-shopify-cli.sh`, `guard-protected-branch.sh`,
+   `guard-package-manager.sh`). Do not register `lib.sh`; it is sourced by the guards.
 
 6. **Verify.** Run one blocked and one allowed case through the vendored guard, for example:
 
@@ -62,7 +65,9 @@ their logic, and touches nothing outside `.claude/`.
    ```
 
    Expect exit 2 with a `Blocked by shopify-app-kit/guard-shopify-cli:` message under a `config-required` or
-   `operator-only` deploy policy. Then run the `doctor` skill and confirm it reports no drift.
+   `operator-only` deploy policy. Likewise `git push origin <protected>` through `guard-protected-branch.sh` and
+   `pnpm install` from a directory mapped to `npm` (or `npm install` from one mapped to `pnpm`) through
+   `guard-package-manager.sh`. Then run the `doctor` skill and confirm it reports no drift.
 
 7. **Commit** `.claude/hooks/kit/`, the manifest and settings change together, with a message like
    `chore: sync shopify-app-kit v<version> hooks`.
