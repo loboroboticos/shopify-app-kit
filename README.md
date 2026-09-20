@@ -39,7 +39,10 @@ The repo root is the plugin root and its own marketplace.
    }
    ```
 
-   The marketplace is private, so each developer's `claude` must be able to read the GitHub repo.
+   The repository is public, so the pin resolves from any session or CI without a token. A project pin registers the
+   marketplace but does not install the plugin until `claude plugin install` has run once, so a consumer that runs in
+   cloud sessions adds a repo-owned SessionStart hook (see a consumer's `.claude/hooks/kit-bootstrap.sh`) that installs
+   it when absent; the vendored guards fire either way.
 
 2. Write `.claude/shopify-app.json` (see the manifest contract below; start from
    `test/fixtures/manifests/npm-root-app.json` or `pnpm-root-app.json`).
@@ -74,7 +77,9 @@ The doctor flags hook headers whose `# shopify-app-kit vX.Y.Z` line no longer ma
 ## The manifest contract
 
 `.claude/shopify-app.json`, schema v1. The top level is closed (`additionalProperties: false`); sections grow
-additively. Required sections: `kit`, `app`, `shopifyCli`, `branches`, `packageManagers`.
+additively. Required sections: `kit`, `app`, `shopifyCli`, `branches`, `packageManagers`. Two optional metadata keys
+are also allowed at the top level: `$schema` (a URL to this schema, for editors) and `$comment` (a free-text note);
+the hooks ignore both.
 
 ```json
 {

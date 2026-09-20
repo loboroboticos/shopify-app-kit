@@ -109,6 +109,23 @@ describe('schema v1', () => {
     assert.ok(errs.some((e) => /shopifyCli: missing required configs/.test(e)), JSON.stringify(errs));
   });
 
+  test('top-level $schema and $comment metadata keys are allowed', () => {
+    const m = load('annotated-app.json');
+    assert.equal(typeof m.$schema, 'string');
+    assert.equal(typeof m.$comment, 'string');
+    assert.deepEqual(validate(m, schema), []);
+  });
+
+  test('an unrelated unknown key still fails next to the metadata keys', () => {
+    const errs = validate(mutate('annotated-app.json', (m) => { m.$notes = 'x'; }), schema);
+    assert.deepEqual(errs, ['$: unexpected property $notes']);
+  });
+
+  test('metadata keys must be strings', () => {
+    const errs = validate(mutate('annotated-app.json', (m) => { m.$comment = { text: 'x' }; }), schema);
+    assert.ok(errs.some((e) => /\$\.\$comment: expected type string/.test(e)), JSON.stringify(errs));
+  });
+
   test('sections may grow additively', () => {
     assert.deepEqual(validate(mutate('npm-root-app.json', (m) => { m.deploy.newThing = true; m.app.extra = 'x'; }), schema), []);
   });

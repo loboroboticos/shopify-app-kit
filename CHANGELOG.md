@@ -3,6 +3,19 @@
 All notable changes to shopify-app-kit. The version is the plugin version in `.claude-plugin/plugin.json`; every
 vendored hook carries it on line 2 (`# shopify-app-kit vX.Y.Z`).
 
+## 0.2.1
+
+Follow-ups from the first consumer adoption.
+
+- Manifest metadata keys: schema v1 now allows `$schema` and `$comment` (both optional strings) at the top level, so a
+  consumer can point editors at the schema and leave a note without `hooks/doctor.sh` reporting them as
+  "unknown top-level key". The doctor's known-key list matches; every other unknown key is still reported and still
+  fails schema validation. New fixture `test/fixtures/manifests/annotated-app.json` covers both.
+- README: the repository is public, so the marketplace pin resolves without a token; documented that a project pin
+  registers the marketplace but does not install the plugin until `claude plugin install` has run once, and how a
+  consumer running in cloud sessions bootstraps that with a repo-owned SessionStart hook.
+- Hook headers and `KIT_VERSION` bumped to 0.2.1; hook logic unchanged.
+
 ## 0.2.0
 
 Review agents, modelled on Cursor's Thermos plugin (MIT) and made manifest-aware.

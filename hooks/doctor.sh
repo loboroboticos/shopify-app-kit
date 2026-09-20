@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shopify-app-kit v0.2.0
+# shopify-app-kit v0.2.1
 # hooks/doctor.sh: SessionStart briefing for a consumer repo. Validates .claude/shopify-app.json structurally
 # (required keys, enums, patterns of schema v1), prints one paragraph of facts to stdout, and reports vendored-hook
 # drift. Never exits non-zero. Silent when the repo has no manifest (it is not a consumer).
@@ -33,7 +33,7 @@ problems="$(jq -r '
   def isstr: type == "string";
   def isobj: type == "object";
   def strarr: type == "array" and all(.[]; type == "string");
-  def known: ["kit","app","shopifyCli","branches","packageManagers","paths","apiVersion","webhooks","scopes","deploy","billing","database","checks"];
+  def known: ["$schema","$comment","kit","app","shopifyCli","branches","packageManagers","paths","apiVersion","webhooks","scopes","deploy","billing","database","checks"];
   prob(isobj; "manifest must be a JSON object")
   + prob(.kit.schemaVersion == 1; "kit.schemaVersion must be 1")
   + prob((.kit.version == null) or (.kit.version | isstr); "kit.version must be a string or null")

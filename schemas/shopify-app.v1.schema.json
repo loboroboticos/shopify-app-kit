@@ -7,6 +7,14 @@
   "additionalProperties": false,
   "required": ["kit", "app", "shopifyCli", "branches", "packageManagers"],
   "properties": {
+    "$schema": {
+      "description": "Optional editor hint: a URL to this schema (for example the raw file at a kit tag). Ignored by the hooks.",
+      "type": "string"
+    },
+    "$comment": {
+      "description": "Optional free-text note for humans reading the manifest. Ignored by the hooks.",
+      "type": "string"
+    },
     "kit": {
       "type": "object",
       "required": ["schemaVersion"],
