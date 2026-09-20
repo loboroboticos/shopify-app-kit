@@ -1,0 +1,111 @@
+{
+  "$schema": "https://raw.githubusercontent.com/loboroboticos/shopify-app-kit/v0.2.1/schemas/shopify-app.v1.schema.json",
+  "$comment": "Example manifest carrying the optional top-level metadata keys; everything else mirrors npm-root-app.json.",
+  "kit": {
+    "schemaVersion": 1,
+    "version": "0.1.0"
+  },
+  "app": {
+    "name": "Example App",
+    "kind": "embedded-app",
+    "handles": {
+      "prod": "example-app",
+      "dev": "example-app-dev-1"
+    }
+  },
+  "shopifyCli": {
+    "configs": {
+      "dev": "example-dev",
+      "deploy": "example"
+    },
+    "requireConfigFlag": true,
+    "devPolicy": "config-required",
+    "deployPolicy": "config-required",
+    "configUsePolicy": "allowed",
+    "themeDevFromRoot": "block"
+  },
+  "branches": {
+    "default": "beta",
+    "protected": [
+      "main"
+    ],
+    "promotion": {
+      "from": "beta",
+      "to": "main"
+    }
+  },
+  "packageManagers": {
+    ".": "npm",
+    "web": "pnpm"
+  },
+  "paths": {
+    "server": "web",
+    "shopifyServer": "web/app/shopify.server.ts",
+    "appTomls": [
+      "shopify.app.example.toml",
+      "shopify.app.example-dev.toml"
+    ],
+    "webhookHandlers": "web/app/routes",
+    "prisma": "web/prisma",
+    "extensions": [
+      "extensions/example"
+    ],
+    "storeBindings": "config/stores.json"
+  },
+  "apiVersion": {
+    "expected": "2026-07",
+    "pins": [
+      "web/app/shopify.server.ts",
+      "shopify.app.example.toml",
+      "shopify.app.example-dev.toml"
+    ]
+  },
+  "webhooks": {
+    "topics": [
+      "app/uninstalled",
+      "app/scopes_update",
+      "app_subscriptions/update"
+    ],
+    "compliance": true
+  },
+  "scopes": {
+    "required": [
+      "read_products"
+    ],
+    "optional": [
+      "read_themes"
+    ]
+  },
+  "deploy": {
+    "targets": {
+      "prod": {
+        "fly": "example-app",
+        "flyToml": "web/fly.toml",
+        "workflow": "deploy.yml"
+      },
+      "beta": {
+        "fly": "example-app-beta",
+        "flyToml": "web/fly.beta.toml",
+        "workflow": "deploy-beta.yml"
+      }
+    },
+    "protectedWorkflows": [
+      "deploy.yml",
+      "shopify-deploy.yml"
+    ],
+    "scaleToZeroBeforeMigrate": true
+  },
+  "billing": {
+    "live": true,
+    "testFlag": "BILLING_TEST"
+  },
+  "database": {
+    "provider": "prisma-postgres",
+    "rls": false,
+    "sharedDevDbWithBeta": true
+  },
+  "checks": {
+    "fileSize": "web/file-size.test.mjs",
+    "tripwireDir": "test/claude"
+  }
+}

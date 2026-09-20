@@ -152,6 +152,26 @@ describe('doctor.sh', () => {
     assert.match(r.stdout, /Drift: .*hooks\/kit\/ does not exist/);
   });
 
+  test('accepts $schema and $comment without reporting unknown top-level keys', () => {
+    const r = runHook('doctor.sh', { manifest: path.join(fixtures, 'annotated-app.json'), event: 'SessionStart' });
+    assert.equal(r.status, 0, r.stderr);
+    assert.match(r.stdout, /shopify-app-kit doctor \(v\d+\.\d+\.\d+\): .*OK \(schema v1, kit\.version 0\.1\.0\)/);
+    assert.doesNotMatch(r.stdout, /unknown top-level key/);
+    assert.doesNotMatch(r.stdout, /does not satisfy schema v1/);
+  });
+
+  test('still reports an unrelated unknown top-level key', () => {
+    const m = JSON.parse(fs.readFileSync(path.join(fixtures, 'annotated-app.json'), 'utf8'));
+    m.$notes = 'x';
+    const p = path.join(consumer, 'unknown-key-manifest.json');
+    fs.writeFileSync(p, JSON.stringify(m));
+    const r = runHook('doctor.sh', { manifest: p, event: 'SessionStart' });
+    assert.equal(r.status, 0, r.stderr);
+    assert.match(r.stdout, /does not satisfy schema v1/);
+    assert.match(r.stdout, /- unknown top-level key: \$notes/);
+    assert.doesNotMatch(r.stdout, /unknown top-level key: \$(schema|comment)/);
+  });
+
   test('is silent without a manifest and exits 0', () => {
     const r = runHook('doctor.sh', { manifest: MISSING, event: 'SessionStart' });
     assert.equal(r.status, 0);
