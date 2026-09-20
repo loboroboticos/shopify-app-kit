@@ -3,6 +3,35 @@
 All notable changes to shopify-app-kit. The version is the plugin version in `.claude-plugin/plugin.json`; every
 vendored hook carries it on line 2 (`# shopify-app-kit vX.Y.Z`).
 
+## 0.6.0
+
+The `pre-pr-review` workflow: the diff-stage roster in one go, deduped, verified, one verdict.
+
+- `workflows/pre-pr-review.js` (the kit's first workflow; Claude Code loads `workflows/*.js` from the plugin root as
+  `/shopify-app-kit:<meta.name>`): a scoping agent reads the manifest, picks the base like the review skill
+  (argument, PR base, `promotion.to` from the promotion branch, `branches.default`, `main`), lists the changed files
+  and takes the intent from the PR body or a plan file; the five `qa-review-*` agents run in parallel, with
+  `prisma-migration-reviewer` when the diff touches `paths.prisma`, a `schema.prisma` or a migrations directory and
+  `storefront-extension-reviewer` when `paths.extensions` is declared and touched (`all: true` forces both); every
+  reviewer is launched as `agentType: shopify-app-kit:<name>` with a structured findings schema (severity,
+  claim, file, line, section, evidence, fix, plus headline and what was checked); findings on the same file within
+  three lines, or the same section without a file, merge into one carrying the highest severity and every reviewer;
+  each blocker and major (up to twelve, the rest reported unverified) goes to a read-only skeptic, and a refuted
+  finding is kept as a `note` with the reason; the verdict is `block` / `changes-needed` / `approve`. Skipped and
+  failed reviewers are returned by name. Arguments: a base-branch string or `{ base, pr, reviewers, all }`.
+- Tests: `test/workflows-parity.test.mjs` (only `.js` files, `export const meta` first and a pure literal evaluated
+  with no globals, `name` = file name, `whenToUse` with "Use when", phase titles equal to the `phase()` calls and
+  `phase:` options, every `shopify-app-kit:<agent>` exists under `agents/`, the script parses as a workflow body
+  (an async function, so top-level `await` and `return` are allowed as the runtime allows them), no `Date.now` /
+  `Math.random` / `new Date()` / `require` / `import` / `process`); `test/workflows-run.test.mjs` runs the script
+  under a stub runtime with canned reviewer output and asserts roster selection, dedupe, refutation, the failed
+  list, the empty-diff short-circuit and the verdict.
+- README: a row for the workflow and a "The pre-pr-review workflow" subsection replacing the "arrives in the next
+  version" note; `kit-dev` documents `workflows/` and how to add one; the review skill points at the workflow.
+- CI's version-bump check already watched `workflows/`.
+- Hook headers, `KIT_VERSION`, `plugin.json` and the annotated fixture's `$schema` bumped to 0.6.0; hook logic
+  unchanged.
+
 ## 0.5.0
 
 A review roster: nine single-lens review personas ported from the Engine template, plus two Shopify stack reviewers.

@@ -22,7 +22,8 @@ Fixtures use invented names (`example-app`, `example-dev`).
 | `schemas/` | manifest JSON Schema (draft 2020-12), `additionalProperties: false` at the top level only |
 | `skills/<name>/SKILL.md` | skills; `name` must equal the directory, description must contain "Use when" |
 | `skills/<name>/references/*.md` | depth for a skill (plain markdown, no frontmatter, ends with a `Sources:` line); the SKILL.md links each |
-| `agents/<name>.md` | review subagents launched by the `review` skill; read-only, manifest-aware |
+| `agents/<name>.md` | review subagents launched by the `review` skill and the review roster; read-only, manifest-aware |
+| `workflows/<name>.js` | Workflow scripts (plain JavaScript, `export const meta` first) that orchestrate the agents; loaded as `/shopify-app-kit:<name>` |
 | `lessons/INDEX.md`, `lessons/README.md` | the lessons catalogue and its extraction discipline; homes are reference files or agent sections |
 | `.github/workflows/release-tag.yml` | tags `v<version>` and publishes the release when a bump merges to `main` |
 | `test/` | `node --test test/`, zero dependencies |
@@ -67,11 +68,21 @@ Lessons are facts a session needs more than once, written generically and cited 
 
 ## Add an agent or workflow
 
-Put agents in `agents/<name>.md` (frontmatter `name` = file name, `description` containing "Use when", `tools`).
-Review agents stay read-only (`test/agents-parity.test.mjs` rejects Write/Edit tools) and generic: the
-orchestrating skill passes the manifest, diff and changed files in the prompt, and the agent keys its checks to
-manifest sections rather than to any repo. Any addition under `agents/`, `hooks/`, `skills/`, `schemas/`,
-`workflows/`, `lessons/`, `.mcp.json` or `.claude-plugin/` requires a version bump (CI enforces it on PRs to `main`).
+Put agents in `agents/<name>.md` (frontmatter `name` = file name, `description` containing "Use when", `tools`,
+`disallowedTools: Edit, Write, NotebookEdit`). Review agents stay read-only (`test/agents-parity.test.mjs` rejects
+Write/Edit tools) and generic: the orchestrating skill or workflow passes the base, changed files and intent in the
+prompt, and the agent reads the manifest and keys its checks to manifest sections rather than to any repo. Roster
+agents (`design-review-*`, `qa-review-*`, the stack reviewers) also keep the four headings, the standing clause
+and the shared findings shape the parity test asserts.
+
+Put workflows in `workflows/<name>.js`: plain JavaScript (no TypeScript, no imports, no `Date.now`), the first
+statement a pure-literal `export const meta = { name, description, whenToUse, phases }` with `name` = file name
+and a `whenToUse` containing "Use when"; only `.js` is loaded (`.mjs`/`.ts` are skipped). Launch kit agents with
+`agent(prompt, { agentType: 'shopify-app-kit:<agent>', schema })`; every such name must exist under `agents/`.
+`test/workflows-parity.test.mjs` checks the meta, the phase titles and the agent names, and
+`test/workflows-run.test.mjs` runs the script under a stub runtime with canned reviewer output, so add a case there
+for any new branch of logic. Any addition under `agents/`, `hooks/`, `skills/`, `schemas/`, `workflows/`,
+`lessons/`, `.mcp.json` or `.claude-plugin/` requires a version bump (CI enforces it on PRs to `main`).
 
 ## Test and validate
 
