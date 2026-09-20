@@ -21,6 +21,7 @@ Fixtures use invented names (`example-app`, `example-dev`).
 | `hooks/doctor.sh` | SessionStart briefing; the only hook `hooks/hooks.json` registers |
 | `schemas/` | manifest JSON Schema (draft 2020-12), `additionalProperties: false` at the top level only |
 | `skills/<name>/SKILL.md` | skills; `name` must equal the directory, description must contain "Use when" |
+| `agents/<name>.md` | review subagents launched by the `review` skill; read-only, manifest-aware |
 | `test/` | `node --test test/`, zero dependencies |
 
 ## Add a guard hook
@@ -45,9 +46,11 @@ invoke. Reference consumer files as `${CLAUDE_PROJECT_DIR}/...` and kit files as
 
 ## Add an agent or workflow
 
-Put agents in `agents/<name>.md` (frontmatter `name`, `description`, `tools`). They must stay generic: read the
-manifest for repo facts. Any addition under `agents/`, `hooks/`, `skills/`, `schemas/`, `workflows/`, `.mcp.json`
-or `.claude-plugin/` requires a version bump (CI enforces it on PRs to `main`).
+Put agents in `agents/<name>.md` (frontmatter `name` = file name, `description` containing "Use when", `tools`).
+Review agents stay read-only (`test/agents-parity.test.mjs` rejects Write/Edit tools) and generic: the
+orchestrating skill passes the manifest, diff and changed files in the prompt, and the agent keys its checks to
+manifest sections rather than to any repo. Any addition under `agents/`, `hooks/`, `skills/`, `schemas/`,
+`workflows/`, `.mcp.json` or `.claude-plugin/` requires a version bump (CI enforces it on PRs to `main`).
 
 ## Test and validate
 

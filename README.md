@@ -7,10 +7,13 @@ any particular app, store or hosting account; every repo-specific fact lives in 
 
 The repo root is the plugin root and its own marketplace.
 
-## What you get (v0.1.0)
+## What you get
 
 | Component | What it does |
 | --- | --- |
+| `/shopify-app-kit:review` | Deep pre-merge review: the two agents below run in parallel on the branch diff, each checking it against the manifest, and the skill synthesizes one verdict. |
+| `agents/review-correctness.md` | Bugs, breakage, security and devex, plus every manifest contract: auth boundaries, API version pins, webhook coverage and compliance, scopes, CLI configs, protected workflows, billing test flag, shop-scoped queries and migrations. |
+| `agents/review-quality.md` | Harsh maintainability review against the app's canonical layers (Shopify server module, thin routes, one GraphQL home, per-topic webhooks, shop-scoped data layer), file-size limit from `checks.fileSize`, spaghetti growth, code-judo simplifications. |
 | `hooks/guard-shopify-cli.sh` | PreToolUse guard for `shopify app dev`, `shopify app deploy`, `shopify app config use`, `<pm> run deploy` and `shopify theme dev`, driven by the manifest's `shopifyCli` policies. Fails closed when the manifest or `jq` is missing. |
 | `hooks/lib.sh` | Shared bash the guards source: manifest resolution, block messages, path normalisation, heredoc stripping, command splitting with `cd` tracking. |
 | `hooks/doctor.sh` | SessionStart briefing: validates the manifest structurally, prints the app facts, reports vendored-hook drift. Silent in repos without a manifest. |
@@ -98,7 +101,7 @@ additively. Required sections: `kit`, `app`, `shopifyCli`, `branches`, `packageM
 }
 ```
 
-Keys the v0.1.0 hooks read:
+Keys the hooks read:
 
 | Key | Values | Effect |
 | --- | --- | --- |
@@ -113,11 +116,25 @@ Keys the v0.1.0 hooks read:
 
 `operator-only` blocks tell the session to ask the maintainer to run the command from their terminal.
 Block messages start with `Blocked by shopify-app-kit/<hook>:` and end with
-`Cases: shopify-app-kit test/hooks.test.mjs (v0.1.0).` so a consumer can trace any block to a test case.
+`Cases: shopify-app-kit test/hooks.test.mjs (vX.Y.Z).` so a consumer can trace any block to a test case.
 
 Manifest lookup order: `$SHOPIFY_APP_KIT_MANIFEST`, then `$CLAUDE_PROJECT_DIR/.claude/shopify-app.json`, then the
 nearest `.claude/shopify-app.json` walking up from the command's working directory. The consumer root is the
 manifest's grandparent (or `$SHOPIFY_APP_KIT_ROOT` / `$CLAUDE_PROJECT_DIR` when the manifest lives elsewhere).
+
+## Reviewing a branch
+
+`/shopify-app-kit:review [base | PR number]` picks the base from the manifest (`branches.default`, or
+`promotion.to` when you are on the promotion branch), gathers the diff, and launches `review-correctness` and
+`review-quality` in parallel with the manifest, diff and changed files in their prompts. Each returns prioritized
+findings with file:line evidence; the skill dedupes them and reports one verdict (`block`, `changes-needed`,
+`approve`) with a per-section manifest checklist. The agents are read-only and never post to the PR unless asked.
+
+The manifest is what makes the review specific: the correctness agent knows which files must pin
+`apiVersion.expected`, which webhook topics need handlers, which scopes are allowed, whether billing is live,
+whether queries must be shop-scoped by hand, and which workflows are protected. The quality agent knows where the
+app's canonical layers live and what file-size limit `checks.fileSize` enforces. Sections missing from the manifest
+are skipped, and without a manifest the review runs in generic mode.
 
 ## The three-plugin rule
 

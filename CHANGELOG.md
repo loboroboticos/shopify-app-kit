@@ -3,6 +3,25 @@
 All notable changes to shopify-app-kit. The version is the plugin version in `.claude-plugin/plugin.json`; every
 vendored hook carries it on line 2 (`# shopify-app-kit vX.Y.Z`).
 
+## 0.2.0
+
+Review agents, modelled on Cursor's Thermos plugin (MIT) and made manifest-aware.
+
+- `agents/review-correctness.md`: diff-scoped bugs, breakage, security and devex audit, plus a checklist keyed to
+  the manifest: auth boundaries, `apiVersion.pins`, `webhooks.topics` and compliance handlers, `scopes`, app TOML
+  parity, `branches` and `deploy.protectedWorkflows`, `scaleToZeroBeforeMigrate`, `billing.testFlag`, shop-scoped
+  queries under `database.rls: false`, destructive migrations under `sharedDevDbWithBeta`, lockfiles per
+  `packageManagers`, extension API versions, `checks` tests and kit-owned files. Reports P0/P1/P2 with file:line
+  evidence, a manifest-checks table, and what it chose not to report.
+- `agents/review-quality.md`: strict maintainability review with a canonical-layer table for Shopify apps built on
+  React Router and Prisma, the file-size limit taken from `checks.fileSize`, code-judo simplifications, spaghetti
+  growth, boundary and type-contract problems, and presumptive blockers.
+- `skills/review/SKILL.md` (user-invoked): picks the base from the manifest, gathers the diff, launches both
+  agents in parallel with identical context, dedupes and synthesizes one verdict. Never posts to a PR unless asked.
+- `test/agents-parity.test.mjs`: agent frontmatter keys, name = file name, description with "Use when", read-only
+  tools.
+- Hook headers and `KIT_VERSION` bumped to 0.2.0; hook logic unchanged.
+
 ## 0.1.0
 
 First release: skeleton, schema, one guard, doctor, tests, CI.

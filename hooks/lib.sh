@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shopify-app-kit v0.1.0
+# shopify-app-kit v0.2.0
 # hooks/lib.sh: shared helpers for the shopify-app-kit guard hooks. Sourced, never executed.
 # Vendored into consumers at .claude/hooks/kit/lib.sh by /shopify-app-kit:sync, next to the guards.
 #
@@ -14,7 +14,7 @@
 #   kit_walk_commands CMD CB  -> calls CB "<effective dir>" <prog> <args...> for every simple command in CMD,
 #                                after heredoc stripping, control-operator splitting and cd/pushd/popd tracking.
 
-KIT_VERSION="0.1.0"
+KIT_VERSION="0.2.0"
 KIT_HOOK_NAME="${KIT_HOOK_NAME:-hook}"
 KIT_MANIFEST_RULE="Add or repair .claude/shopify-app.json (the repo manifest the kit's guard hooks read; schema: shopify-app-kit schemas/shopify-app.v1.schema.json)."
 
