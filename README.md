@@ -25,6 +25,7 @@ The repo root is the plugin root and its own marketplace.
 | `agents/qa-review-divergence-hunter.md` | Diff-stage reviewer that assumes a divergence exists and hunts for it: green tests that check the wrong thing, guardrails that can be slipped past, half-done requirements, code nobody asked for. |
 | `agents/prisma-migration-reviewer.md` | Diff-stage reviewer for `schema.prisma` and migrations, keyed to `database.*`, `paths.prisma` and `deploy.scaleToZeroBeforeMigrate`: destructive operations, schema/migration parity, hand-edited SQL, RLS on new tables, the scale-to-zero step, shared-beta drift, refresh-token columns for expiring offline tokens. Never proposes editing a generated migration in place. |
 | `agents/storefront-extension-reviewer.md` | Diff-stage reviewer for theme app extensions, a one-line no-op when `paths.extensions` is empty: settings-schema compatibility, platform-minted block uids, edge-cache assumptions, asset size limits, vendored-copy parity with a drift test under `checks.tripwireDir`, no server round-trip on the render path, locales in step with the schema. |
+| `/shopify-app-kit:pre-pr-review` | Workflow (`workflows/pre-pr-review.js`): scopes the branch from the manifest, runs the diff-stage roster in parallel (the stack reviewers only when the diff touches their files), merges findings on the same spot, sends every blocker and major to a skeptic, and returns one verdict (`block`, `changes-needed`, `approve`) with the merged findings. Takes an optional base branch or `{ base, pr, reviewers, all }`. |
 | `hooks/guard-shopify-cli.sh` | PreToolUse guard for `shopify app dev`, `shopify app deploy`, `shopify app config use`, `<pm> run deploy` and `shopify theme dev`, driven by the manifest's `shopifyCli` policies. Fails closed when the manifest or `jq` is missing. |
 | `hooks/guard-protected-branch.sh` | PreToolUse guard for `git push`, `gh pr merge`, `gh pr edit --base`, `gh api` writes and `gh workflow run`, driven by `branches.protected` and `deploy.protectedWorkflows`. Lets the session open a promotion PR, never land one. Fails closed when the manifest, `jq` or a PR's base cannot be read. |
 | `hooks/guard-package-manager.sh` | PreToolUse guard that keeps `pnpm` and `npm` in the directories `packageManagers` maps them to (exact entry; effective directory after `cd`, `pnpm -C`, `npm --prefix`). Fails closed when the manifest or `jq` is missing. |
@@ -190,8 +191,27 @@ checkout are enough to launch it (`subagent_type: "shopify-app-kit:<name>"`).
 The nine `design-review-*` and `qa-review-*` personas are ported from the
 [Engine template](https://github.com/StarshipSuperjam/engine-template) with its orchestrator, packets and memory
 servers rewritten into the plan file, the PR description, the diff and the manifest (see `CHANGELOG.md` for the
-port rules). A `pre-pr-review` workflow that launches the diff-stage roster in one go and dedupes the findings
-arrives in the next version.
+port rules).
+
+### The pre-pr-review workflow
+
+`/shopify-app-kit:pre-pr-review [base | { "base", "pr", "reviewers", "all" }]` runs the diff-stage roster in one
+go. It is a Claude Code workflow script (`workflows/pre-pr-review.js`, plain JavaScript loaded from the plugin):
+
+1. **Scope.** One cheap agent reads the manifest, picks the base the way the review skill does (argument, then the
+   PR's base, then `promotion.to` from the promotion branch, then `branches.default`, then `main`), lists the
+   changed files, and takes the intent from the PR body or a plan file the branch adds.
+2. **Review.** The five `qa-review-*` agents run in parallel; `prisma-migration-reviewer` runs when the diff touches
+   `paths.prisma`, a `schema.prisma` or a migrations directory, and `storefront-extension-reviewer` when
+   `paths.extensions` is declared and touched (`all: true` forces both). Every reviewer returns findings on the
+   shared shape. Skipped reviewers and reviewers that return nothing are listed, never silently dropped.
+3. **Dedupe.** Findings on the same file within three lines, or on the same section when there is no file, merge
+   into one carrying the highest severity and every reviewer that raised it.
+4. **Verify.** Each blocker and major (up to twelve; the rest are reported unverified) goes to a read-only skeptic
+   that tries to refute it. A refuted finding is kept as a `note` with the reason, so the operator sees what was
+   argued away.
+5. **Verdict.** `block` on a surviving blocker, `changes-needed` on a major, else `approve`; the launching session
+   reports it. Nothing is posted to the PR and no file is modified.
 
 ## Lessons
 

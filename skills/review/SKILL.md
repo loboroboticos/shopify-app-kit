@@ -66,4 +66,5 @@ maintainability against the app's canonical layers. Both are diff-scoped and evi
 - Findings against files under `.claude/hooks/kit/` mean "re-run `/shopify-app-kit:sync`", not "edit the hook".
 - For a single-lens pass the kit also ships a review roster (`agents/design-review-*.md` on a plan before building,
   `agents/qa-review-*.md`, `prisma-migration-reviewer` and `storefront-extension-reviewer` on a diff before a PR);
-  see the README's "Review roster". This skill launches only the two agents above.
+  `/shopify-app-kit:pre-pr-review` runs the whole diff-stage roster and dedupes the findings. See the README's
+  "Review roster". This skill launches only the two agents above.
