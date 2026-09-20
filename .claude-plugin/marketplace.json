@@ -1,0 +1,12 @@
+{
+  "name": "shopify-app-kit",
+  "owner": { "name": "Lobo Robotico & Co" },
+  "description": "Marketplace for shopify-app-kit, the developer kit Shopify app repos pin from their .claude/settings.json.",
+  "plugins": [
+    {
+      "name": "shopify-app-kit",
+      "source": "./",
+      "description": "Developer kit for Shopify apps built with Claude Code: manifest-driven guard hooks, skills, review agents."
+    }
+  ]
+}

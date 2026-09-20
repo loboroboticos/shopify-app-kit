@@ -1,0 +1,18 @@
+{
+  "kit": { "schemaVersion": 1, "version": null },
+  "app": { "name": "Sample Storefront Tool", "kind": "embedded-app", "handles": { "prod": "sample-tool" } },
+  "shopifyCli": { "requireConfigFlag": false,
+                  "devPolicy": "allowed", "deployPolicy": "operator-only", "configUsePolicy": "operator-only", "themeDevFromRoot": "allow" },
+  "branches": { "default": "main", "protected": ["main"], "promotion": null },
+  "packageManagers": { ".": "pnpm" },
+  "paths": { "server": ".", "shopifyServer": "app/shopify.server.ts", "appTomls": ["shopify.app.toml"],
+             "webhookHandlers": "app/routes", "prisma": "prisma", "extensions": [] },
+  "apiVersion": { "expected": "2026-07", "pins": ["app/shopify.server.ts", "shopify.app.toml"] },
+  "webhooks": { "topics": ["app/uninstalled", "app/scopes_update"], "compliance": true },
+  "scopes": { "required": ["read_products", "write_products"], "optional": [] },
+  "deploy": { "targets": { "prod": { "fly": "sample-tool", "flyToml": "fly.toml", "workflow": "deploy.yml" } },
+              "protectedWorkflows": ["deploy.yml"], "scaleToZeroBeforeMigrate": false },
+  "billing": { "live": false, "testFlag": "BILLING_TEST" },
+  "database": { "provider": "sqlite", "rls": false, "sharedDevDbWithBeta": false },
+  "checks": { "tripwireDir": "test/claude" }
+}
