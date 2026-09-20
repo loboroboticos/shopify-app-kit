@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shopify-app-kit v0.7.0
+# shopify-app-kit v0.8.0
 # hooks/doctor.sh: SessionStart briefing for a consumer repo. Validates .claude/shopify-app.json structurally
 # (required keys, enums, patterns of schema v1), prints one paragraph of facts to stdout, and reports vendored-hook
 # drift. Never exits non-zero. Silent when the repo has no manifest (it is not a consumer).
@@ -99,5 +99,19 @@ if [ -d "$hookdir" ]; then
   fi
 elif [ -n "$kv" ]; then
   echo "Drift: the manifest says kit.version $kv but $root/.claude/hooks/kit/ does not exist; run /shopify-app-kit:sync."
+fi
+
+# Companion plugin: the admin-api, dev-loop and release skills use shopify-ai-toolkit (docs and schema search,
+# CLI reference, the App Store review check) when it is installed. One warning when `claude plugin list` runs
+# and does not list it; one info line while its telemetry opt-out file is absent. Silent when the claude binary
+# is absent (a plain shell, CI); never blocks.
+if command -v claude >/dev/null 2>&1; then
+  plugins="$(claude plugin list 2>/dev/null || true)"
+  if [ -n "$plugins" ] && ! grep -q 'shopify-ai-toolkit' <<<"$plugins"; then
+    echo "Companion: shopify-ai-toolkit is not installed; run: claude plugin install shopify-ai-toolkit@claude-plugins-official (the admin-api, dev-loop and release skills use it when present)."
+  fi
+  if [ ! -f "${HOME:-/nonexistent}/.config/shopify-ai-toolkit/opt-out" ]; then
+    echo "Companion: shopify-ai-toolkit telemetry is on (no ~/.config/shopify-ai-toolkit/opt-out); to opt out: mkdir -p ~/.config/shopify-ai-toolkit && touch ~/.config/shopify-ai-toolkit/opt-out."
+  fi
 fi
 exit 0

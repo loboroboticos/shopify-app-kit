@@ -1,5 +1,5 @@
 {
-  "$schema": "https://raw.githubusercontent.com/loboroboticos/shopify-app-kit/v0.7.0/schemas/shopify-app.v1.schema.json",
+  "$schema": "https://raw.githubusercontent.com/loboroboticos/shopify-app-kit/v0.8.0/schemas/shopify-app.v1.schema.json",
   "$comment": "Example manifest carrying the optional top-level metadata keys; everything else mirrors npm-root-app.json.",
   "kit": {
     "schemaVersion": 1,

@@ -326,9 +326,25 @@ describe('guard-package-manager.sh', () => {
   }
 });
 
+// ---------------------------------------------------------------------------------------------- doctor
+// A fake claude on PATH answers `claude plugin list` with $FAKE_CLAUDE_PLUGINS (same idiom as the fake gh), and HOME
+// points at a throwaway directory so the companion's telemetry opt-out file is under the test's control.
+fs.writeFileSync(path.join(fakeBin, 'claude'), "#!/usr/bin/env bash\ncase \" $* \" in *' plugin list '*) printf '%s\\n' \"${FAKE_CLAUDE_PLUGINS:-No plugins installed.}\" ;; *) exit 1 ;; esac\n", { mode: 0o755 });
+const fakeHome = fs.mkdtempSync(path.join(os.tmpdir(), 'shopify-app-kit-home-'));
+const optOut = path.join(fakeHome, '.config', 'shopify-ai-toolkit', 'opt-out');
+const BOTH_PLUGINS = 'shopify-app-kit@shopify-app-kit\nshopify-ai-toolkit@claude-plugins-official';
+const pathWithout = (bin) => process.env.PATH.split(path.delimiter).filter((d) => !fs.existsSync(path.join(d, bin))).join(path.delimiter);
+
+function runDoctor({ plugins = BOTH_PLUGINS, optedOut = true, claude = true, extraEnv = {}, ...opts } = {}) {
+  fs.mkdirSync(path.dirname(optOut), { recursive: true });
+  if (optedOut) fs.writeFileSync(optOut, ''); else fs.rmSync(optOut, { force: true });
+  const PATH = claude ? `${fakeBin}${path.delimiter}${process.env.PATH}` : pathWithout('claude');
+  return runHook('doctor.sh', { event: 'SessionStart', ...opts, extraEnv: { PATH, HOME: fakeHome, FAKE_CLAUDE_PLUGINS: plugins, ...extraEnv } });
+}
+
 describe('doctor.sh', () => {
   test('prints a briefing for a valid manifest and exits 0', () => {
-    const r = runHook('doctor.sh', { manifest: npmRoot, event: 'SessionStart' });
+    const r = runDoctor({ manifest: npmRoot });
     assert.equal(r.status, 0, r.stderr);
     assert.match(r.stdout, /shopify-app-kit doctor \(v\d+\.\d+\.\d+\): .*OK \(schema v1, kit\.version 0\.1\.0\)/);
     assert.match(r.stdout, /Example App \(embedded-app\)/);
@@ -342,7 +358,7 @@ describe('doctor.sh', () => {
   });
 
   test('accepts $schema and $comment without reporting unknown top-level keys', () => {
-    const r = runHook('doctor.sh', { manifest: path.join(fixtures, 'annotated-app.json'), event: 'SessionStart' });
+    const r = runDoctor({ manifest: path.join(fixtures, 'annotated-app.json') });
     assert.equal(r.status, 0, r.stderr);
     assert.match(r.stdout, /shopify-app-kit doctor \(v\d+\.\d+\.\d+\): .*OK \(schema v1, kit\.version 0\.1\.0\)/);
     assert.doesNotMatch(r.stdout, /unknown top-level key/);
@@ -350,7 +366,7 @@ describe('doctor.sh', () => {
   });
 
   test('prints expiring-token and billing-method facts when the manifest carries them', () => {
-    const r = runHook('doctor.sh', { manifest: path.join(fixtures, 'multi-tenant-app.json'), event: 'SessionStart' });
+    const r = runDoctor({ manifest: path.join(fixtures, 'multi-tenant-app.json') });
     assert.equal(r.status, 0, r.stderr);
     assert.match(r.stdout, /OK \(schema v1, kit\.version 0\.1\.0\)/);
     assert.doesNotMatch(r.stdout, /unknown top-level key/);
@@ -359,7 +375,7 @@ describe('doctor.sh', () => {
   });
 
   test('omits the expiring-token and billing-method facts when the manifest lacks them', () => {
-    const r = runHook('doctor.sh', { manifest: npmRoot, event: 'SessionStart' });
+    const r = runDoctor({ manifest: npmRoot });
     assert.equal(r.status, 0, r.stderr);
     assert.doesNotMatch(r.stdout, /Expiring offline tokens/);
     assert.doesNotMatch(r.stdout, /Billing method/);
@@ -370,7 +386,7 @@ describe('doctor.sh', () => {
     m.$notes = 'x';
     const p = path.join(consumer, 'unknown-key-manifest.json');
     fs.writeFileSync(p, JSON.stringify(m));
-    const r = runHook('doctor.sh', { manifest: p, event: 'SessionStart' });
+    const r = runDoctor({ manifest: p });
     assert.equal(r.status, 0, r.stderr);
     assert.match(r.stdout, /does not satisfy schema v1/);
     assert.match(r.stdout, /- unknown top-level key: \$notes/);
@@ -378,7 +394,7 @@ describe('doctor.sh', () => {
   });
 
   test('is silent without a manifest and exits 0', () => {
-    const r = runHook('doctor.sh', { manifest: MISSING, event: 'SessionStart' });
+    const r = runDoctor({ manifest: MISSING, plugins: 'shopify-app-kit@shopify-app-kit', optedOut: false });
     assert.equal(r.status, 0);
     assert.equal(r.stdout, '');
     assert.equal(r.stderr, '');
@@ -391,7 +407,7 @@ describe('doctor.sh', () => {
     bad.apiVersion.expected = '2026-05';
     const p = path.join(consumer, 'bad-manifest.json');
     fs.writeFileSync(p, JSON.stringify(bad));
-    const r = runHook('doctor.sh', { manifest: p, event: 'SessionStart' });
+    const r = runDoctor({ manifest: p });
     assert.equal(r.status, 0, r.stderr);
     assert.match(r.stdout, /does not satisfy schema v1/);
     assert.match(r.stdout, /- shopifyCli\.deployPolicy must be one of/);
@@ -405,9 +421,60 @@ describe('doctor.sh', () => {
     fs.copyFileSync(npmRoot, path.join(dir, '.claude', 'shopify-app.json'));
     fs.writeFileSync(path.join(dir, '.claude', 'hooks', 'kit', 'guard-shopify-cli.sh'), '#!/usr/bin/env bash\n# shopify-app-kit v0.0.9\nexit 0\n');
     fs.writeFileSync(path.join(dir, '.claude', 'settings.json'), '{}');
-    const r = runHook('doctor.sh', { manifest: undefined, event: 'SessionStart', cwd: dir, extraEnv: { CLAUDE_PROJECT_DIR: dir } });
+    const r = runDoctor({ manifest: undefined, cwd: dir, extraEnv: { CLAUDE_PROJECT_DIR: dir } });
     assert.equal(r.status, 0, r.stderr);
     assert.match(r.stdout, /Drift: guard-shopify-cli\.sh is v0\.0\.9 but the manifest's kit\.version is 0\.1\.0/);
     assert.match(r.stdout, /Drift: \.claude\/settings\.json does not register/);
+  });
+
+  describe('companion plugin', () => {
+    test('warns once, naming the install command, when claude plugin list does not list shopify-ai-toolkit', () => {
+      const r = runDoctor({ manifest: npmRoot, plugins: 'shopify-app-kit@shopify-app-kit' });
+      assert.equal(r.status, 0, r.stderr);
+      const lines = r.stdout.split('\n').filter((l) => l.startsWith('Companion:'));
+      assert.equal(lines.length, 1, r.stdout);
+      assert.match(lines[0], /^Companion: shopify-ai-toolkit is not installed; run: claude plugin install shopify-ai-toolkit@claude-plugins-official/);
+      assert.equal(r.stderr, '');
+    });
+
+    test('warns when no plugin is installed at all', () => {
+      const r = runDoctor({ manifest: npmRoot, plugins: 'No plugins installed. Use `claude plugin install` to install a plugin.' });
+      assert.match(r.stdout, /Companion: shopify-ai-toolkit is not installed/);
+    });
+
+    test('says nothing about installation when the companion is listed', () => {
+      const r = runDoctor({ manifest: npmRoot });
+      assert.doesNotMatch(r.stdout, /not installed/);
+      assert.doesNotMatch(r.stdout, /Companion:/);
+    });
+
+    test('prints one info line with the opt-out path while the telemetry opt-out file is absent', () => {
+      const r = runDoctor({ manifest: npmRoot, optedOut: false });
+      const lines = r.stdout.split('\n').filter((l) => l.startsWith('Companion:'));
+      assert.equal(lines.length, 1, r.stdout);
+      assert.match(lines[0], /^Companion: shopify-ai-toolkit telemetry is on .*touch ~\/\.config\/shopify-ai-toolkit\/opt-out/);
+    });
+
+    test('prints both lines when the companion is missing and telemetry is on, and still exits 0', () => {
+      const r = runDoctor({ manifest: npmRoot, plugins: 'shopify-app-kit@shopify-app-kit', optedOut: false });
+      assert.equal(r.status, 0);
+      assert.match(r.stdout, /Companion: shopify-ai-toolkit is not installed/);
+      assert.match(r.stdout, /Companion: shopify-ai-toolkit telemetry is on/);
+      assert.match(r.stdout, /OK \(schema v1/);
+    });
+
+    test('is silent about the companion when the claude binary is absent', () => {
+      const r = runDoctor({ manifest: npmRoot, claude: false, optedOut: false });
+      assert.equal(r.status, 0, r.stderr);
+      assert.match(r.stdout, /OK \(schema v1/);
+      assert.doesNotMatch(r.stdout, /Companion:/);
+      assert.equal(r.stderr, '');
+    });
+
+    test('the fake claude answers plugin list and nothing else', () => {
+      const env = { ...process.env, PATH: `${fakeBin}${path.delimiter}${process.env.PATH}`, FAKE_CLAUDE_PLUGINS: 'x@y' };
+      assert.equal(spawnSync('claude', ['plugin', 'list'], { encoding: 'utf8', env }).stdout, 'x@y\n');
+      assert.equal(spawnSync('claude', ['--version'], { encoding: 'utf8', env }).status, 1);
+    });
   });
 });

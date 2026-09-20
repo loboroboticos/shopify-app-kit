@@ -30,11 +30,12 @@ The repo root is the plugin root and its own marketplace.
 | `hooks/guard-protected-branch.sh` | PreToolUse guard for `git push`, `gh pr merge`, `gh pr edit --base`, `gh api` writes and `gh workflow run`, driven by `branches.protected` and `deploy.protectedWorkflows`. Lets the session open a promotion PR, never land one. Fails closed when the manifest, `jq` or a PR's base cannot be read. |
 | `hooks/guard-package-manager.sh` | PreToolUse guard that keeps `pnpm` and `npm` in the directories `packageManagers` maps them to (exact entry; effective directory after `cd`, `pnpm -C`, `npm --prefix`). Fails closed when the manifest or `jq` is missing. |
 | `hooks/lib.sh` | Shared bash the guards source: manifest resolution, block messages, path normalisation, heredoc stripping, command splitting with `cd` tracking. |
-| `hooks/doctor.sh` | SessionStart briefing: validates the manifest structurally, prints the app facts, reports vendored-hook drift. Silent in repos without a manifest. |
-| `/shopify-app-kit:doctor` | Same checks, on demand, plus settings-registration drift. |
+| `hooks/doctor.sh` | SessionStart briefing: validates the manifest structurally, prints the app facts, reports vendored-hook drift, and checks the companion plugin (one warning with the install command when `claude plugin list` does not list `shopify-ai-toolkit`, one info line while its telemetry opt-out file is absent; silent without the `claude` binary, never blocks). Silent in repos without a manifest. |
+| `/shopify-app-kit:doctor` | Same checks, on demand, plus settings-registration drift; `references/companion.md` has the split between the companion plugin and the kit. |
 | `/shopify-app-kit:sync` | Vendors the guards into the consumer and records the kit version in the manifest. |
+| `/shopify-app-kit:new-app <app-name> [--server-dir <dir>] [--pm npm\|pnpm] [--default-branch <b>] [--protected-branch <b>] [--dry-run <dir>]` | Scaffolds a new app: `shopify app init` from the official React Router template (or a clone when init needs an account), the `templates/` shell applied by `skills/new-app/scripts/apply-overlay.mjs` with the placeholders substituted, the guards vendored, the manifest stamped, the expiring-token flag and session columns checked, the Prisma datasource pointed at Postgres, `docs/README.md` and the first ADR written; verified by the docs-consistency test, `scripts/validate-manifest.mjs` and `scripts/smoke-guards.sh`; one local commit and the maintainer's checklist (remote, registration, hosting, database roles, secrets). `references/carry-over.md` covers code from an earlier attempt. See [Scaffolding](#scaffolding). |
 | `dev-loop` (model-invocable) | Runs `shopify app dev` with the manifest's dev config and the bindings-file store, adds the sandbox port flag, ends every session with `app dev clean`, keeps theme work out of the app repo. `references/cli-traps.md` has the four CLI traps. |
-| `admin-api` (model-invocable) | Guards GraphQL, webhook and toml changes: pin discipline, topic/handler parity, the Shopify Dev MCP when configured, throw on `userErrors`. References on version drift, webhooks, GraphQL errors on 200, metaobjects and `$app:`, one-way distribution. |
+| `admin-api` (model-invocable) | Guards GraphQL, webhook and toml changes: pin discipline, topic/handler parity, the companion's `shopify-dev` skill for schema verification when installed (unverified otherwise), throw on `userErrors`. References on version drift, webhooks, GraphQL errors on 200, metaobjects and `$app:`, one-way distribution. |
 | `/shopify-app-kit:release [beta\|extension\|server]` | Opens the promotion PR (never merges), releases extensions with the deploy config and verifies the slug, explains the server release by push, scales to zero before migrating, warns before live billing, ends with a checklist. References on billing posture, migrations, CI posture. |
 | `tripwire` (model-invocable) | Writes one offline test that fails when two files disagree and names the repair. References: the patterns worth copying, checks vs probes. |
 | `docs-owner` (model-invocable) | Puts a fact in the one document that owns it, keeps reference docs undated, replaces warnings with checks, keeps CLAUDE.md under 200 lines with mechanics in path-scoped rules, shapes ADRs. |
@@ -113,9 +114,21 @@ the ADR shape and the seed decisions a new app takes before Phase 1, and the `.c
 pin, the remote-session bootstrap hook, a starter manifest with expiring offline tokens, App Pricing and RLS
 Postgres, four path-scoped rule seeds, a short CLAUDE.md). `templates/README.md` lists every file and the
 placeholders (`{{APP_NAME}}`, `{{DEFAULT_BRANCH}}`, `{{PROTECTED_BRANCH}}`, `{{PACKAGE_MANAGER}}`,
-`{{SERVER_DIR}}`, plus the gitleaks version and checksum). The `new-app` skill (next version) applies them after
-`shopify app init` and substitutes the placeholders; until then copy the files and substitute by hand.
-`test/templates.test.mjs` keeps the directory honest.
+`{{SERVER_DIR}}`, plus the gitleaks version and checksum). `test/templates.test.mjs` keeps the directory honest.
+
+`/shopify-app-kit:new-app <app-name>` does the whole thing: it checks the preconditions (the CLI on PATH, an
+empty target, valid arguments), runs `shopify app init` with the flags the installed CLI lists (or clones the
+template when init would need the maintainer's account: in a non-interactive shell init asks for an
+organization or client id and a login, which the skill never supplies), applies the overlay with
+`skills/new-app/scripts/apply-overlay.mjs` (substitution, the merge rules for files the template already has,
+the guards vendored, `kit.version` and the tag `$schema` stamped), makes the edits a public app needs
+(`future.expiringOfflineAccessTokens`, the session refresh columns, a Postgres datasource, `docs/README.md`
+with the docs map, `docs/adr/0001-scaffold.md`), verifies with the docs-consistency test,
+`scripts/validate-manifest.mjs` and `scripts/smoke-guards.sh`, and makes one local commit. It never creates
+the GitHub repository, the Partner registration, the hosting app, the database project or a secret: those are
+the maintainer's, printed as a checklist at the end. `--dry-run <dir>` does everything but the commit into a
+scratch directory and prints the tree. `skills/new-app/references/carry-over.md` says how to bring code from
+an earlier attempt into the scaffold without its tooling.
 
 Upgrading: bump nothing in the consumer, just re-run `/shopify-app-kit:sync` after the kit tags a new version.
 The doctor flags hook headers whose `# shopify-app-kit vX.Y.Z` line no longer matches `kit.version`. Point the
@@ -124,6 +137,31 @@ manifest's optional `$schema` at the newest tag
 
 Tags are created by `.github/workflows/release-tag.yml` when a version bump merges to `main`; nobody pushes a
 kit tag by hand (see [Developing the kit](#developing-the-kit)).
+
+## Companion plugin
+
+The kit's companion is Shopify's official `shopify-ai-toolkit` plugin:
+
+```bash
+claude plugin install shopify-ai-toolkit@claude-plugins-official
+```
+
+It covers what the platform does: Admin API docs and schema search with GraphQL validation (`shopify-dev`),
+the Admin API and custom data (`shopify-admin`, `shopify-custom-data`), pricing (`shopify-app-pricing`), the
+pre-submission compliance check (`shopify-app-store-review`), the CLI reference (`shopify-use-shopify-cli`),
+Polaris for the app home (`shopify-polaris-app-home`) and a score of other skills. Its hooks are telemetry
+only; the opt-out is the file `~/.config/shopify-ai-toolkit/opt-out`.
+
+The kit covers what the companion cannot know: this repo's manifest facts and the guard hooks that enforce
+them, the doctor, the review roster and the `pre-pr-review` workflow, the lessons, the scaffold and its
+templates, and the app-layered Shopify data (app-owned metafields and metaobjects, the `$app:` accessors, the
+entitlement write path and its cache contract). A kit skill calls the companion for platform facts and says
+"unverified" without it: `admin-api` step 4 uses `shopify-dev` for schema verification, `dev-loop` points at
+`shopify-use-shopify-cli` for the CLI reference, `release` runs `shopify-app-store-review` before the promotion
+PR of a public app. The doctor warns once when the companion is not installed and notes once while telemetry is
+on; it never blocks. In a consumer scaffolded from `templates/`, `.claude/hooks/kit-bootstrap.sh` installs both
+plugins in a remote session and writes the opt-out. `skills/doctor/references/companion.md` is the home of the
+split (lesson `kit-1`).
 
 ## The manifest contract
 

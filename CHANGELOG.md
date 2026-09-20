@@ -3,6 +3,63 @@
 All notable changes to shopify-app-kit. The version is the plugin version in `.claude-plugin/plugin.json`; every
 vendored hook carries it on line 2 (`# shopify-app-kit vX.Y.Z`).
 
+## 0.8.0
+
+The `new-app` scaffold skill, and the companion plugin wired into the doctor and the skills.
+
+- `skills/new-app` (user-invoked: `<app-name> [--server-dir <dir>] [--pm npm|pnpm] [--default-branch <b>]
+  [--protected-branch <b>] [--dry-run <dir>]`): preconditions checked before anything is written (Shopify CLI on
+  PATH, empty target, `--pm` in `npm|pnpm`, valid branch names; the protected branch defaults to the default
+  branch and a different one makes the promotion pair); `shopify app init` from the official React Router
+  template with the flags the installed CLI lists, or a clone of the template when init would need the
+  maintainer's account (in a non-interactive shell the current CLI requires `--organization-id` or
+  `--client-id` plus a login; the skill never supplies them); the overlay from `templates/` applied by
+  `scripts/apply-overlay.mjs` (the five placeholders substituted, the gitleaks pair left as a TODO, a template
+  file never overwritten: text gets a delimited kit section that a re-run replaces, JSON is deep-merged with the
+  template winning, anything else is set aside as `<file>.shopify-app-kit`; the guards vendored and
+  `kit.version` and the tag `$schema` stamped as `sync` does; the `example` configs and tomls renamed to the
+  app's slug and prefixed with the server directory; `branches.promotion` derived); the post-scaffold edits
+  (`future.expiringOfflineAccessTokens: true` and the `refreshToken` / `refreshTokenExpires` session columns
+  checked and added when missing, the Prisma datasource pointed at Postgres through `DATABASE_URL` and
+  `DIRECT_DATABASE_URL` with the template's SQLite migration removed, `docs/README.md` with the docs map and
+  only the rows whose file exists, `docs/history/`, `docs/adr/0001-scaffold.md` recording the template
+  reference, the kit version, the branch model and the open seeds, with its index row); verification with the
+  consumer's `test/docs-consistency.test.mjs`, `scripts/validate-manifest.mjs` (the kit's validator copied,
+  plus a check for surviving placeholders) and `scripts/smoke-guards.sh` (every vendored guard fed a
+  PreToolUse payload on stdin: exit 0 on a benign command, 2 on `shopify app deploy` without `--config`, a push
+  to the protected branch, the wrong package manager); `git init -b <default-branch>` and one commit; the
+  maintainer's checklist (remote, registration and `config link`, hosting app, database project with the two
+  roles and the first Postgres migration, secrets, gitleaks pin, branch protection, first doctor). `--dry-run`
+  does everything but the commit into a scratch directory and prints the tree. References: `scaffold.md` (what
+  the template gives, the init flags and the clone fallback, the merge rules, the manifest after the overlay,
+  the post-scaffold edits, verification, the checklist, why the skill never touches an account) and
+  `carry-over.md` (only `app/` modules and re-based migrations that pass the new repo's tests; never a donor's
+  `.engine/`, `.claude/` or CI; the ADR log re-keyed keeping numbers; probes before the first push).
+- `test/new-app.test.mjs`: the frontmatter and allowed tools, every placeholder the skill mentions is in
+  `templates/README.md`, the scripts are linked, `validate-manifest.mjs` accepts the substituted starter
+  manifest and rejects a bad `billing.method` and a surviving placeholder, and `apply-overlay.mjs` run against a
+  stand-in template (package.json, a Shopify server module without the flag, a SQLite Prisma schema whose
+  Session lacks the refresh columns, `CLAUDE.md`, `.gitignore`) yields a repo where the manifest validates, the
+  hooks are vendored and fire (`smoke-guards.sh`), the docs-consistency test passes, the edits landed, no
+  placeholder survives but the gitleaks pair, a second run changes nothing, and the `--server-dir web` variant
+  prefixes the paths. `test/skills-parity.test.mjs` allows `scripts/` (only `.mjs` and `.sh`, linked from the
+  SKILL.md, header naming itself, syntax-checked, node: builtins only).
+- Companion plugin (`shopify-ai-toolkit`): `hooks/doctor.sh` prints one warning naming the install command when
+  `claude plugin list` runs and does not list it, and one info line with the opt-out command while
+  `~/.config/shopify-ai-toolkit/opt-out` is absent; silent without the `claude` binary, never blocks. Doctor
+  tests fake `claude` on PATH the way the hooks test fakes `gh`, with a throwaway HOME. `skills/doctor` gains
+  step 6 and `references/companion.md` (the split: the companion answers what the platform does, the kit what
+  the manifest requires; lesson `kit-1`). `admin-api` step 4 now uses the companion's `shopify-dev` skill for
+  schema verification and says "unverified" without it, and its opening states the split; `dev-loop` points at
+  `shopify-use-shopify-cli` for the CLI reference; `release` gains the App Store review check before the
+  promotion PR of a public app, with a checklist line. README: a "Companion plugin" section, the doctor row,
+  the `new-app` row, the Scaffolding section rewritten around the skill.
+- `templates/`: the starter manifest's `docs.mapFile` is `docs/README.md` (the template's own `README.md` is
+  upstream's), and `CLAUDE.md` points there; `docs/README-docs-map.md` says the skill writes it.
+- `lessons/INDEX.md`: `new-1` to `new-4` and `kit-1`. `kit-dev` documents `skills/<name>/scripts/`.
+- Hook headers, `KIT_VERSION`, `plugin.json` and the annotated fixture's `$schema` bumped to 0.8.0; guard logic
+  unchanged; the doctor gains the two companion lines.
+
 ## 0.7.0
 
 Repo-shell templates, and two skills for multi-tenant apps: `tenancy` and `mcp-connector`.

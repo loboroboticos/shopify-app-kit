@@ -4,6 +4,7 @@
 // `Sources:` line naming only the neutral lesson sources, and the SKILL.md itself stays short.
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -13,7 +14,8 @@ const skillsDir = path.resolve(here, '..', 'skills');
 
 const ALLOWED_KEYS = new Set(['name', 'description', 'allowed-tools', 'disallowed-tools', 'disable-model-invocation', 'user-invocable',
   'context', 'agent', 'paths', 'argument-hint', 'arguments', 'model', 'effort', 'license', 'compatibility', 'metadata']);
-const ALLOWED_ENTRIES = new Set(['SKILL.md', 'references']);
+// scripts/: zero-dependency .mjs or .sh files a skill runs (only new-app so far); each is linked from its SKILL.md.
+const ALLOWED_ENTRIES = new Set(['SKILL.md', 'references', 'scripts']);
 const SOURCE_LABELS = new Set(['app-1', 'app-2', 'app-3']);
 // A SKILL.md with references/ is the short entry point; the depth lives in the references.
 const MAX_SKILL_LINES_WITH_REFERENCES = 60;
@@ -55,6 +57,25 @@ describe('skills parity', () => {
         if (k in fm) assert.match(fm[k], /^(true|false)$/, `${k} is a boolean`);
       }
     });
+    const scriptsDir = path.join(skillDir, 'scripts');
+    if (fs.existsSync(scriptsDir)) {
+      test(`skills/${dir}/scripts/`, () => {
+        const skill = fs.readFileSync(file, 'utf8');
+        const scripts = fs.readdirSync(scriptsDir);
+        assert.ok(scripts.length > 0, 'scripts/ is not empty');
+        for (const s of scripts) {
+          const p = path.join(scriptsDir, s);
+          assert.ok(fs.statSync(p).isFile() && /\.(mjs|sh)$/.test(s), `scripts/${s} must be a .mjs or .sh file`);
+          assert.ok(skill.includes(`scripts/${s}`), `SKILL.md must link scripts/${s}`);
+          const text = fs.readFileSync(p, 'utf8');
+          assert.ok(text.slice(0, 1500).includes(s), `scripts/${s} starts with a comment naming itself and what it does`);
+          const r = s.endsWith('.sh') ? spawnSync('bash', ['-n', p], { encoding: 'utf8' }) : spawnSync(process.execPath, ['--check', p], { encoding: 'utf8' });
+          assert.equal(r.status, 0, `scripts/${s}: ${r.stderr}`);
+          if (s.endsWith('.sh')) assert.match(text, /^#!\/usr\/bin\/env bash/, `scripts/${s} has a bash shebang`);
+          assert.doesNotMatch(text, /^\s*import .* from ['"](?!node:)/m, `scripts/${s} imports only node: builtins (zero dependencies)`);
+        }
+      });
+    }
     if (!fs.existsSync(refsDir)) continue;
     test(`skills/${dir}/references/`, () => {
       const skill = fs.readFileSync(file, 'utf8');
