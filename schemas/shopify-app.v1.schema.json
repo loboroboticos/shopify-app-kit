@@ -1,0 +1,165 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/loboroboticos/shopify-app-kit/schemas/shopify-app.v1.schema.json",
+  "title": "shopify-app-kit manifest (schema v1)",
+  "description": "Per-repo facts a Shopify app repo declares in .claude/shopify-app.json so the kit's guard hooks, doctor and skills can act on them. The top level is closed; sections may grow additively.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["kit", "app", "shopifyCli", "branches", "packageManagers"],
+  "properties": {
+    "kit": {
+      "type": "object",
+      "required": ["schemaVersion"],
+      "properties": {
+        "schemaVersion": { "const": 1 },
+        "version": {
+          "description": "The kit version whose hooks were last vendored into this repo by /shopify-app-kit:sync; null before the first sync.",
+          "type": ["string", "null"]
+        }
+      }
+    },
+    "app": {
+      "type": "object",
+      "required": ["name"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "kind": { "type": "string", "enum": ["embedded-app", "standalone-app", "theme-app-extension", "custom-app"] },
+        "handles": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        }
+      }
+    },
+    "shopifyCli": {
+      "type": "object",
+      "required": ["devPolicy", "deployPolicy", "configUsePolicy", "themeDevFromRoot"],
+      "properties": {
+        "configs": {
+          "description": "Shopify CLI config names (the X in shopify.app.X.toml) the guard requires on app dev / app deploy.",
+          "type": "object",
+          "properties": {
+            "dev": { "type": "string", "minLength": 1 },
+            "deploy": { "type": "string", "minLength": 1 }
+          }
+        },
+        "requireConfigFlag": { "type": "boolean" },
+        "devPolicy": { "$ref": "#/$defs/policy" },
+        "deployPolicy": { "$ref": "#/$defs/policy" },
+        "configUsePolicy": { "$ref": "#/$defs/policy" },
+        "themeDevFromRoot": { "type": "string", "enum": ["block", "allow"] }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "devPolicy": { "const": "config-required" } }, "required": ["devPolicy"] },
+          "then": { "required": ["configs"], "properties": { "configs": { "required": ["dev"] } } }
+        },
+        {
+          "if": { "properties": { "deployPolicy": { "const": "config-required" } }, "required": ["deployPolicy"] },
+          "then": { "required": ["configs"], "properties": { "configs": { "required": ["deploy"] } } }
+        }
+      ]
+    },
+    "branches": {
+      "type": "object",
+      "required": ["default", "protected"],
+      "properties": {
+        "default": { "type": "string", "minLength": 1 },
+        "protected": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+        "promotion": {
+          "type": ["object", "null"],
+          "required": ["from", "to"],
+          "properties": {
+            "from": { "type": "string", "minLength": 1 },
+            "to": { "type": "string", "minLength": 1 }
+          }
+        }
+      }
+    },
+    "packageManagers": {
+      "description": "Repo-relative directory (\".\" for the root) to the package manager used there.",
+      "type": "object",
+      "additionalProperties": { "type": "string", "enum": ["npm", "pnpm"] }
+    },
+    "paths": {
+      "type": "object",
+      "properties": {
+        "server": { "type": "string" },
+        "shopifyServer": { "type": "string" },
+        "appTomls": { "type": "array", "items": { "type": "string" } },
+        "webhookHandlers": { "type": "string" },
+        "prisma": { "type": "string" },
+        "extensions": { "type": "array", "items": { "type": "string" } },
+        "storeBindings": { "type": "string" }
+      }
+    },
+    "apiVersion": {
+      "type": "object",
+      "required": ["expected"],
+      "properties": {
+        "expected": { "type": "string", "pattern": "^20\\d\\d-(01|04|07|10)$" },
+        "pins": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "webhooks": {
+      "type": "object",
+      "properties": {
+        "topics": { "type": "array", "items": { "type": "string" } },
+        "compliance": { "type": "boolean" }
+      }
+    },
+    "scopes": {
+      "type": "object",
+      "properties": {
+        "required": { "type": "array", "items": { "type": "string" } },
+        "optional": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "deploy": {
+      "type": "object",
+      "properties": {
+        "targets": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "fly": { "type": "string" },
+              "flyToml": { "type": "string" },
+              "workflow": { "type": "string" }
+            }
+          }
+        },
+        "protectedWorkflows": { "type": "array", "items": { "type": "string" } },
+        "scaleToZeroBeforeMigrate": { "type": "boolean" }
+      }
+    },
+    "billing": {
+      "type": "object",
+      "properties": {
+        "live": { "type": "boolean" },
+        "testFlag": { "type": "string" }
+      }
+    },
+    "database": {
+      "type": "object",
+      "required": ["provider"],
+      "properties": {
+        "provider": { "type": "string" },
+        "rls": { "type": "boolean" },
+        "sharedDevDbWithBeta": { "type": "boolean" }
+      }
+    },
+    "checks": {
+      "type": "object",
+      "properties": {
+        "fileSize": { "type": "string" },
+        "tripwireDir": { "type": "string" }
+      }
+    }
+  },
+  "$defs": {
+    "policy": {
+      "type": "string",
+      "enum": ["config-required", "operator-only", "allowed"]
+    }
+  }
+}
