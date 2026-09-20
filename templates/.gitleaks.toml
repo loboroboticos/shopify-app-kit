@@ -1,0 +1,36 @@
+# .gitleaks.toml (shopify-app-kit template)
+# Read by .github/workflows/secret-scan.yml. The default rule set plus one rule for connection URIs that carry
+# credentials. Every allowlist entry is narrow and says why the match is safe. Broadening an entry to silence a
+# finding can hide a real secret: when the scan fires, rotate the value or fix the file, and widen the
+# allowlist only for a match you can explain in the comment above it.
+
+title = "secret scan"
+
+[extend]
+# Start from gitleaks' built-in rules (cloud keys, private keys, tokens, Shopify access tokens and so on).
+useDefault = true
+
+[[rules]]
+id = "connection-uri-with-credentials"
+description = "Database or broker connection URI with an embedded username and password"
+# scheme://user:pass@host: any password after the colon, up to the @. Matches postgres, postgresql, mysql,
+# mongodb (and mongodb+srv), redis (and rediss), amqp (and amqps).
+regex = '''(?i)\b(?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?|rediss?|amqps?)://[^\s:/@'"]+:[^\s@'"]+@[^\s'"]+'''
+keywords = ["postgres", "postgresql", "mysql", "mongodb", "redis", "amqp"]
+
+  [rules.allowlist]
+  # The verify gate's throwaway Postgres service container; the credentials exist for one CI job.
+  regexes = ['''postgres(?:ql)?://postgres:postgres@(?:localhost|127\.0\.0\.1)[:/]''']
+
+[allowlist]
+description = "Matches that are documentation, not secrets"
+paths = [
+  # Example env files carry placeholders, never values (see the header of .env.example).
+  '''(^|/)\.env\.example$''',
+  # This file names the patterns it looks for.
+  '''^\.gitleaks\.toml$''',
+]
+regexes = [
+  # An angle-bracket documentation placeholder such as <password> or <your-token>.
+  '''<[a-z][a-z0-9_-]*>''',
+]

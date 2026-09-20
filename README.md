@@ -37,7 +37,10 @@ The repo root is the plugin root and its own marketplace.
 | `admin-api` (model-invocable) | Guards GraphQL, webhook and toml changes: pin discipline, topic/handler parity, the Shopify Dev MCP when configured, throw on `userErrors`. References on version drift, webhooks, GraphQL errors on 200, metaobjects and `$app:`, one-way distribution. |
 | `/shopify-app-kit:release [beta\|extension\|server]` | Opens the promotion PR (never merges), releases extensions with the deploy config and verifies the slug, explains the server release by push, scales to zero before migrating, warns before live billing, ends with a checklist. References on billing posture, migrations, CI posture. |
 | `tripwire` (model-invocable) | Writes one offline test that fails when two files disagree and names the repair. References: the patterns worth copying, checks vs probes. |
-| `docs-owner` (model-invocable) | Puts a fact in the one document that owns it, keeps reference docs undated, replaces warnings with checks, keeps CLAUDE.md small, shapes ADRs. |
+| `docs-owner` (model-invocable) | Puts a fact in the one document that owns it, keeps reference docs undated, replaces warnings with checks, keeps CLAUDE.md under 200 lines with mechanics in path-scoped rules, shapes ADRs. |
+| `tenancy` (model-invocable) | Tenant isolation keyed to `database.rls`, `auth.expiringOfflineTokens` and `paths.prisma`: fail-closed RLS with two database roles, the isolation canary and probe registry run as the runtime role, server-side tenant bootstrap with lazy provisioning, principal and append-only audit identity, one per-shop-locked refresh chokepoint for expiring offline tokens, the verify-record-process-mark webhook seam. Six references. |
+| `mcp-connector` (model-invocable) | Building the app's own operator-facing MCP server (a product feature, never part of the kit): per-grant tokens hashed at rest with tenant-prefixed routing under RLS, OAuth with dynamic client registration and PKCE, the redirect-URI policy with loopback bypass, a tool manifest with a build-time parity check, per-token rate limits and budgets on billed calls, operator skills shipped from the app. Six references. |
+| `templates/` | The repo shell a new app starts from: CI with migrate rehearsal and drift check, secret scanning from a checksum-verified binary, a dependency audit that opens issues, dependabot with framework majors ignored, the work-item issue template with the executor ladder, `.env.example` with public/secret/local markers, the docs map and its consistency test, the ADR shape and seed decisions, `.claude/` wiring (settings pin, bootstrap hook, starter manifest, rule seeds, CLAUDE.md). See [Scaffolding](#scaffolding). |
 | `/shopify-app-kit:kit-dev` | Maintainer guide for this repo. |
 | `lessons/INDEX.md` | One row per lesson extracted from the consumer apps, pointing at the reference file or agent section that owns it. See [Lessons](#lessons). |
 | `schemas/shopify-app.v1.schema.json` | The manifest contract (JSON Schema, draft 2020-12). |
@@ -93,6 +96,27 @@ The repo root is the plugin root and its own marketplace.
 4. Commit `.claude/shopify-app.json`, `.claude/hooks/kit/` and `.claude/settings.json`. Run `/shopify-app-kit:doctor`
    in a new session; it should report no drift.
 
+## Scaffolding
+
+A new app starts from the official template and then applies the kit's repo shell:
+
+```bash
+shopify app init --template=https://github.com/Shopify/shopify-app-template-react-router
+```
+
+`templates/` holds everything the template does not give you: the verify gate that rehearses migrations from
+an empty database and fails on schema drift, secret scanning from a version-pinned checksum-verified gitleaks
+binary, a weekly dependency audit that opens an issue on a High or Critical finding, dependabot with framework
+majors ignored, the work-item issue template whose "Close condition needs" ladder names who can close each item,
+an `.env.example` that says which value is public, a docs map with the test that keeps it complete and undated,
+the ADR shape and the seed decisions a new app takes before Phase 1, and the `.claude/` wiring (the marketplace
+pin, the remote-session bootstrap hook, a starter manifest with expiring offline tokens, App Pricing and RLS
+Postgres, four path-scoped rule seeds, a short CLAUDE.md). `templates/README.md` lists every file and the
+placeholders (`{{APP_NAME}}`, `{{DEFAULT_BRANCH}}`, `{{PROTECTED_BRANCH}}`, `{{PACKAGE_MANAGER}}`,
+`{{SERVER_DIR}}`, plus the gitleaks version and checksum). The `new-app` skill (next version) applies them after
+`shopify app init` and substitutes the placeholders; until then copy the files and substitute by hand.
+`test/templates.test.mjs` keeps the directory honest.
+
 Upgrading: bump nothing in the consumer, just re-run `/shopify-app-kit:sync` after the kit tags a new version.
 The doctor flags hook headers whose `# shopify-app-kit vX.Y.Z` line no longer matches `kit.version`. Point the
 manifest's optional `$schema` at the newest tag
@@ -127,8 +151,10 @@ the hooks ignore both.
   "webhooks": { "topics": ["app/uninstalled", "app/scopes_update"], "compliance": true },
   "scopes": { "required": ["read_products"], "optional": [] },
   "deploy": { "targets": { "prod": { "fly": "example-app", "flyToml": "web/fly.toml", "workflow": "deploy.yml" } }, "protectedWorkflows": ["deploy.yml"] },
-  "billing": { "live": true, "testFlag": "BILLING_TEST" },
+  "billing": { "live": true, "testFlag": "BILLING_TEST", "method": "app-pricing" },
+  "auth": { "expiringOfflineTokens": true },
   "database": { "provider": "prisma-postgres", "rls": false },
+  "docs": { "adrDir": "docs/adr", "mapFile": "README.md", "mapHeading": "## Docs map" },
   "checks": { "tripwireDir": "test/claude" }
 }
 ```
@@ -148,6 +174,14 @@ Keys the hooks read:
 | `branches.default`, `branches.promotion` | branch name; `{ from, to }` or `null` | Only quoted in the block message: "Target `<default>` instead; Claude may open a `<from> -> <to>` promotion PR when asked, never merge it." `gh pr create --base <protected>` is allowed for exactly that. |
 | `deploy.protectedWorkflows` | workflow file names | `gh workflow run` of one of these is blocked, matched by file name, by `.github/workflows/<file>`, or by the workflow's `name:` read from the consumer's `.github/workflows/<file>`. |
 | `packageManagers` | `{ "<dir>": "npm" \| "pnpm" }` | `pnpm …` in a directory mapped to `npm`, and `npm install\|ci\|i\|add\|update\|uninstall\|run …` in a directory mapped to `pnpm`, are blocked. The directory is the effective one after `cd`/`pushd`/`popd`, `pnpm -C`/`--dir` or `npm --prefix`, looked up as an exact repo-relative entry (`"."` = root); unmapped directories are left alone (no nearest-ancestor lookup yet). A `cd` to a non-literal path before a guarded command fails closed. |
+
+Keys the doctor prints and the skills and review agents read (no guard behaviour):
+
+| Key | Values | Read by |
+| --- | --- | --- |
+| `auth.expiringOfflineTokens` | boolean | The app runs `future.expiringOfflineAccessTokens` and its session table carries `refreshToken` and `refreshTokenExpires`. Required by Shopify for public apps created on or after 2026-04-01 and for all public apps from 2027-01-01 (60-minute access token, 90-day refresh token, one live refreshable token per app per store). `doctor` prints it; `tenancy` and `prisma-migration-reviewer` check the flag and the columns. |
+| `billing.method` | `billing-api` / `app-pricing` / `none` | App Pricing (the successor of Managed Pricing) is the default for public apps and public-apps-only, delivers no subscription webhooks (status comes from the Partner Active Subscription API); the Billing API is legacy but functional and the only path for custom distribution. `doctor` prints it; `release` and the billing rule seed read it. |
+| `docs.adrDir`, `docs.mapFile`, `docs.mapHeading` | repo-relative paths and a heading | Where the ADR series and the docs map live; `docs-owner` and the templates' `docs-consistency` test read them. |
 
 `operator-only` blocks tell the session to ask the maintainer to run the command from their terminal.
 Block messages start with `Blocked by shopify-app-kit/<hook>:` and end with

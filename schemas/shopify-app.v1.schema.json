@@ -140,11 +140,26 @@
         "scaleToZeroBeforeMigrate": { "type": "boolean" }
       }
     },
+    "auth": {
+      "description": "How the app authenticates with Shopify beyond the defaults of the app library.",
+      "type": "object",
+      "properties": {
+        "expiringOfflineTokens": {
+          "description": "True when the app runs future.expiringOfflineAccessTokens in its Shopify server module and its session table carries refreshToken and refreshTokenExpires. Shopify requires expiring offline access tokens for public apps created on or after 2026-04-01 and for all public apps from 2027-01-01 (60-minute access token, 90-day refresh token; obtaining a new token invalidates the previous refresh token, so one live refreshable token per app per store).",
+          "type": "boolean"
+        }
+      }
+    },
     "billing": {
       "type": "object",
       "properties": {
         "live": { "type": "boolean" },
-        "testFlag": { "type": "string" }
+        "testFlag": { "type": "string" },
+        "method": {
+          "description": "How merchants are charged. app-pricing: Shopify App Pricing (the successor of Managed Pricing), the default for public apps and available to public apps only; subscription webhooks are not delivered and status comes from the Partner Active Subscription API. billing-api: the Billing API, labelled legacy but functional and the only path for custom-distribution apps. none: the app does not charge.",
+          "type": "string",
+          "enum": ["billing-api", "app-pricing", "none"]
+        }
       }
     },
     "database": {
@@ -161,6 +176,24 @@
       "properties": {
         "fileSize": { "type": "string" },
         "tripwireDir": { "type": "string" }
+      }
+    },
+    "docs": {
+      "description": "Where the repo keeps its decision records and its docs map, so the docs-owner skill and the docs-consistency test know where to look.",
+      "type": "object",
+      "properties": {
+        "adrDir": {
+          "description": "Repo-relative directory of the architecture decision records, one file per decision (for example docs/adr).",
+          "type": "string"
+        },
+        "mapFile": {
+          "description": "Repo-relative file that carries the docs map, the table naming one owning document per fact family (for example README.md).",
+          "type": "string"
+        },
+        "mapHeading": {
+          "description": "The markdown heading under which mapFile carries the docs map (for example \"## Docs map\").",
+          "type": "string"
+        }
       }
     }
   },

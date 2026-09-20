@@ -25,6 +25,7 @@ Fixtures use invented names (`example-app`, `example-dev`).
 | `agents/<name>.md` | review subagents launched by the `review` skill and the review roster; read-only, manifest-aware |
 | `workflows/<name>.js` | Workflow scripts (plain JavaScript, `export const meta` first) that orchestrate the agents; loaded as `/shopify-app-kit:<name>` |
 | `lessons/INDEX.md`, `lessons/README.md` | the lessons catalogue and its extraction discipline; homes are reference files or agent sections |
+| `templates/` | the repo shell a new app starts from; every file listed in `templates/README.md` with its placeholders; `test/templates.test.mjs` |
 | `.github/workflows/release-tag.yml` | tags `v<version>` and publishes the release when a bump merges to `main` |
 | `test/` | `node --test test/`, zero dependencies |
 

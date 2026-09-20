@@ -46,7 +46,7 @@ describe('lessons index', () => {
   });
 
   const all = rows();
-  test('the table has a sensible number of rows', () => assert.ok(all.length >= 35 && all.length <= 80, `${all.length} rows`));
+  test('the table has a sensible number of rows', () => assert.ok(all.length >= 35 && all.length <= 200, `${all.length} rows`));
 
   test('ids are unique and prefixed', () => {
     const seen = new Set();

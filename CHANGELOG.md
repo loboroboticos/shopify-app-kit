@@ -3,6 +3,75 @@
 All notable changes to shopify-app-kit. The version is the plugin version in `.claude-plugin/plugin.json`; every
 vendored hook carries it on line 2 (`# shopify-app-kit vX.Y.Z`).
 
+## 0.7.0
+
+Repo-shell templates, and two skills for multi-tenant apps: `tenancy` and `mcp-connector`.
+
+- Schema v1, additive: `auth.expiringOfflineTokens` (boolean; the app runs `future.expiringOfflineAccessTokens`
+  and its session table carries `refreshToken` and `refreshTokenExpires`; required by Shopify for public apps
+  created on or after 2026-04-01 and for all public apps from 2027-01-01), `billing.method`
+  (`billing-api | app-pricing | none`; App Pricing is the public-app default with no subscription webhooks, the
+  Billing API is legacy but the only path for custom distribution), and `docs.adrDir`, `docs.mapFile`,
+  `docs.mapHeading`. All carry descriptions. `hooks/doctor.sh` accepts the two new top-level sections and prints
+  "Expiring offline tokens" and "Billing method" when present; no guard behaviour changes. New fixture
+  `test/fixtures/manifests/multi-tenant-app.json`; schema tests for the valid keys, every enum value, a rejected
+  enum value and wrong types; doctor tests for the printed facts. The README's manifest contract gains a table
+  for the keys the doctor prints and the skills read.
+- `templates/`: the repo shell a new app starts from, generic and written from the kit's lessons. CI workflow
+  (`contents: read`, per-ref concurrency, `pull_request` plus `workflow_call`, a `verify` job with frozen install,
+  `--audit-level=high`, `prisma generate`, typecheck, test, build, and a `migrations` job that runs
+  `prisma migrate deploy` from an empty Postgres service container then `prisma migrate diff --from-url
+  --to-schema-datamodel --exit-code`), `secret-scan.yml` (gitleaks over the full history on every PR and weekly,
+  a version-pinned release tarball with its SHA-256 verified before running, `--redact`, off-the-hour cron, the
+  60-day note; version and checksum left as placeholders), `.gitleaks.toml` (defaults plus a credentialed
+  connection-URI rule, narrow allowlists each with a reason), `dependency-audit.yml` (weekly, opens or comments an
+  issue through the composite `failure-issue` action, run stays green), `dependabot.yml` (actions, npm root and
+  server, docker; minor/patch grouped; framework majors ignored as deliberate migrations), the work-item issue
+  template with the "Close condition needs" ladder and the irreversibility check, `.env.example` with
+  public/secret/local markers, `DIRECT_DATABASE_URL` and the dev-command database fingerprint, the docs-map
+  section shape and `test/docs-consistency.test.mjs` (unmapped file, missing path, dated heading in a reference
+  doc, ADR without an index row; allowlists that only shrink; repair string in every message), the MADR-lite ADR
+  index and template, `docs/adr/SEEDS.md` (thirteen decisions a new app takes before Phase 1), and the `.claude/`
+  wiring: `settings.json` (marketplace pin, enabled plugins, the three vendored guards, the bootstrap hook),
+  `hooks/kit-bootstrap.sh` (remote sessions only; installs the kit and the official companion plugin when absent,
+  writes the telemetry opt-out, never fails the session), the starter `shopify-app.json` (expiring offline tokens,
+  App Pricing, RLS Postgres), four path-scoped rule seeds (`billing`, `prisma`, `docs`, `pr-and-issues`, each
+  ≤ 25 lines) and a CLAUDE.md under 60 lines. Actions pinned by SHA. `templates/README.md` documents the
+  placeholders (`{{APP_NAME}}`, `{{DEFAULT_BRANCH}}`, `{{PROTECTED_BRANCH}}`, `{{PACKAGE_MANAGER}}`,
+  `{{SERVER_DIR}}`, `{{GITLEAKS_VERSION}}`, `{{GITLEAKS_SHA256}}`) and every file.
+- `test/templates.test.mjs`: every template listed in the README, every placeholder documented and used, the
+  starter manifest validates after substitution, JSON parses, YAML passes a dependency-free structural check
+  (including a quoted-placeholder rule, since an unquoted `{{X}}` at the start of a YAML value is a flow
+  mapping), scripts pass `bash -n` / `node --check`, header comments, least-privilege and SHA-pin and cron-minute
+  rules over the workflows, the gitleaks allowlist reasons, the executor rungs, the env markers, rule-seed and
+  CLAUDE.md line limits. The schema validator moved to `test/lib/schema-validate.mjs` so both tests share it.
+- `skills/tenancy` (model-invocable): reads `database.provider`, `database.rls`, `auth.expiringOfflineTokens`,
+  `paths.prisma`; seven steps for a new table, query path, cron, webhook handler or token change. References:
+  `rls-fail-closed.md` (tenant-bound tables, two roles from the first migration with no `BYPASSRLS` on the runtime
+  role, migrations own roles and policies, `withTenant` with `SET LOCAL`, tenant-leading indexes),
+  `isolation-probe.md` (the isolation canary, the model registry, probes as the runtime role, verb probes on the
+  grant floor), `request-bootstrap.md` (identity from a verified credential, lazy provisioning and the
+  `afterAuth` trap, crons iterate tenants), `principal-identity.md` (the `Principal` table, actor stamping,
+  append-only audit), `expiring-tokens.md` (the requirement and dates, the flag and columns, one per-shop-locked
+  refresh chokepoint, purge on refresh expiry), `webhook-intake.md` (verify, record, process, mark; 401 before
+  recording; idempotent on the delivery id; compliance payloads never persisted; the signature covers the body
+  only).
+- `skills/mcp-connector` (model-invocable): for an app's own operator-facing MCP server. References:
+  `per-grant-tokens.md` (scanner-matchable format, sha256 at rest, per-grant rows, Bearer only, last-used and IP
+  allowlist, `AsyncLocalStorage` context with `assertRole`, tenant-prefixed tokens under RLS),
+  `oauth-dcr-pkce.md` (RFC 7591 registration persisted, PKCE S256 and tenant-prefixed codes, the consent route
+  group outside the dashboard layout, RFC 8414/9728 discovery, `no-store` token endpoint with 30-day tokens and
+  no refresh grant), `redirect-uri.md` (parse as URL, loopback bypasses the allowlist per RFC 8252 §7.3, https
+  and allowlisted otherwise, validated at four steps and never reflected unmatched), `manifest-parity.md`,
+  `rate-limits-and-cost.md`, `skills-distribution.md`.
+- `lessons/INDEX.md`: 24 `ten-*` and 23 `mcp-*` rows, one per new reference section; the row-count ceiling in
+  `test/lessons-index.test.mjs` raised to 200.
+- README: rows for `tenancy`, `mcp-connector` and `templates/`, a "Scaffolding" section, the manifest example
+  and the new keys; `docs-owner` gains the rule that CLAUDE.md stays under 200 lines with mechanics in
+  path-scoped `.claude/rules/`; `kit-dev` lists `templates/`.
+- Hook headers, `KIT_VERSION`, `plugin.json` and the annotated fixture's `$schema` bumped to 0.7.0; hook logic
+  unchanged apart from the doctor's two new printed facts.
+
 ## 0.6.0
 
 The `pre-pr-review` workflow: the diff-stage roster in one go, deduped, verified, one verdict.

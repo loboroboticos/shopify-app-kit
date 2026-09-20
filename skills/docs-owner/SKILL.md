@@ -31,8 +31,9 @@ record is in `references/adr-shape.md`.
 
 5. **Choose the loading scope.** A line enters the always-loaded instructions file (CLAUDE.md) only when a session
    needs it most of the time and no check enforces it. Everything else goes to a path-scoped
-   `.claude/rules/<topic>.md` (loaded only when its paths are touched) or the owning doc. If CLAUDE.md is growing,
-   move before adding.
+   `.claude/rules/<topic>.md` (loaded only when its paths are touched) or the owning doc. CLAUDE.md stays under
+   200 lines; mechanics (commands, migration steps, review checklists) go to path-scoped `.claude/rules/`. If
+   CLAUDE.md is growing, move before adding.
 
 6. **Decisions get an ADR** only when they are significant, constraining, hard to reverse and had a real rejected
    alternative (`references/adr-shape.md`). Product decisions and tooling decisions live in separate series, each

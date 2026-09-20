@@ -1,0 +1,74 @@
+# .github/dependabot.yml (shopify-app-kit template)
+# Weekly bumps. Actions are pinned by commit SHA in .github/workflows/*.yml and Dependabot bumps the pin and its
+# trailing version comment. Minor and patch updates are grouped per ecosystem so a week is one PR, not twenty.
+# The server directory was substituted from .claude/shopify-app.json (paths.server).
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions-minor-and-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      npm-minor-and-patch:
+        update-types: [minor, patch]
+    ignore:
+      # Framework majors are deliberate migrations with their own PR, ADR when the shape changes, and a read of
+      # the upgrade guide. Dependabot must not open them.
+      - dependency-name: '@shopify/shopify-app-react-router'
+        update-types: [version-update:semver-major]
+      - dependency-name: '@shopify/shopify-api'
+        update-types: [version-update:semver-major]
+      - dependency-name: '@shopify/shopify-app-session-storage-prisma'
+        update-types: [version-update:semver-major]
+      - dependency-name: prisma
+        update-types: [version-update:semver-major]
+      - dependency-name: '@prisma/client'
+        update-types: [version-update:semver-major]
+      - dependency-name: react-router
+        update-types: [version-update:semver-major]
+      - dependency-name: '@react-router/*'
+        update-types: [version-update:semver-major]
+      - dependency-name: typescript
+        update-types: [version-update:semver-major]
+
+  # The server package when it is not the repo root (drop this block when {{SERVER_DIR}} is ".").
+  - package-ecosystem: npm
+    directory: /{{SERVER_DIR}}
+    schedule:
+      interval: weekly
+    groups:
+      server-npm-minor-and-patch:
+        update-types: [minor, patch]
+    ignore:
+      - dependency-name: '@shopify/shopify-app-react-router'
+        update-types: [version-update:semver-major]
+      - dependency-name: '@shopify/shopify-api'
+        update-types: [version-update:semver-major]
+      - dependency-name: '@shopify/shopify-app-session-storage-prisma'
+        update-types: [version-update:semver-major]
+      - dependency-name: prisma
+        update-types: [version-update:semver-major]
+      - dependency-name: '@prisma/client'
+        update-types: [version-update:semver-major]
+      - dependency-name: react-router
+        update-types: [version-update:semver-major]
+      - dependency-name: '@react-router/*'
+        update-types: [version-update:semver-major]
+      - dependency-name: typescript
+        update-types: [version-update:semver-major]
+
+  - package-ecosystem: docker
+    directory: /{{SERVER_DIR}}
+    schedule:
+      interval: weekly
+    groups:
+      docker-minor-and-patch:
+        update-types: [minor, patch]

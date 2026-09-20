@@ -1,0 +1,79 @@
+# .github/workflows/dependency-audit.yml (shopify-app-kit template)
+# Weekly dependency audit. A High or Critical finding opens an issue (or comments on the open one) through
+# .github/actions/failure-issue; the run itself stays green, because the issue is the signal and a red
+# scheduled run is one nobody reads. The package manager and server directory were substituted from
+# .claude/shopify-app.json (packageManagers, paths.server).
+name: dependency-audit
+
+on:
+  schedule:
+    # Off the hour and on a different minute from secret-scan.yml. GitHub disables scheduled workflows after
+    # 60 days without a commit to the repository; the liveness tripwire lists this workflow.
+    - cron: '41 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: dependency-audit
+  cancel-in-progress: false
+
+defaults:
+  run:
+    working-directory: '{{SERVER_DIR}}'
+
+jobs:
+  audit:
+    name: audit and open an issue on High or Critical
+    runs-on: ubuntu-latest
+    steps:
+      # Actions are pinned by commit SHA (the tag is the trailing comment); .github/dependabot.yml bumps them.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Install with a frozen lockfile
+        run: |
+          case "{{PACKAGE_MANAGER}}" in
+            npm) npm ci ;;
+            pnpm) pnpm install --frozen-lockfile ;;
+            *) echo "::error::unknown package manager"; exit 1 ;;
+          esac
+
+      - name: Audit
+        id: audit
+        # continue-on-error keeps the run green; the outcome drives the next step.
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          {{PACKAGE_MANAGER}} audit --audit-level=high 2>&1 | tee "$RUNNER_TEMP/audit.txt"
+
+      - name: Write the issue body
+        if: steps.audit.outcome == 'failure'
+        run: |
+          {
+            echo "The weekly dependency audit found a High or Critical advisory."
+            echo
+            echo "Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+            echo
+            echo '```'
+            tail -n 80 "$RUNNER_TEMP/audit.txt"
+            echo '```'
+          } > "$RUNNER_TEMP/issue-body.md"
+
+      - name: Open or comment on the audit issue
+        if: steps.audit.outcome == 'failure'
+        uses: ./.github/actions/failure-issue
+        with:
+          title: 'dependency-audit: High or Critical advisory'
+          search: 'dependency-audit: High or Critical advisory in:title'
+          labels: 'dependencies,agent:ci'
+          body-file: ${{ runner.temp }}/issue-body.md
+          token: ${{ github.token }}
