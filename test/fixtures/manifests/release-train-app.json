@@ -1,0 +1,12 @@
+{
+  "kit": { "schemaVersion": 1, "version": "0.1.0" },
+  "app": { "name": "Example Release Train", "kind": "embedded-app", "handles": { "prod": "example-train", "staging": "example-train-staging" } },
+  "shopifyCli": { "configs": { "dev": "example-dev", "deploy": "example" }, "requireConfigFlag": true,
+                  "devPolicy": "config-required", "deployPolicy": "operator-only", "configUsePolicy": "allowed", "themeDevFromRoot": "allow" },
+  "branches": { "default": "develop", "protected": ["main", "release"], "promotion": { "from": "release", "to": "main" } },
+  "packageManagers": { ".": "pnpm", "docs": "npm" },
+  "paths": { "server": ".", "shopifyServer": "app/shopify.server.ts", "appTomls": ["shopify.app.example.toml", "shopify.app.example-dev.toml"] },
+  "apiVersion": { "expected": "2026-07", "pins": ["app/shopify.server.ts"] },
+  "deploy": { "targets": { "prod": { "fly": "example-train", "flyToml": "fly.toml", "workflow": "fly-deploy.yml" } },
+              "protectedWorkflows": ["fly-deploy.yml"], "scaleToZeroBeforeMigrate": false }
+}

@@ -1,8 +1,9 @@
 {
   "name": "shopify-app-kit",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Developer kit for Shopify apps built with Claude Code: manifest-driven guard hooks, skills, review agents.",
   "author": { "name": "Lobo Robotico & Co" },
   "repository": "https://github.com/loboroboticos/shopify-app-kit",
+  "license": "MIT",
   "keywords": ["shopify", "react-router", "prisma", "fly", "claude-code"]
 }

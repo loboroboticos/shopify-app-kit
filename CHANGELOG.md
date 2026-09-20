@@ -3,6 +3,36 @@
 All notable changes to shopify-app-kit. The version is the plugin version in `.claude-plugin/plugin.json`; every
 vendored hook carries it on line 2 (`# shopify-app-kit vX.Y.Z`).
 
+## 0.3.0
+
+Two more manifest-driven guards, a license, and a hardened CI workflow.
+
+- `hooks/guard-protected-branch.sh`: PreToolUse guard for `git` and `gh`, driven by `branches.protected`,
+  `branches.default`, `branches.promotion` and `deploy.protectedWorkflows`. Blocks `git push` whose destination is a
+  protected branch (explicit refspecs including `:main`, `x:refs/heads/main` and a leading `+`; `--all` / `--mirror`;
+  an implicit, `HEAD` or `@` push from a checkout on a protected branch, honouring `git -C`), `gh pr merge` of a PR
+  whose base is protected (resolved with `gh pr view`; an unresolvable base is blocked too), `gh pr edit --base` onto
+  a protected branch, `gh api` writes to `pulls/<n>/merge`, `/merges` with a protected `base=`, `git/refs/heads/<protected>`
+  and any `mergePullRequest` mutation, and `gh workflow run` of a protected workflow by file name, path or the
+  `name:` read from the consumer's `.github/workflows/<file>`. `gh pr create --base <protected>` (a promotion PR),
+  pushes to the default or a feature branch, `gh api` reads and other workflows pass. Fails closed without jq,
+  without a manifest, with an empty `branches.protected`, or after a `cd` to a non-literal path before an implicit push.
+- `hooks/guard-package-manager.sh`: PreToolUse guard driven by `packageManagers`. Blocks `pnpm …` in a directory the
+  manifest maps to `npm`, and `npm install|ci|i|add|update|uninstall|run …` in a directory mapped to `pnpm`; the
+  effective directory follows `cd`/`pushd`/`popd`/subshells (via `lib.sh`) and `pnpm -C` / `--dir` / `npm --prefix`.
+  The lookup is by exact manifest entry (`"."` for the root); directories the manifest does not name are left alone.
+  Nearest-ancestor lookup (judging `web/app` by the `web` entry) is deliberately deferred to a later version.
+  `npx`/`pnpx`/`bunx`/`corepack` prefixes are skipped and `npx` itself is never blocked. Fails closed without jq,
+  without a manifest (for guarded commands only), or after a `cd` to a non-literal path.
+- `LICENSE`: MIT, with a third-party notice for `agents/review-correctness.md` and `agents/review-quality.md`, which
+  are adapted from Cursor's Thermos plugin (MIT). `.claude-plugin/plugin.json` now declares `license: MIT`.
+- CI: `actions/checkout` and `actions/setup-node` are pinned by commit SHA (tag in a trailing comment), a
+  `concurrency` group cancels superseded runs, and `.github/dependabot.yml` bumps the pins weekly.
+- Tests: case tables for both guards over the fixtures (a fake `gh` answers `pr view`, throwaway checkouts cover
+  implicit pushes, consumer workflow files cover display names); new fixture
+  `test/fixtures/manifests/release-train-app.json` (two protected branches, a different default).
+- README, `sync` and `doctor` skills list the three guards; hook headers and `KIT_VERSION` bumped to 0.3.0.
+
 ## 0.2.1
 
 Follow-ups from the first consumer adoption.
