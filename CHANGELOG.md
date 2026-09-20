@@ -3,6 +3,42 @@
 All notable changes to shopify-app-kit. The version is the plugin version in `.claude-plugin/plugin.json`; every
 vendored hook carries it on line 2 (`# shopify-app-kit vX.Y.Z`).
 
+## 0.4.0
+
+Five developer skills with reference files, a lessons index, and release-on-merge tagging.
+
+- Skills (each a short `SKILL.md` that reads the manifest first, with depth in `references/*.md`):
+  - `dev-loop` (model-invocable): `app dev` with the manifest's dev config and the bindings-file store, the
+    sandbox port flag, `app dev clean` at the end of every session, theme work from a scratch directory.
+    `references/cli-traps.md` covers the implicit default config, `automatically_update_urls_on_dev`, the
+    expiring quick tunnel, the missing `clean`, and the dev/production handle-prefix rule.
+  - `admin-api` (model-invocable): pin discipline and topic/handler parity before any GraphQL, webhook or toml
+    change; the Shopify Dev MCP when configured; throw on `userErrors`. References: `api-version-drift.md`,
+    `webhooks.md`, `graphql-errors.md`, `metaobjects-and-app-accessors.md`, `distribution-is-one-way.md`.
+  - `release` (user-invoked, `[beta|extension|server]`): promotion PR never merged, extension deploy with the
+    deploy config and slug verification, server release by push to the workflow's branch, scale to zero before
+    migrating, live-billing warning, a paste-able checklist. References: `billing-live-posture.md`,
+    `migrations-and-zero-downtime.md`, `ci-posture.md`.
+  - `tripwire` (model-invocable): one offline test per fact family, repair string in the message, allowlists that
+    only shrink, docs point at the check. References: `tripwire-patterns.md`, `checks-vs-probes.md`.
+  - `docs-owner` (model-invocable): one owning document per fact, no dates or incidents in reference docs,
+    warnings replaced by checks, path-scoped rules over the always-loaded file, MADR-lite ADRs. References:
+    `single-owner.md`, `adr-shape.md`.
+- `lessons/INDEX.md`: one row per lesson (`id | rule | class | home | source`) pointing at the reference file
+  or review-agent section that owns it; `lessons/README.md`: the extraction discipline, the classes (`rule`,
+  `recipe`, `lens`, `adr-seed`) and the three neutral sources (`app-1`, `app-2`, `app-3`).
+- `.github/workflows/release-tag.yml`: on push to `main`, tags `v<plugin.json version>` when the tag does not
+  exist and publishes a GitHub Release with that version's CHANGELOG section (idempotent; SHA-pinned actions;
+  `contents: write`; a `concurrency` group). Tags are no longer pushed by hand. v0.3.0's tag was the last manual
+  one and may be created by the maintainer for history; consumers should pin `$schema` to the newest tag.
+- Tests: `test/skills-parity.test.mjs` allows a `references/` directory per skill and checks that every reference
+  is linked from its `SKILL.md`, has no frontmatter, ends with a `Sources:` line naming only the neutral labels,
+  and that such a `SKILL.md` stays at or under 60 lines. New `test/lessons-index.test.mjs`: every home exists,
+  every anchor matches a heading, closed class and source sets, unique ids, every reference file indexed.
+- CI's version-bump check now also watches `lessons/`.
+- README (skills table, Lessons section, tagging note), `kit-dev` (adding a lesson, the release flow), `doctor`
+  and `sync` (no version-dated prose); hook headers and `KIT_VERSION` bumped to 0.4.0; hook logic unchanged.
+
 ## 0.3.0
 
 Two more manifest-driven guards, a license, and a hardened CI workflow.

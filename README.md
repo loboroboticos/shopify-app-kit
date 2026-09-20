@@ -21,7 +21,13 @@ The repo root is the plugin root and its own marketplace.
 | `hooks/doctor.sh` | SessionStart briefing: validates the manifest structurally, prints the app facts, reports vendored-hook drift. Silent in repos without a manifest. |
 | `/shopify-app-kit:doctor` | Same checks, on demand, plus settings-registration drift. |
 | `/shopify-app-kit:sync` | Vendors the guards into the consumer and records the kit version in the manifest. |
+| `dev-loop` (model-invocable) | Runs `shopify app dev` with the manifest's dev config and the bindings-file store, adds the sandbox port flag, ends every session with `app dev clean`, keeps theme work out of the app repo. `references/cli-traps.md` has the four CLI traps. |
+| `admin-api` (model-invocable) | Guards GraphQL, webhook and toml changes: pin discipline, topic/handler parity, the Shopify Dev MCP when configured, throw on `userErrors`. References on version drift, webhooks, GraphQL errors on 200, metaobjects and `$app:`, one-way distribution. |
+| `/shopify-app-kit:release [beta\|extension\|server]` | Opens the promotion PR (never merges), releases extensions with the deploy config and verifies the slug, explains the server release by push, scales to zero before migrating, warns before live billing, ends with a checklist. References on billing posture, migrations, CI posture. |
+| `tripwire` (model-invocable) | Writes one offline test that fails when two files disagree and names the repair. References: the patterns worth copying, checks vs probes. |
+| `docs-owner` (model-invocable) | Puts a fact in the one document that owns it, keeps reference docs undated, replaces warnings with checks, keeps CLAUDE.md small, shapes ADRs. |
 | `/shopify-app-kit:kit-dev` | Maintainer guide for this repo. |
+| `lessons/INDEX.md` | One row per lesson extracted from the consumer apps, pointing at the reference file or agent section that owns it. See [Lessons](#lessons). |
 | `schemas/shopify-app.v1.schema.json` | The manifest contract (JSON Schema, draft 2020-12). |
 
 ## Adopting the kit in an app repo
@@ -76,7 +82,12 @@ The repo root is the plugin root and its own marketplace.
    in a new session; it should report no drift.
 
 Upgrading: bump nothing in the consumer, just re-run `/shopify-app-kit:sync` after the kit tags a new version.
-The doctor flags hook headers whose `# shopify-app-kit vX.Y.Z` line no longer matches `kit.version`.
+The doctor flags hook headers whose `# shopify-app-kit vX.Y.Z` line no longer matches `kit.version`. Point the
+manifest's optional `$schema` at the newest tag
+(`https://raw.githubusercontent.com/loboroboticos/shopify-app-kit/v<version>/schemas/shopify-app.v1.schema.json`).
+
+Tags are created by `.github/workflows/release-tag.yml` when a version bump merges to `main`; nobody pushes a
+kit tag by hand (see [Developing the kit](#developing-the-kit)).
 
 ## The manifest contract
 
@@ -148,6 +159,16 @@ whether queries must be shop-scoped by hand, and which workflows are protected. 
 app's canonical layers live and what file-size limit `checks.fileSize` enforces. Sections missing from the manifest
 are skipped, and without a manifest the review runs in generic mode.
 
+## Lessons
+
+`lessons/INDEX.md` is a table with one row per lesson the consumer apps taught the kit: an id, a one-line rule,
+its class (`rule`, `recipe`, `lens` or `adr-seed`), its home (the section of a skill reference file or review
+agent that owns the text) and its source (`app-1`, `app-2`, `app-3`, the neutral labels defined in
+`lessons/README.md`). The index never carries the text; the home does. A consumer seeds its `.claude/rules/*.md`
+from the `rule` rows and points back; `recipe` rows run through the owning skill; `lens` rows are already in the
+review agents; `adr-seed` rows are decisions a new app writes one ADR each for. `lessons/README.md` has the
+extraction discipline and how to add a lesson; `test/lessons-index.test.mjs` keeps the index honest.
+
 ## The three-plugin rule
 
 Each app has up to three plugins, and they never mix:
@@ -169,9 +190,13 @@ claude plugin validate . --strict
 claude --plugin-dir .                # /shopify-app-kit:doctor should be listed
 ```
 
-See `/shopify-app-kit:kit-dev` (skills/kit-dev/SKILL.md) for how to add hooks, skills and agents, and how to
-release. Any change under `skills/`, `agents/`, `hooks/`, `workflows/`, `schemas/`, `.mcp.json` or `.claude-plugin/`
-needs a version bump; CI checks it on PRs to `main`.
+See `/shopify-app-kit:kit-dev` (skills/kit-dev/SKILL.md) for how to add hooks, skills, agents and lessons, and
+how to release. Any change under `skills/`, `agents/`, `hooks/`, `workflows/`, `schemas/`, `lessons/`, `.mcp.json`
+or `.claude-plugin/` needs a version bump; CI checks it on PRs to `main`.
+
+Releases are tagged on merge: `.github/workflows/release-tag.yml` runs on every push to `main`, reads the version
+from `.claude-plugin/plugin.json`, creates the annotated tag `v<version>` if it does not exist, and publishes a
+GitHub Release whose notes are that version's `CHANGELOG.md` section. Never push a kit tag by hand.
 
 ## License
 

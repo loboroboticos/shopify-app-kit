@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shopify-app-kit v0.3.0
+# shopify-app-kit v0.4.0
 # hooks/doctor.sh: SessionStart briefing for a consumer repo. Validates .claude/shopify-app.json structurally
 # (required keys, enums, patterns of schema v1), prints one paragraph of facts to stdout, and reports vendored-hook
 # drift. Never exits non-zero. Silent when the repo has no manifest (it is not a consumer).
