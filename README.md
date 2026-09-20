@@ -14,6 +14,17 @@ The repo root is the plugin root and its own marketplace.
 | `/shopify-app-kit:review` | Deep pre-merge review: the two agents below run in parallel on the branch diff, each checking it against the manifest, and the skill synthesizes one verdict. |
 | `agents/review-correctness.md` | Bugs, breakage, security and devex, plus every manifest contract: auth boundaries, API version pins, webhook coverage and compliance, scopes, CLI configs, protected workflows, billing test flag, shop-scoped queries and migrations. |
 | `agents/review-quality.md` | Harsh maintainability review against the app's canonical layers (Shopify server module, thin routes, one GraphQL home, per-topic webhooks, shop-scoped data layer), file-size limit from `checks.fileSize`, spaghetti growth, code-judo simplifications. |
+| `agents/design-review-architecture.md` | Plan-stage reviewer: boundaries, data model, seams, build order, and prose rules that should be checks. Read-only; reports findings, the operator decides. |
+| `agents/design-review-feasibility.md` | Plan-stage reviewer: can it be built, shipped and run, given the manifest's deploy, database and billing posture. |
+| `agents/design-review-product-intent.md` | Plan-stage reviewer: reads the raw request separately from the plan; is this the right thing, is the scope right, are the success criteria checkable. |
+| `agents/design-review-risk-governance.md` | Plan-stage reviewer: how the plan could fail, be abused or cross a rule (trust boundaries, scopes, privacy, compliance, protected paths to production). |
+| `agents/qa-review-security-governance.md` | Diff-stage reviewer: is the built change safe to release (authenticators, shop scoping, untrusted input, secrets, compliance, change control). |
+| `agents/qa-review-spec-conformance.md` | Diff-stage reviewer: requirement by requirement, met / divergent / untested; a partial or deferred build is a divergence. |
+| `agents/qa-review-technical-integrity.md` | Diff-stage reviewer: internal health (layers, performance, observability, reliability, tests, dead code, comments that describe the code). |
+| `agents/qa-review-usability.md` | Diff-stage reviewer: does it work well for the merchant, the shopper and the operator (friction, accessibility, error recovery, learnability). |
+| `agents/qa-review-divergence-hunter.md` | Diff-stage reviewer that assumes a divergence exists and hunts for it: green tests that check the wrong thing, guardrails that can be slipped past, half-done requirements, code nobody asked for. |
+| `agents/prisma-migration-reviewer.md` | Diff-stage reviewer for `schema.prisma` and migrations, keyed to `database.*`, `paths.prisma` and `deploy.scaleToZeroBeforeMigrate`: destructive operations, schema/migration parity, hand-edited SQL, RLS on new tables, the scale-to-zero step, shared-beta drift, refresh-token columns for expiring offline tokens. Never proposes editing a generated migration in place. |
+| `agents/storefront-extension-reviewer.md` | Diff-stage reviewer for theme app extensions, a one-line no-op when `paths.extensions` is empty: settings-schema compatibility, platform-minted block uids, edge-cache assumptions, asset size limits, vendored-copy parity with a drift test under `checks.tripwireDir`, no server round-trip on the render path, locales in step with the schema. |
 | `hooks/guard-shopify-cli.sh` | PreToolUse guard for `shopify app dev`, `shopify app deploy`, `shopify app config use`, `<pm> run deploy` and `shopify theme dev`, driven by the manifest's `shopifyCli` policies. Fails closed when the manifest or `jq` is missing. |
 | `hooks/guard-protected-branch.sh` | PreToolUse guard for `git push`, `gh pr merge`, `gh pr edit --base`, `gh api` writes and `gh workflow run`, driven by `branches.protected` and `deploy.protectedWorkflows`. Lets the session open a promotion PR, never land one. Fails closed when the manifest, `jq` or a PR's base cannot be read. |
 | `hooks/guard-package-manager.sh` | PreToolUse guard that keeps `pnpm` and `npm` in the directories `packageManagers` maps them to (exact entry; effective directory after `cd`, `pnpm -C`, `npm --prefix`). Fails closed when the manifest or `jq` is missing. |
@@ -158,6 +169,29 @@ The manifest is what makes the review specific: the correctness agent knows whic
 whether queries must be shop-scoped by hand, and which workflows are protected. The quality agent knows where the
 app's canonical layers live and what file-size limit `checks.fileSize` enforces. Sections missing from the manifest
 are skipped, and without a manifest the review runs in generic mode.
+
+### Review roster
+
+Beyond the two agents the `review` skill launches, the kit ships a roster of single-lens reviewers, each read-only,
+each reporting findings on one shape (`blocker | major | minor | note`, a one-line claim, `file:line` or plan-section
+evidence, a proposed fix) so a later pass can dedupe them. Every one reads `.claude/shopify-app.json` first and works
+from a plan file or PR description plus the diff against `origin/<branches.default>`, so "review this branch" and a
+checkout are enough to launch it (`subagent_type: "shopify-app-kit:<name>"`).
+
+- **Before building, on a plan:** `design-review-architecture`, `design-review-feasibility`,
+  `design-review-product-intent`, `design-review-risk-governance`. Is the plan sound, buildable, the right thing, safe.
+- **Before a PR, on a diff:** `qa-review-security-governance`, `qa-review-spec-conformance`,
+  `qa-review-technical-integrity`, `qa-review-usability`, `qa-review-divergence-hunter`, plus the two stack reviewers
+  `prisma-migration-reviewer` and `storefront-extension-reviewer`.
+- **`/shopify-app-kit:review`** still launches `review-correctness` and `review-quality`; Shopify Admin API coverage
+  (version pins, webhook parity, scopes, compliance, billing, `userErrors`, session tokens) stays in
+  `review-correctness`.
+
+The nine `design-review-*` and `qa-review-*` personas are ported from the
+[Engine template](https://github.com/StarshipSuperjam/engine-template) with its orchestrator, packets and memory
+servers rewritten into the plan file, the PR description, the diff and the manifest (see `CHANGELOG.md` for the
+port rules). A `pre-pr-review` workflow that launches the diff-stage roster in one go and dedupes the findings
+arrives in the next version.
 
 ## Lessons
 

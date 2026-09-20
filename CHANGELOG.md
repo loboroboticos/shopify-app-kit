@@ -3,6 +3,63 @@
 All notable changes to shopify-app-kit. The version is the plugin version in `.claude-plugin/plugin.json`; every
 vendored hook carries it on line 2 (`# shopify-app-kit vX.Y.Z`).
 
+## 0.5.0
+
+A review roster: nine single-lens review personas ported from the Engine template, plus two Shopify stack reviewers.
+
+- Ported from `StarshipSuperjam/engine-template@0c0a693eebe511736e886ee2aeb804c941bfbb03` (`.claude/agents/engine-*.md`,
+  the `engine-` prefix dropped; the plugin namespaces them as `shopify-app-kit:<name>`):
+  - plan stage, run on a plan before building: `design-review-architecture`, `design-review-feasibility`,
+    `design-review-product-intent`, `design-review-risk-governance`;
+  - diff stage, run on a branch before a PR: `qa-review-security-governance`, `qa-review-spec-conformance`,
+    `qa-review-technical-integrity`, `qa-review-usability`, `qa-review-divergence-hunter` (assumes a divergence
+    exists and hunts for it: built to pass its tests while doing the wrong thing, half-done requirements, code nobody
+    asked for).
+  - Not ported: `engine-audit`, `engine-grounding-scout`, `engine-validation-runner`, `engine-worker-builder`,
+    `engine-worker-bounded` (they depend on the Engine's orchestrator, memory MCP servers or Build-DAG packets).
+- Port rules:
+  - Each body keeps its four headings (Mandate / How you work / What you produce / Boundaries), the reviewer's voice,
+    and the standing clause (a review that finds nothing because it did not look hard is a failure; be exact, not
+    contrary; you report, the operator decides).
+  - Frontmatter is restricted to the Claude Code agent fields `name, description, model, effort, maxTurns, tools,
+    disallowedTools, skills, memory, background, omitClaudeMd, isolation`. The Engine's `role`, `lens`, `model-tier`,
+    `permissions`, `reviewer-contract`, `reviewer-contract-version` and `output-contract` are dropped. Every reviewer
+    sets `tools: Read, Grep, Glob, Bash`, `disallowedTools: Edit, Write, NotebookEdit` and `effort: high`;
+    `model: opus` where upstream said so (architecture, feasibility, product-intent, risk-governance,
+    security-governance, divergence-hunter). `name` equals the file name; `description` is one paragraph ending in
+    a "Use when" clause.
+  - Every reference to Engine machinery (review packet, digest, Build plan, `.engine/` state, grounding scout,
+    orchestrator adjudication, the Engine fixture clone, the JSON result contract) is rewritten into ours: the plan
+    file or the PR description, `git diff origin/<branches.default>...HEAD` with `branches.default` read from
+    `.claude/shopify-app.json`, the changed files, the manifest itself, and `docs/adr/` when present. A persona
+    works when launched with only "review this branch" and a checkout; the reading is its own (no subagents).
+  - Every "What you produce" names one findings shape a later workflow can dedupe: severity
+    `blocker | major | minor | note`, a one-line claim, the evidence (`file:line` or plan section), a proposed fix.
+- Two new Shopify stack reviewers, written fresh under the same rules:
+  - `prisma-migration-reviewer`: reads `paths.prisma`, `database.provider`, `database.rls`,
+    `database.sharedDevDbWithBeta` and `deploy.scaleToZeroBeforeMigrate` first; checks destructive operations and
+    whether the PR body acknowledges them, schema/migration parity, migration SQL hand-edited after generation, RLS
+    on every new table (`tenant`/shop column, `ENABLE` and `FORCE ROW LEVEL SECURITY`, policies for the app role)
+    when `rls` is true, the stated scale-to-zero step, the shared-beta drift warning, and `refreshToken` /
+    `refreshTokenExpires` in session storage for expiring offline tokens. Never proposes editing a generated
+    migration in place.
+  - `storefront-extension-reviewer`: a one-line no-op when `paths.extensions` is empty or absent; otherwise Liquid
+    settings-schema backward compatibility, platform-minted app-block uids, CDN edge-cache assumptions on metafield
+    reads, asset size limits and silent deploy validation, vendored-copy parity (one `sync` writer plus a drift test
+    under `checks.tripwireDir`), no server round-trip for storefront-critical data, locale files in step with the
+    block schema.
+  - Shopify Admin API coverage stays in `review-correctness`; no third agent.
+- `test/agents-parity.test.mjs`: `ALLOWED_KEYS` is exactly the 12-field list above (`permissionMode`,
+  `mcpServers`, `hooks` and `color` removed); every agent is read-only either by a `tools` list without
+  Write/Edit/MultiEdit/NotebookEdit or by a `disallowedTools` naming Write, Edit and NotebookEdit; the eleven roster
+  files must set `disallowedTools`, carry the four headings, the standing clause and "you report; the operator
+  decides", and contain no Engine frontmatter key nor the strings `.engine/` or `review packet`; the roster list
+  itself is asserted.
+- README: one row per new agent and a "Review roster" subsection (a `pre-pr-review` workflow arrives in the next
+  version); `skills/review/SKILL.md` points at the roster (no behaviour change).
+- Hook headers, `KIT_VERSION`, `plugin.json` and the annotated fixture's `$schema` bumped to 0.5.0; hook logic
+  unchanged.
+
 ## 0.4.0
 
 Five developer skills with reference files, a lessons index, and release-on-merge tagging.
