@@ -65,6 +65,8 @@ maintainability against the app's canonical layers. Both are diff-scoped and evi
   re-running the relevant checks (`checks.fileSize`, tests in `checks.tripwireDir`) before pushing.
 - Findings against files under `.claude/hooks/kit/` mean "re-run `/shopify-app-kit:sync`", not "edit the hook".
 - For a single-lens pass the kit also ships a review roster (`agents/design-review-*.md` on a plan before building,
-  `agents/qa-review-*.md`, `prisma-migration-reviewer` and `storefront-extension-reviewer` on a diff before a PR);
-  `/shopify-app-kit:pre-pr-review` runs the whole diff-stage roster and dedupes the findings. See the README's
-  "Review roster". This skill launches only the two agents above.
+  `agents/qa-review-*.md`, `prisma-migration-reviewer` and `storefront-extension-reviewer` on a diff before a PR).
+  For plans, run `/shopify-app-kit:plan-review <plan file | PR number | #issue>`, which launches the four
+  design-review agents and dedupes the findings; `/shopify-app-kit:pre-pr-review` does the same for the diff-stage
+  roster, and `/shopify-app-kit:release-readiness` checks a promotion range before the promotion PR. See the
+  README's "Review roster". This skill launches only the two agents above.

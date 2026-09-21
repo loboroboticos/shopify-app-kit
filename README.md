@@ -27,9 +27,12 @@ The repo root is the plugin root and its own marketplace.
 | `agents/prisma-migration-reviewer.md` | Diff-stage reviewer for `schema.prisma` and migrations, keyed to `database.*`, `paths.prisma` and `deploy.scaleToZeroBeforeMigrate`: destructive operations, schema/migration parity, hand-edited SQL, RLS on new tables, the scale-to-zero step, shared-beta drift, refresh-token columns for expiring offline tokens. Never proposes editing a generated migration in place. |
 | `agents/storefront-extension-reviewer.md` | Diff-stage reviewer for theme app extensions, a one-line no-op when `paths.extensions` is empty: settings-schema compatibility, platform-minted block uids, edge-cache assumptions, asset size limits, vendored-copy parity with a drift test under `checks.tripwireDir`, no server round-trip on the render path, locales in step with the schema. |
 | `/shopify-app-kit:pre-pr-review` | Workflow (`workflows/pre-pr-review.js`): scopes the branch from the manifest, runs the diff-stage roster in parallel (the stack reviewers only when the diff touches their files), merges findings on the same spot, sends every blocker and major to a skeptic, and returns one verdict (`block`, `changes-needed`, `approve`) with the merged findings. Takes an optional base branch or `{ base, pr, reviewers, all }`. |
+| `/shopify-app-kit:release-readiness` | Workflow (`workflows/release-readiness.js`): scopes the promotion range (`branches.promotion.from` -> `.to`, or `{ base, head }`), runs only the release dimensions the manifest enables (`api-version`, `webhooks`, `migrations` when the range touches `paths.prisma`, `branch-model`, `billing` when `billing.live`, `extension` when `paths.extensions` is set, an `app-store-review` note for a public app), each as one read-only kit agent on the shared finding shape, verifies every blocker and major, and returns `go`, `go-with-notes` or `no-go` with the findings and a pasteable checklist for the promotion PR body (the `release` skill's list, pre-ticked where a dimension passed). A dimension that returns nothing keeps the verdict off `go`. |
+| `/shopify-app-kit:plan-review` | Workflow (`workflows/plan-review.js`): runs the four `design-review-*` agents in parallel on a plan (a markdown file path, a PR number whose body is the plan, or `#<issue>`), with the manifest facts the plan touches and the ADR directory in their prompts; merges findings on the same section, verifies every blocker and major, and returns `sound`, `revise` or `rethink` with the findings and the decisions the plan should record as ADRs (findings a reviewer tags `adr: true`). |
 | `hooks/guard-shopify-cli.sh` | PreToolUse guard for `shopify app dev`, `shopify app deploy`, `shopify app config use`, `<pm> run deploy` and `shopify theme dev`, driven by the manifest's `shopifyCli` policies. Fails closed when the manifest or `jq` is missing. |
 | `hooks/guard-protected-branch.sh` | PreToolUse guard for `git push`, `gh pr merge`, `gh pr edit --base`, `gh api` writes and `gh workflow run`, driven by `branches.protected` and `deploy.protectedWorkflows`. Lets the session open a promotion PR, never land one. Fails closed when the manifest, `jq` or a PR's base cannot be read. |
 | `hooks/guard-package-manager.sh` | PreToolUse guard that keeps `pnpm` and `npm` in the directories `packageManagers` maps them to (exact entry; effective directory after `cd`, `pnpm -C`, `npm --prefix`). Fails closed when the manifest or `jq` is missing. |
+| `hooks/guard-migrations.sh` | PreToolUse guard that keeps destructive Prisma commands out of a session: `prisma migrate reset` (under any prefix: `npx`, `pnpm exec`, `pnpm dlx`, `npm exec`, `yarn`, `bunx`, a path, bare), `prisma db push --force-reset` / `--accept-data-loss`, and `prisma db execute` whose command text carries `DROP DATABASE`, `DROP SCHEMA` or `TRUNCATE`. Everything else Prisma passes; `prisma migrate deploy` prints one reminder line when `deploy.scaleToZeroBeforeMigrate` is true. The block message names `database.provider`, `database.sharedDevDbWithBeta` and `paths.prisma`. Prose (a heredoc body, an echo, a commit message) never blocks. Fails closed when the manifest or `jq` is missing, for the guarded forms only. |
 | `hooks/lib.sh` | Shared bash the guards source: manifest resolution, block messages, path normalisation, heredoc stripping, command splitting with `cd` tracking. |
 | `hooks/doctor.sh` | SessionStart briefing: validates the manifest structurally, prints the app facts, reports vendored-hook drift, checks the two companions (one warning with the install command when `claude plugin list` does not list `shopify-ai-toolkit`, one info line while its telemetry opt-out file is absent, one warning with the pinned `pip install graphifyy==<pin> && graphify install` when graphify is absent; silent without the `claude` binary, never blocks), and, when `gh` is on PATH, prints one `Schedule:` line per scheduled workflow with the age of its last successful run (a warning past twice the cadence read from its cron; silent without `gh`). Silent in repos without a manifest. |
 | `/shopify-app-kit:doctor` | Same checks, on demand, plus settings-registration drift; `references/companion.md` has the split between the two companions and the kit. |
@@ -88,7 +91,8 @@ The repo root is the plugin root and its own marketplace.
            "hooks": [
              { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/kit/guard-shopify-cli.sh\"" },
              { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/kit/guard-protected-branch.sh\"" },
-             { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/kit/guard-package-manager.sh\"" }
+             { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/kit/guard-package-manager.sh\"" },
+             { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/kit/guard-migrations.sh\"" }
            ]
          }
        ]
@@ -117,7 +121,8 @@ majors ignored, the work-item issue template whose "Close condition needs" ladde
 an `.env.example` that says which value is public, a docs map with the test that keeps it complete and undated,
 the ADR shape and the seed decisions a new app takes before Phase 1, a `.claudeignore` that keeps `graphify-out/`
 out of context, and the `.claude/` wiring (the marketplace pin, the remote-session bootstrap hook, a starter
-manifest with expiring offline tokens, App Pricing and RLS Postgres, four path-scoped rule seeds, a short CLAUDE.md). `templates/README.md` lists every file and the
+manifest with expiring offline tokens, App Pricing and RLS Postgres, four path-scoped rule seeds, the four
+vendored guards registered, a short CLAUDE.md). `templates/README.md` lists every file and the
 placeholders (`{{APP_NAME}}`, `{{DEFAULT_BRANCH}}`, `{{PROTECTED_BRANCH}}`, `{{PACKAGE_MANAGER}}`,
 `{{SERVER_DIR}}`, plus the gitleaks version and checksum). `test/templates.test.mjs` keeps the directory honest.
 
@@ -158,9 +163,9 @@ Polaris for the app home (`shopify-polaris-app-home`) and a score of other skill
 only; the opt-out is the file `~/.config/shopify-ai-toolkit/opt-out`.
 
 The kit covers what the companion cannot know: this repo's manifest facts and the guard hooks that enforce
-them, the doctor, the review roster and the `pre-pr-review` workflow, the lessons, the scaffold and its
-templates, and the app-layered Shopify data (app-owned metafields and metaobjects, the `$app:` accessors, the
-entitlement write path and its cache contract). A kit skill calls the companion for platform facts and says
+them, the doctor, the review roster and the `pre-pr-review`, `release-readiness` and `plan-review` workflows,
+the lessons, the scaffold and its templates, and the app-layered Shopify data (app-owned metafields and
+metaobjects, the `$app:` accessors, the entitlement write path and its cache contract). A kit skill calls the companion for platform facts and says
 "unverified" without it: `admin-api` step 4 uses `shopify-dev` for schema verification, `dev-loop` points at
 `shopify-use-shopify-cli` for the CLI reference, `release` runs `shopify-app-store-review` before the promotion
 PR of a public app. The doctor warns once when the companion is not installed and notes once while telemetry is
@@ -235,6 +240,8 @@ Keys the hooks read:
 | `branches.default`, `branches.promotion` | branch name; `{ from, to }` or `null` | Only quoted in the block message: "Target `<default>` instead; Claude may open a `<from> -> <to>` promotion PR when asked, never merge it." `gh pr create --base <protected>` is allowed for exactly that. |
 | `deploy.protectedWorkflows` | workflow file names | `gh workflow run` of one of these is blocked, matched by file name, by `.github/workflows/<file>`, or by the workflow's `name:` read from the consumer's `.github/workflows/<file>`. |
 | `packageManagers` | `{ "<dir>": "npm" \| "pnpm" }` | `pnpm …` in a directory mapped to `npm`, and `npm install\|ci\|i\|add\|update\|uninstall\|run …` in a directory mapped to `pnpm`, are blocked. The directory is the effective one after `cd`/`pushd`/`popd`, `pnpm -C`/`--dir` or `npm --prefix`, looked up as an exact repo-relative entry (`"."` = root); unmapped directories are left alone (no nearest-ancestor lookup yet). A `cd` to a non-literal path before a guarded command fails closed. |
+| `deploy.scaleToZeroBeforeMigrate` | boolean | `guard-migrations`: an allowed `prisma migrate deploy` prints one reminder line (scale the app to zero before migrating, per the `release` skill's `migrations-and-zero-downtime.md`) when this is `true`; nothing is blocked on it. `release-readiness` notes it under the migrations dimension. |
+| `paths.prisma`, `database.provider`, `database.sharedDevDbWithBeta` | repo-relative path; string; boolean | `guard-migrations` blocks `prisma migrate reset`, `prisma db push --force-reset` / `--accept-data-loss` and a `prisma db execute` carrying `DROP DATABASE`, `DROP SCHEMA` or `TRUNCATE` whatever these say; the block message quotes them so the session knows which database the checkout reaches. `release-readiness` runs its migrations dimension only when the range touches `paths.prisma`. |
 
 Keys the doctor prints and the skills and review agents read (no guard behaviour):
 
@@ -276,9 +283,13 @@ checkout are enough to launch it (`subagent_type: "shopify-app-kit:<name>"`).
 
 - **Before building, on a plan:** `design-review-architecture`, `design-review-feasibility`,
   `design-review-product-intent`, `design-review-risk-governance`. Is the plan sound, buildable, the right thing, safe.
+  `/shopify-app-kit:plan-review` runs all four and merges the findings.
 - **Before a PR, on a diff:** `qa-review-security-governance`, `qa-review-spec-conformance`,
   `qa-review-technical-integrity`, `qa-review-usability`, `qa-review-divergence-hunter`, plus the two stack reviewers
-  `prisma-migration-reviewer` and `storefront-extension-reviewer`.
+  `prisma-migration-reviewer` and `storefront-extension-reviewer`. `/shopify-app-kit:pre-pr-review` runs them.
+- **Before a promotion PR, on the range:** `/shopify-app-kit:release-readiness` runs one dimension per manifest
+  section (API version, webhooks, migrations, branch model, billing, extensions, App Store review), each as one of
+  the agents above, and returns a verdict with the PR-body checklist.
 - **`/shopify-app-kit:review`** still launches `review-correctness` and `review-quality`; Shopify Admin API coverage
   (version pins, webhook parity, scopes, compliance, billing, `userErrors`, session tokens) stays in
   `review-correctness`.
@@ -307,6 +318,38 @@ go. It is a Claude Code workflow script (`workflows/pre-pr-review.js`, plain Jav
    argued away.
 5. **Verdict.** `block` on a surviving blocker, `changes-needed` on a major, else `approve`; the launching session
    reports it. Nothing is posted to the PR and no file is modified.
+
+### The release-readiness and plan-review workflows
+
+`/shopify-app-kit:release-readiness [{ "base", "head", "pr", "dimensions" }]` has the same three-phase shape and
+the same finding shape, applied to a promotion range instead of a branch. Its scope agent reads the manifest and
+diffs `branches.promotion.from` against `.to` (or the arguments), lists the changed files, migrations, pin files,
+tomls, extension files and workflow files, and takes the PR body when the promotion PR is already open. Then only
+the dimensions the manifest enables run, each as one read-only kit agent: `api-version` (every `apiVersion.pins`
+file and every toml's `[webhooks] api_version` carry `apiVersion.expected`; `review-correctness`), `webhooks`
+(every subscription has a handler, compliance handlers present; `review-correctness`), `migrations` (only when the
+range touches `paths.prisma`: no destructive operation without a PR-body acknowledgement, schema edits with their
+migrations, the scale-to-zero step noted; `prisma-migration-reviewer`), `branch-model` (the range is exactly the
+promotion pair, no commit on the protected branch outside a merge, `deploy.protectedWorkflows` untouched or
+reviewed; `qa-review-security-governance`), `billing` (only when `billing.live`: no tier, price or name change
+without it being called out, the test flag untouched in production; `review-correctness`), `extension` (only when
+`paths.extensions` is non-empty; `storefront-extension-reviewer`) and `app-store-review` (only for a public app:
+one note telling the operator to run the companion's `shopify-app-store-review` skill; no agent). Blockers and
+majors go to a skeptic; the verdict is `no-go` on a surviving blocker, `go` only when every dimension ran clean,
+`go-with-notes` otherwise (a dimension that returned nothing is listed as uncovered and keeps the verdict off
+`go`). The result carries a checklist block for the promotion PR body: the `release` skill's step 7 lines plus one
+per dimension, ticked where the dimension passed or does not apply, open where it raised something, failed or
+needs the operator. The `release` skill runs it before opening the promotion PR; a `no-go` means the PR is not
+opened.
+
+`/shopify-app-kit:plan-review <plan file | PR number | #issue | { "plan", "pr", "issue", "reviewers" }>` runs the
+four `design-review-*` agents on a plan that has not been built. The scope agent returns the plan text, its
+sections, the raw request it cites, the manifest sections it touches (and the ones it should mention but does
+not), and the ADR directory when `docs.adrDir` is set. The reviewers return findings on the shared shape with the
+plan section as the location and an optional `adr: true` tag for a finding whose fix is a decision worth an ADR;
+findings on the same section merge into one carrying both claims and the higher severity; blockers and majors go
+to a skeptic; the verdict is `rethink` on a surviving blocker, `revise` on a major or an uncovered lens, else
+`sound`. The result lists the ADR decisions separately so the operator can write them before building.
 
 ## Lessons
 

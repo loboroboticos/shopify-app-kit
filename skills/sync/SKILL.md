@@ -46,7 +46,8 @@ their logic, and touches nothing outside `.claude/`.
            "hooks": [
              { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/kit/guard-shopify-cli.sh\"" },
              { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/kit/guard-protected-branch.sh\"" },
-             { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/kit/guard-package-manager.sh\"" }
+             { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/kit/guard-package-manager.sh\"" },
+             { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/kit/guard-migrations.sh\"" }
            ]
          }
        ]
@@ -55,7 +56,9 @@ their logic, and touches nothing outside `.claude/`.
    ```
 
    One entry per `guard-*.sh` that was copied (currently `guard-shopify-cli.sh`, `guard-protected-branch.sh`,
-   `guard-package-manager.sh`). Do not register `lib.sh`; it is sourced by the guards.
+   `guard-package-manager.sh`, `guard-migrations.sh`). Do not register `lib.sh`; it is sourced by the guards.
+   A consumer upgrading from a kit without `guard-migrations.sh` adds the fourth entry by hand; the doctor does
+   not notice a missing entry as long as one guard is registered.
 
 6. **Verify.** Run one blocked and one allowed case through the vendored guard, for example:
 
@@ -65,9 +68,10 @@ their logic, and touches nothing outside `.claude/`.
    ```
 
    Expect exit 2 with a `Blocked by shopify-app-kit/guard-shopify-cli:` message under a `config-required` or
-   `operator-only` deploy policy. Likewise `git push origin <protected>` through `guard-protected-branch.sh` and
+   `operator-only` deploy policy. Likewise `git push origin <protected>` through `guard-protected-branch.sh`,
    `pnpm install` from a directory mapped to `npm` (or `npm install` from one mapped to `pnpm`) through
-   `guard-package-manager.sh`. Then run the `doctor` skill and confirm it reports no drift.
+   `guard-package-manager.sh`, and `npx prisma migrate reset` through `guard-migrations.sh`. Then run the
+   `doctor` skill and confirm it reports no drift.
 
 7. **Commit** `.claude/hooks/kit/`, the manifest and settings change together, with a message like
    `chore: sync shopify-app-kit v<version> hooks`.

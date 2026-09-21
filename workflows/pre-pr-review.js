@@ -1,7 +1,7 @@
 export const meta = {
   name: 'pre-pr-review',
   description: 'Run the diff-stage review roster on the current branch in one go and dedupe the findings into one verdict',
-  whenToUse: 'Use when a branch is about to become a pull request, or a PR is about to be merged or promoted, and you want every diff-stage reviewer (qa-review-*, prisma-migration-reviewer, storefront-extension-reviewer) run once with the findings merged, verified and ranked. Not for plans: launch the design-review-* agents on a plan instead.',
+  whenToUse: 'Use when a branch is about to become a pull request, or a PR is about to be merged or promoted, and you want every diff-stage reviewer (qa-review-*, prisma-migration-reviewer, storefront-extension-reviewer) run once with the findings merged, verified and ranked. Not for plans: run plan-review on a plan instead. Not a release check: run release-readiness on a promotion range.',
   phases: [
     { title: 'Scope', detail: 'manifest, base branch, diff, PR body or plan file' },
     { title: 'Review', detail: 'the diff-stage roster in parallel, read-only' },

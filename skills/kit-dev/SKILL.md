@@ -24,7 +24,7 @@ Fixtures use invented names (`example-app`, `example-dev`).
 | `skills/<name>/references/*.md` | depth for a skill (plain markdown, no frontmatter, ends with a `Sources:` line); the SKILL.md links each |
 | `skills/<name>/scripts/*.{mjs,sh}` | zero-dependency scripts a skill runs, each linked from its SKILL.md and syntax-checked by the parity test; today `skills/new-app/scripts/` (`apply-overlay.mjs`, `validate-manifest.mjs`, `smoke-guards.sh`), exercised by `test/new-app.test.mjs` against a stand-in template |
 | `agents/<name>.md` | review subagents launched by the `review` skill and the review roster; read-only, manifest-aware |
-| `workflows/<name>.js` | Workflow scripts (plain JavaScript, `export const meta` first) that orchestrate the agents; loaded as `/shopify-app-kit:<name>` |
+| `workflows/<name>.js` | Workflow scripts (plain JavaScript, `export const meta` first) that orchestrate the agents; loaded as `/shopify-app-kit:<name>`; today `pre-pr-review` (a diff), `release-readiness` (a promotion range), `plan-review` (a plan) |
 | `lessons/INDEX.md`, `lessons/README.md` | the lessons catalogue and its extraction discipline; homes are reference files or agent sections |
 | `templates/` | the repo shell a new app starts from; every file listed in `templates/README.md` with its placeholders; `test/templates.test.mjs` |
 | `labels.json`, `scripts/sync-labels.mjs` | the label set (with the `ladder` array) and the script that applies it with `gh label create --force`; `test/labels.test.mjs` |
@@ -44,7 +44,11 @@ Fixtures use invented names (`example-app`, `example-dev`).
 4. Use `kit_walk_commands "$cmd" callback` for anything that depends on the effective directory.
 5. Add cases to `test/hooks.test.mjs` (both fixtures, blocked and allowed, prose false positives) and document the
    manifest keys it reads in the README's manifest contract. New manifest keys go into the schema additively.
-6. Mention the new guard in the `sync` skill's registration snippet and in `skills/doctor/SKILL.md` step 4.
+6. Register it everywhere a consumer learns the guard list: the `sync` skill's settings snippet and its "one entry
+   per guard" sentence, `skills/doctor/SKILL.md` step 4, the README's "What you get" table and adoption snippet,
+   `templates/.claude/settings.json` (`test/templates.test.mjs` asserts it registers exactly the guards under
+   `hooks/`), and a line in `templates/CLAUDE.md`'s hard constraints. `apply-overlay.mjs` vendors `guard-*.sh` by
+   glob and `hooks/doctor.sh` checks registration by prefix, so neither lists guards by name.
 
 ## Add a skill
 
@@ -93,6 +97,39 @@ and a `whenToUse` containing "Use when"; only `.js` is loaded (`.mjs`/`.ts` are 
 `test/workflows-run.test.mjs` runs the script under a stub runtime with canned reviewer output, so add a case there
 for any new branch of logic. Any addition under `agents/`, `hooks/`, `skills/`, `schemas/`, `workflows/`,
 `lessons/`, `.mcp.json` or `.claude-plugin/` requires a version bump (CI enforces it on PRs to `main`).
+
+## Re-sync the review personas from upstream
+
+The nine `design-review-*` and `qa-review-*` personas are ports of `.claude/agents/engine-*.md` from
+`StarshipSuperjam/engine-template`, taken at the commit the CHANGELOG records (0.5.0 names the first one; a later
+re-sync entry names the newest). The kit does not track upstream automatically: the `kit-health` routine reports
+how many upstream persona files changed since that commit, and a maintainer ports the deltas by hand.
+
+1. Shallow-clone upstream `main` into a scratch directory (`git clone --depth 50 --filter=blob:none
+   <upstream url> /tmp/engine-template`), read the recorded commit from the CHANGELOG, and list what changed:
+   `git -C /tmp/engine-template diff --stat <commit>..HEAD -- .claude/agents/`.
+2. For each changed persona, diff its body against `agents/<name>.md` (the `engine-` prefix dropped) ignoring
+   the frontmatter and the kit's rewritten language: upstream's review packet, digest, Build plan, `.engine/`
+   state, grounding scout, orchestrator adjudication and JSON result contract read here as the plan file or PR
+   description, `git diff origin/<branches.default>...HEAD`, the changed files, the manifest and `docs/adr/`.
+   Compare the four headings (Mandate / How you work / What you produce / Boundaries) and the standing clause
+   one section at a time; the CHANGELOG 0.5.0 port rules are the mapping.
+3. Port the substantive deltas (a new check, a sharpened mandate, a removed boundary) in the persona's own voice;
+   leave wording-only churn. Keep the frontmatter to the allowlist in `test/agents-parity.test.mjs`
+   (`name, description, model, effort, maxTurns, tools, disallowedTools, skills, memory, background, omitClaudeMd,
+   isolation`), `tools: Read, Grep, Glob, Bash`, `disallowedTools: Edit, Write, NotebookEdit`, and the findings
+   shape every persona reports on (`blocker | major | minor | note`, claim, evidence, fix).
+4. `node --test test/agents-parity.test.mjs` (headings, standing clause, "you report; the operator decides", no
+   Engine machinery string), then the whole suite: `workflows/pre-pr-review.js`, `plan-review.js` and
+   `release-readiness.js` launch these agents by name.
+5. Record the new upstream commit in the CHANGELOG entry (`Re-synced from StarshipSuperjam/engine-template@<sha>`,
+   with one line per persona that changed and what was ported) and bump the version.
+
+Deliberately not ported, now as then: `engine-worker-builder` and `engine-worker-bounded` (they build; the kit's
+agents are read-only), `engine-grounding-scout` and `engine-audit` (they depend on the Engine's memory servers
+and Build-DAG packets), and `engine-validation-runner` (it runs the Engine's validation harness). Of these,
+`validation-runner` is the candidate for a future `test-digest` agent that runs a consumer's `checks.*` suites
+and digests the failures; the others stay out. No routine ports anything: `kit-health` only reports the delta.
 
 ## Add a routine
 
