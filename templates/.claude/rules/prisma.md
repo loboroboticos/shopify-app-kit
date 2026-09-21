@@ -18,7 +18,8 @@ paths:
   superuser role bypasses RLS). `DIRECT_DATABASE_URL` is the owner role, read by migrations only.
 - All tenant-scoped access goes through the transaction wrapper (`withTenant`) that runs `SET LOCAL`; the raw
   client is not exported, and the import guard rejects it outside the sanctioned files.
-- Never `prisma db push` or `migrate reset` where a shared or production database is reachable. The dev command
-  refuses to migrate without `DEV_DATABASE_FINGERPRINT` matching `DATABASE_URL`.
+- Never `prisma db push` or `migrate reset` where a shared or production database is reachable (the kit's
+  `guard-migrations` hook blocks `migrate reset`, `db push --force-reset` / `--accept-data-loss` and a `db execute`
+  that drops or truncates). The dev command refuses to migrate without `DEV_DATABASE_FINGERPRINT` matching `DATABASE_URL`.
 - CI applies every migration from an empty database and runs `migrate diff --exit-code`; a schema edit ships with
   its migration in the same PR, and a generated migration is never edited in place.

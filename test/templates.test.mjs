@@ -143,7 +143,12 @@ describe('templates/', () => {
     assert.equal(s.extraKnownMarketplaces['shopify-app-kit'].source.repo, 'loboroboticos/shopify-app-kit');
     assert.equal(s.enabledPlugins['shopify-app-kit@shopify-app-kit'], true);
     const pre = s.hooks.PreToolUse.flatMap((h) => h.hooks.map((x) => x.command)).join('\n');
-    for (const g of ['guard-shopify-cli.sh', 'guard-protected-branch.sh', 'guard-package-manager.sh']) assert.ok(pre.includes(`hooks/kit/${g}`), g);
+    // Every guard the kit ships is registered, and nothing else is.
+    const shipped = fs.readdirSync(path.join(kitRoot, 'hooks')).filter((n) => /^guard-.*\.sh$/.test(n)).sort();
+    assert.deepEqual(shipped, ['guard-migrations.sh', 'guard-package-manager.sh', 'guard-protected-branch.sh', 'guard-shopify-cli.sh']);
+    for (const g of shipped) assert.ok(pre.includes(`hooks/kit/${g}`), g);
+    const registered = [...pre.matchAll(/hooks\/kit\/(guard-[a-z-]+\.sh)/g)].map((m) => m[1]).sort();
+    assert.deepEqual(registered, shipped, 'settings.json registers exactly the guards under hooks/');
     assert.ok(s.hooks.SessionStart.flatMap((h) => h.hooks.map((x) => x.command)).some((c) => c.includes('kit-bootstrap.sh')));
   });
 

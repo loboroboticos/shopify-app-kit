@@ -337,6 +337,109 @@ describe('guard-package-manager.sh', () => {
   }
 });
 
+// ---------------------------------------------------------------------------------------------- guard-migrations
+// npm-root: scaleToZeroBeforeMigrate true, prisma-postgres shared with beta; pnpm-root: false, sqlite.
+// { fixture, cmd, cwd?, exit, stderr?, stdout? (regex the stdout must match when allowed; otherwise stdout must be empty) }
+const REMINDER = /^shopify-app-kit\/guard-migrations: deploy\.scaleToZeroBeforeMigrate is true in \.claude\/shopify-app\.json; scale the app to zero before prisma migrate deploy .*migrations-and-zero-downtime\.md\)\.\n$/;
+const migrationCases = [
+  // ---- blocked: migrate reset under every prefix
+  { fixture: npmRoot, cmd: 'npx prisma migrate reset', exit: 2, stderr: /migrate reset drops and recreates the database \(prisma migrate reset\)/ },
+  { fixture: npmRoot, cmd: 'npx prisma migrate reset --force --skip-seed', exit: 2, stderr: /drops and recreates/ },
+  { fixture: npmRoot, cmd: 'prisma migrate reset', exit: 2, stderr: /drops and recreates/ },
+  { fixture: npmRoot, cmd: 'pnpm exec prisma migrate reset', exit: 2, stderr: /drops and recreates/ },
+  { fixture: npmRoot, cmd: 'pnpm dlx prisma migrate reset', exit: 2, stderr: /drops and recreates/ },
+  { fixture: npmRoot, cmd: 'pnpm prisma migrate reset', exit: 2, stderr: /drops and recreates/ },
+  { fixture: npmRoot, cmd: 'npm exec prisma migrate reset', exit: 2, stderr: /drops and recreates/ },
+  { fixture: npmRoot, cmd: 'npm exec -- prisma migrate reset --force', exit: 2, stderr: /drops and recreates/ },
+  { fixture: npmRoot, cmd: 'yarn prisma migrate reset', exit: 2, stderr: /drops and recreates/ },
+  { fixture: npmRoot, cmd: 'yarn dlx prisma migrate reset', exit: 2, stderr: /drops and recreates/ },
+  { fixture: npmRoot, cmd: 'bunx prisma migrate reset', exit: 2, stderr: /drops and recreates/ },
+  { fixture: npmRoot, cmd: 'bun x prisma migrate reset', exit: 2, stderr: /drops and recreates/ },
+  { fixture: npmRoot, cmd: './node_modules/.bin/prisma migrate reset', exit: 2, stderr: /drops and recreates/ },
+  { fixture: npmRoot, cmd: 'cd web && npx prisma migrate reset', exit: 2, stderr: /drops and recreates/ },
+  { fixture: npmRoot, cmd: 'npm run build && npx prisma migrate reset', exit: 2, stderr: /drops and recreates/ },
+  { fixture: npmRoot, cmd: 'DATABASE_URL=postgres://x npx prisma migrate reset', exit: 2, stderr: /drops and recreates/ },
+  // the rule names the manifest's database facts and the forward-only path
+  { fixture: npmRoot, cmd: 'npx prisma migrate reset', exit: 2, stderr: /database\.provider prisma-postgres, database\.sharedDevDbWithBeta true, migrations under web\/prisma\)\. Write a forward-only migration/ },
+  { fixture: pnpmRoot, cmd: 'npx prisma migrate reset', exit: 2, stderr: /database\.provider sqlite, database\.sharedDevDbWithBeta false, migrations under prisma\)/ },
+  // ---- blocked: db push with a data-loss flag
+  { fixture: npmRoot, cmd: 'npx prisma db push --force-reset', exit: 2, stderr: /db push --force-reset drops data to make the schema fit/ },
+  { fixture: npmRoot, cmd: 'npx prisma db push --accept-data-loss', exit: 2, stderr: /db push --accept-data-loss drops data/ },
+  { fixture: npmRoot, cmd: 'npx prisma db push --skip-generate --accept-data-loss', exit: 2, stderr: /--accept-data-loss/ },
+  { fixture: pnpmRoot, cmd: 'pnpm exec prisma db push --force-reset', exit: 2, stderr: /--force-reset/ },
+  // ---- blocked: db execute carrying a destructive statement (also inside a heredoc body or a file argument's text)
+  { fixture: npmRoot, cmd: 'npx prisma db execute --stdin <<SQL\nDROP DATABASE example;\nSQL', exit: 2, stderr: /db execute with a DROP DATABASE, DROP SCHEMA or TRUNCATE statement/ },
+  { fixture: npmRoot, cmd: "npx prisma db execute --url \"$DATABASE_URL\" --stdin <<'SQL'\ndrop schema public cascade;\nSQL", exit: 2, stderr: /DROP SCHEMA/ },
+  { fixture: npmRoot, cmd: 'echo "TRUNCATE TABLE session;" | npx prisma db execute --stdin', exit: 2, stderr: /TRUNCATE/ },
+  { fixture: pnpmRoot, cmd: 'npx prisma db execute --stdin <<SQL\nTRUNCATE session;\nSQL', exit: 2, stderr: /TRUNCATE/ },
+  // ---- fail closed: a guarded form without a manifest
+  { fixture: MISSING, cmd: 'npx prisma migrate reset', exit: 2, stderr: /manifest is missing or unreadable/ },
+  { fixture: MISSING, cmd: 'npx prisma db push --force-reset', exit: 2, stderr: /manifest/ },
+  { fixture: MISSING, cmd: 'npx prisma db execute --stdin <<SQL\nDROP DATABASE x;\nSQL', exit: 2, stderr: /manifest/ },
+
+  // ---- allowed: everything else Prisma
+  { fixture: npmRoot, cmd: 'npx prisma migrate dev --name add-widget', exit: 0 },
+  { fixture: npmRoot, cmd: 'npx prisma migrate status', exit: 0 },
+  { fixture: npmRoot, cmd: 'npx prisma migrate diff --from-migrations prisma/migrations --to-schema-datamodel prisma/schema.prisma --exit-code', exit: 0 },
+  { fixture: npmRoot, cmd: 'npx prisma migrate resolve --rolled-back 20260101_x', exit: 0 },
+  { fixture: npmRoot, cmd: 'npx prisma generate', exit: 0 },
+  { fixture: npmRoot, cmd: 'npx prisma db pull', exit: 0 },
+  { fixture: npmRoot, cmd: 'npx prisma db seed', exit: 0 },
+  { fixture: npmRoot, cmd: 'npx prisma db push', exit: 0 },
+  { fixture: npmRoot, cmd: 'npx prisma db push --skip-generate', exit: 0 },
+  { fixture: npmRoot, cmd: 'npx prisma studio', exit: 0 },
+  { fixture: npmRoot, cmd: 'npx prisma db execute --stdin <<SQL\nDROP TABLE IF EXISTS scratch;\nSQL', exit: 0 },
+  { fixture: npmRoot, cmd: 'npx prisma db execute --file prisma/sql/backfill.sql', exit: 0 },
+  { fixture: npmRoot, cmd: 'npm run prisma:reset', exit: 0 },
+  { fixture: npmRoot, cmd: 'npx prisma --version', exit: 0 },
+  // the reminder: migrate deploy under scaleToZeroBeforeMigrate true prints one line on stdout and still exits 0
+  { fixture: npmRoot, cmd: 'npx prisma migrate deploy', exit: 0, stdout: REMINDER },
+  { fixture: npmRoot, cmd: 'pnpm exec prisma migrate deploy', exit: 0, stdout: REMINDER },
+  { fixture: npmRoot, cmd: 'cd web && npx prisma generate && npx prisma migrate deploy', exit: 0, stdout: REMINDER },
+  { fixture: pnpmRoot, cmd: 'npx prisma migrate deploy', exit: 0 },
+  { fixture: releaseTrain, cmd: 'npx prisma migrate deploy', exit: 0 },
+  { fixture: MISSING, cmd: 'npx prisma migrate deploy', exit: 0 },
+  { fixture: MISSING, cmd: 'npx prisma migrate dev', exit: 0 },
+  // ---- prose false positives: a heredoc body, an echo, a commit message, a file name
+  { fixture: npmRoot, cmd: "cat > notes.md <<'EOF'\nnpx prisma migrate reset\nprisma db push --force-reset\nEOF", exit: 0 },
+  { fixture: npmRoot, cmd: 'echo "never run prisma migrate reset here"', exit: 0 },
+  { fixture: npmRoot, cmd: 'echo "prisma db push --accept-data-loss is banned" >> README.md', exit: 0 },
+  { fixture: npmRoot, cmd: 'git commit -m "docs: say why `prisma migrate reset` and `db push --force-reset` are blocked"', exit: 0 },
+  { fixture: npmRoot, cmd: 'grep -rn "migrate reset" .claude/rules/prisma.md', exit: 0 },
+  { fixture: npmRoot, cmd: 'echo "DROP DATABASE never" && npx prisma migrate status', exit: 0 },
+  { fixture: MISSING, cmd: 'echo "prisma migrate reset"', exit: 0 },
+  { fixture: MISSING, cmd: 'ls', exit: 0 },
+];
+
+describe('guard-migrations.sh', () => {
+  for (const c of migrationCases) {
+    const label = `${path.basename(c.fixture, '.json')} :: ${JSON.stringify(c.cmd)} -> ${c.exit}${c.stdout ? ' +reminder' : ''}`;
+    test(label, () => {
+      const r = runGuard('guard-migrations.sh', c);
+      assertCase('guard-migrations.sh', 'guard-migrations', c);
+      if (c.stdout) assert.match(r.stdout, c.stdout, 'the reminder line on stdout');
+      else assert.equal(r.stdout, '', 'nothing on stdout');
+    });
+  }
+
+  test('fails closed without jq for the guarded forms only', () => {
+    // A PATH with bash and the coreutils the guard needs, but no jq.
+    const dir = fs.mkdtempSync(path.join(consumer, 'bin-nojq-'));
+    for (const t of ['bash', 'tr', 'cat', 'dirname']) { const p = which(t); if (p) fs.symlinkSync(p, path.join(dir, t)); }
+    const run = (command) => runHook('guard-migrations.sh', { manifest: npmRoot, command, extraEnv: { PATH: dir } });
+    const blocked = run('npx prisma migrate reset');
+    assert.equal(blocked.status, 2, blocked.stderr);
+    assert.match(blocked.stderr, /jq is not installed, so a destructive Prisma command cannot be checked/);
+    assert.equal(run('npx prisma db push --accept-data-loss').status, 2);
+    assert.equal(run('npx prisma db execute --stdin <<SQL\nTRUNCATE session;\nSQL').status, 2);
+    const allowed = run('npx prisma migrate dev');
+    assert.equal(allowed.status, 0, allowed.stderr);
+    assert.equal(allowed.stderr, '');
+    assert.equal(run('npx prisma db execute --stdin <<SQL\nDROP TABLE scratch;\nSQL').status, 0);
+    assert.equal(run('npx prisma migrate deploy').status, 0);
+  });
+});
+
 // ---------------------------------------------------------------------------------------------- doctor
 // A fake claude on PATH answers `claude plugin list` with $FAKE_CLAUDE_PLUGINS (same idiom as the fake gh), and HOME
 // points at a throwaway directory so the companion's telemetry opt-out file is under the test's control.

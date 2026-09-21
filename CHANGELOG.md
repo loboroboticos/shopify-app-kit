@@ -3,6 +3,72 @@
 All notable changes to shopify-app-kit. The version is the plugin version in `.claude-plugin/plugin.json`; every
 vendored hook carries it on line 2 (`# shopify-app-kit vX.Y.Z`).
 
+## 0.10.0
+
+The release gate and the plan gate as workflows, a fourth guard for destructive Prisma commands, and the procedure
+for re-syncing the review personas from upstream.
+
+- `hooks/guard-migrations.sh` (PreToolUse, vendored like the other three): blocks `prisma migrate reset` under
+  any prefix (`npx`, `pnpx`, `bunx`, `pnpm exec`, `pnpm dlx`, `pnpm prisma`, `npm exec [--]`, `yarn [dlx]`,
+  `bun x`, a path to the binary, bare `prisma`, after a `cd`, after an env assignment), `prisma db push` carrying
+  `--force-reset` or `--accept-data-loss`, and `prisma db execute` when the command text (a heredoc body
+  included) carries `DROP DATABASE`, `DROP SCHEMA` or `TRUNCATE`, case-insensitively. Everything else Prisma
+  passes (`migrate dev|deploy|status|diff|resolve`, `generate`, `db pull|seed|push`, `studio`, a `db execute` that
+  drops a table, `npm run <script>`). On an allowed `prisma migrate deploy` with `deploy.scaleToZeroBeforeMigrate`
+  true the guard prints one reminder line on stdout (exit 0) naming the key and the release skill's
+  `migrations-and-zero-downtime.md`; a missing manifest means no reminder, never a block. The block message quotes
+  `database.provider`, `database.sharedDevDbWithBeta` and `paths.prisma` from the manifest and points at the
+  forward-only path. Prose never blocks (heredoc bodies stripped by `lib.sh`, an `echo`, a `git commit -m`, a
+  `grep`). Fails closed without jq or without a manifest for the guarded forms only, as `guard-package-manager`
+  does. `test/hooks.test.mjs`: a `guard-migrations` block over the npm-root, pnpm-root, release-train and missing
+  fixtures (blocked, allowed, the reminder asserted on stdout and its absence when the key is false, prose, no
+  jq through a sandbox PATH). Registered in the `sync` snippet and its "one entry per guard" sentence, `doctor`
+  step 4, the README's table, adoption snippet and manifest-contract rows (`deploy.scaleToZeroBeforeMigrate`;
+  `paths.prisma`, `database.provider`, `database.sharedDevDbWithBeta`), `templates/.claude/settings.json` (now
+  asserted by `test/templates.test.mjs` to register exactly the guards under `hooks/`), `templates/CLAUDE.md`'s
+  hard constraints and the `prisma.md` rule seed. No schema change: every key it reads already existed.
+- `workflows/release-readiness.js` (`/shopify-app-kit:release-readiness [{ base, head, pr, dimensions }]`): a
+  scoping agent reads the manifest and the promotion range (`branches.promotion.from` -> `.to`, or the
+  arguments), the changed files, migrations, pin files, tomls, extension files, workflow files and the open
+  promotion PR's body; then only the dimensions the manifest enables run in parallel, each as one read-only kit
+  agent on the shared finding shape: `api-version` and `webhooks` and `billing` (`review-correctness`; billing
+  only when `billing.live`), `migrations` (`prisma-migration-reviewer`, only when the range touches
+  `paths.prisma`), `branch-model` (`qa-review-security-governance`), `extension`
+  (`storefront-extension-reviewer`, only when `paths.extensions` is non-empty) and `app-store-review` (a public
+  app: one note telling the operator to run the companion's `shopify-app-store-review` skill, no agent). Findings
+  on the same spot or the same claim merge; every blocker and major goes to a skeptic (cap 12); the verdict is
+  `no-go` on a surviving blocker, `go` only when every dimension ran clean, `go-with-notes` otherwise, and a
+  dimension that returns nothing is listed as uncovered and keeps the verdict off `go`. The result carries a
+  checklist block for the promotion PR body: the `release` skill's step 7 lines plus one per dimension, ticked
+  where the dimension passed or does not apply. `test/workflows-run.test.mjs` (`release-readiness under a stub
+  runtime`): dimension selection from the manifest (billing off, extensions empty, prisma untouched, webhooks
+  absent, a public app), a confirmed blocker -> `no-go`, a refuted blocker -> `go-with-notes`, a failed
+  dimension never `go`, the checklist lines, no manifest -> `no-go`, an empty range -> `go`. Wired into
+  `skills/release/SKILL.md` as step 2 (a `no-go` means the PR is not opened; the checklist and verdict go into the
+  PR body) and the README.
+- `workflows/plan-review.js` (`/shopify-app-kit:plan-review <plan file | PR number | #issue | { plan, pr, issue,
+  reviewers }>`): a scoping agent returns the plan text, its sections, the raw request it cites, the manifest
+  sections it touches and the ADR directory when `docs.adrDir` is set; the four `design-review-*` agents run in
+  parallel on the shared finding shape plus an optional `adr: true` tag (the location is the plan section; file
+  `""` and line 0 unless the evidence is in the checkout); findings on the same section merge into one carrying
+  both claims, the higher severity and the tag; blockers and majors go to a skeptic; the verdict is `rethink` on
+  a surviving blocker, `revise` on a major or a reviewer that returned nothing, else `sound`; the decisions the
+  plan should record as ADRs are returned separately. `test/workflows-run.test.mjs` (`plan-review under a stub
+  runtime`): the four launches, two reviewers merged on one section, refutation, a failed reviewer, the argument
+  forms, no plan. `test/workflows-run.test.mjs` now loads any of the three scripts. `pre-pr-review`'s `whenToUse`
+  and `skills/review/SKILL.md` point at `plan-review` for plans; README rows and a "The release-readiness and
+  plan-review workflows" subsection.
+- `skills/kit-dev/SKILL.md`: "Re-sync the review personas from upstream" (shallow-clone upstream `main`, diff
+  each changed persona's four headings and standing clause against `agents/<name>.md` ignoring the frontmatter
+  and the kit's rewritten packet language, port substantive deltas in the persona's voice, keep the frontmatter
+  allowlist, run `test/agents-parity.test.mjs`, record the new upstream commit in the CHANGELOG, bump the
+  version; `worker-builder`, `worker-bounded`, `grounding-scout`, `audit` and `validation-runner` stay unported,
+  `validation-runner` being the candidate for a future `test-digest` agent). "Add a guard hook" step 6 now lists
+  every registration point. `routines/kit-health.md` gains step 3b: report the count of upstream persona files
+  changed since the recorded commit, as one `p3` issue, porting nothing (no new routine).
+- Hook headers, `KIT_VERSION`, `plugin.json` and the annotated fixture's `$schema` bumped to 0.10.0; the three
+  existing guards' logic unchanged.
+
 ## 0.9.0
 
 The operating layer: the label set and its sync script, the issue-filing rules, the committed prompt texts of the

@@ -28,6 +28,8 @@ Each is enforced by the named hook or test; the sentence here is the pointer, no
 - `shopify app dev` / `app deploy` carry `--config` (`guard-shopify-cli`).
 - No push to or merge into `{{PROTECTED_BRANCH}}`; PRs target `{{DEFAULT_BRANCH}}` (`guard-protected-branch`).
 - `{{PACKAGE_MANAGER}}` only, in `{{SERVER_DIR}}` (`guard-package-manager`).
+- No `prisma migrate reset`, `db push --force-reset` / `--accept-data-loss`, or a `db execute` that drops or
+  truncates; migrations are forward-only (`guard-migrations`).
 - Every tenant-scoped query runs inside `withTenant`; the raw Prisma client is not imported elsewhere (the
   import guard and the isolation probes in CI).
 - A schema change ships with its migration; CI migrates from empty and runs `migrate diff --exit-code`.

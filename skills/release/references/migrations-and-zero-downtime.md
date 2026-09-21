@@ -39,7 +39,8 @@ handler fails or, worse, succeeds partially, and the platform marks the delivery
 Rule: when `deploy.scaleToZeroBeforeMigrate` is true, the release scales the app to zero (`fly scale count 0`
 or the platform's equivalent) before the migration and back up after. The platform queues webhook deliveries
 to an app that is down and retries them; it does not retry ones a half-migrated app acknowledged. The `release`
-skill says this at step 4; the deploy workflow does it.
+skill says this at step 5, the `guard-migrations` hook prints it on `prisma migrate deploy`, and the
+`release-readiness` workflow notes it under its migrations dimension; the deploy workflow does it.
 
 ## Forward-only
 

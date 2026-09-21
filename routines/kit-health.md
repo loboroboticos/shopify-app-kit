@@ -9,8 +9,9 @@ the portfolio.
   and the Shopify companion plugin loaded, git read access to the kit's repository, and the GitHub MCP tools
   for issues.
 - **Tools:** the `doctor` skill, `git ls-remote --tags` against the kit's repository, the companion's docs
-  search (`shopify-dev`) for API version support windows, Read on the kit's `portfolio.json` and each
-  product's lockfile, GitHub issues.
+  search (`shopify-dev`) for API version support windows, a shallow read-only clone of the upstream persona
+  repository for the review-persona delta, Read on the kit's `portfolio.json` and each product's lockfile,
+  GitHub issues.
 - **May touch:** new issues, comments on existing ones.
 - **Never:** closes a `human:*` issue; relabels `human:*` to `agent:*` except per R7; opens a PR; pushes
   anything; runs `sync` or edits the manifest; dispatches a workflow named in `deploy.protectedWorkflows`.
@@ -55,6 +56,16 @@ one issue `kit-health: API version <version> ends support <date>`, `code only`, 
 together (the `admin-api` skill's `api-version-drift.md`: a version bump is its own PR). If the companion is
 not installed, say "unverified" in the summary and open no issue.
 
+Step 3b, review personas. The kit's nine `design-review-*` and `qa-review-*` agents are ported from the
+`StarshipSuperjam/engine-template` repository at the commit its CHANGELOG records under the most recent
+"Ported from" or "Re-synced" line. Shallow-clone that repository's `main` (read-only, into a scratch directory)
+and count the `.claude/agents/engine-*.md` files whose content changed since that commit (`git diff --stat
+<commit>..HEAD -- .claude/agents/`). Report the delta in the summary as "<n> persona files changed upstream
+since <commit>"; when n is greater than zero, open or update one issue `kit-health: <n> review personas changed
+upstream`, `code only`, `p3`, naming the files and pointing at the kit-dev skill's "Re-sync the review personas
+from upstream" procedure. Port nothing: the re-sync is a kit PR the maintainer runs. Skip with "unverified" when
+the clone fails.
+
 Step 4, portfolio divergence. Read the kit's `portfolio.json` (`products[]`, each with `repo` and `manifest`).
 For every product whose repository this session can read, fetch its server lockfile from its `branches.default`
 and read the major versions of `@shopify/shopify-app-react-router`, `@shopify/shopify-api`, `prisma`,
@@ -65,4 +76,4 @@ anything secret) and the dependabot ignore entry that defers it. When only this 
 portfolio, or none is readable, note it and open no issue.
 
 Finish with a short summary in the session: the doctor's verdict, the kit versions, the API window, the
-portfolio majors, and the issues opened or updated.
+upstream persona delta, the portfolio majors, and the issues opened or updated.
