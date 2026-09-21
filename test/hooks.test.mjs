@@ -344,7 +344,22 @@ fs.writeFileSync(path.join(fakeBin, 'claude'), "#!/usr/bin/env bash\ncase \" $* 
 const fakeHome = fs.mkdtempSync(path.join(os.tmpdir(), 'shopify-app-kit-home-'));
 const optOut = path.join(fakeHome, '.config', 'shopify-ai-toolkit', 'opt-out');
 const BOTH_PLUGINS = 'shopify-app-kit@shopify-app-kit\nshopify-ai-toolkit@claude-plugins-official';
-const pathWithout = (bin) => process.env.PATH.split(path.delimiter).filter((d) => !fs.existsSync(path.join(d, bin))).join(path.delimiter);
+// When a test needs claude or gh to be absent, PATH becomes one directory holding symlinks to the tools the doctor
+// needs plus the fakes asked for: filtering the real PATH would drop /usr/bin (GitHub runners ship gh there) and
+// with it bash, and a real gh or claude on the machine must never leak into the doctor's checks.
+const REAL_TOOLS = ['bash', 'jq', 'sed', 'grep', 'head', 'basename', 'dirname', 'cat', 'sort', 'ls', 'mkdir', 'env', 'node'];
+const which = (bin) => process.env.PATH.split(path.delimiter).map((d) => path.join(d, bin)).find((p) => { try { fs.accessSync(p, fs.constants.X_OK); return fs.statSync(p).isFile(); } catch { return false; } });
+const sandboxes = new Map();
+function sandboxPath(fakes) {
+  const key = fakes.join('+');
+  if (!sandboxes.has(key)) {
+    const dir = fs.mkdtempSync(path.join(consumer, `bin-${key || 'none'}-`));
+    for (const t of REAL_TOOLS) { const p = which(t); if (p) fs.symlinkSync(p, path.join(dir, t)); }
+    for (const f of fakes) { fs.copyFileSync(path.join(fakeBin, f), path.join(dir, f)); fs.chmodSync(path.join(dir, f), 0o755); }
+    sandboxes.set(key, dir);
+  }
+  return sandboxes.get(key);
+}
 
 // graphify is a user-level skill (~/.claude/skills/graphify/SKILL.md) installed by pip, so the fake HOME carries it by default.
 const graphifySkill = path.join(fakeHome, '.claude', 'skills', 'graphify', 'SKILL.md');
@@ -355,14 +370,8 @@ function runDoctor({ plugins = BOTH_PLUGINS, optedOut = true, claude = true, gra
   if (optedOut) fs.writeFileSync(optOut, ''); else fs.rmSync(optOut, { force: true });
   fs.mkdirSync(path.dirname(graphifySkill), { recursive: true });
   if (graphify) fs.writeFileSync(graphifySkill, '---\nname: graphify\n---\n'); else fs.rmSync(graphifySkill, { force: true });
-  // The fake bin carries both claude and gh; without one of them the real PATH is filtered for that binary too.
-  let PATH = `${fakeBin}${path.delimiter}${process.env.PATH}`;
-  if (!claude || !gh) {
-    const only = path.join(consumer, `fakebin-${claude ? 'claude' : ''}${gh ? 'gh' : ''}`);
-    fs.mkdirSync(only, { recursive: true });
-    for (const b of [claude && 'claude', gh && 'gh'].filter(Boolean)) fs.copyFileSync(path.join(fakeBin, b), path.join(only, b)), fs.chmodSync(path.join(only, b), 0o755);
-    PATH = `${only}${path.delimiter}${[!claude && 'claude', !gh && 'gh'].filter(Boolean).reduce((p, b) => p.split(path.delimiter).filter((d) => !fs.existsSync(path.join(d, b))).join(path.delimiter), process.env.PATH)}`;
-  }
+  // The fake bin (claude and gh) shadows the real PATH; when one must be absent, the sandbox PATH replaces it.
+  const PATH = claude && gh ? `${fakeBin}${path.delimiter}${process.env.PATH}` : sandboxPath([claude && 'claude', gh && 'gh'].filter(Boolean));
   return runHook('doctor.sh', { event: 'SessionStart', ...opts, extraEnv: { PATH, HOME: fakeHome, CLAUDE_CONFIG_DIR: '', FAKE_CLAUDE_PLUGINS: plugins, FAKE_GH_RUNS: typeof runs === 'string' ? runs : JSON.stringify(runs), ...extraEnv } });
 }
 
