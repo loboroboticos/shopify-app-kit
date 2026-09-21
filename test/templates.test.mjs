@@ -253,7 +253,7 @@ describe('templates/', () => {
     }
   });
 
-  test('kit-bootstrap.sh is remote-only, installs both plugins, writes the opt-out and never fails the session', () => {
+  test('kit-bootstrap.sh is remote-only, installs both plugins and graphify at the doctor\'s pin, writes the opt-out and never fails the session', () => {
     const text = read('.claude/hooks/kit-bootstrap.sh');
     assert.match(text, /CLAUDE_CODE_REMOTE/);
     assert.match(text, /claude plugin marketplace add loboroboticos\/shopify-app-kit/);
@@ -262,10 +262,29 @@ describe('templates/', () => {
     assert.match(text, /\.config\/shopify-ai-toolkit\/opt-out/);
     assert.match(text, /^exit 0$/m);
     assert.doesNotMatch(text, /set -e/);
+    // graphify: a pip package (graphifyy) plus `graphify install`, pinned to the same release the doctor names.
+    const pin = text.match(/^GRAPHIFY_VERSION="(\d+\.\d+\.\d+)"$/m)?.[1];
+    assert.ok(pin, 'GRAPHIFY_VERSION="X.Y.Z" is set');
+    assert.equal(pin, fs.readFileSync(path.join(kitRoot, 'hooks', 'doctor.sh'), 'utf8').match(/^GRAPHIFY_VERSION="([^"]+)"$/m)[1], 'the bootstrap and the doctor pin the same graphify release');
+    assert.match(text, /pip install --quiet "graphifyy==\$GRAPHIFY_VERSION"/);
+    assert.match(text, /uv tool install "graphifyy==\$GRAPHIFY_VERSION"/);
+    assert.match(text, /pipx install "graphifyy==\$GRAPHIFY_VERSION"/);
+    assert.match(text, /graphify install >\/dev\/null/);
+    assert.match(text, /command -v graphify/);
+    assert.match(text, /skills\/graphify\/SKILL\.md/);
+    assert.doesNotMatch(text, /claude plugin install graphify/, 'graphify is not a Claude Code plugin');
     // Outside a remote session it exits 0 immediately.
     const r = spawnSync('bash', [path.join(templatesDir, '.claude/hooks/kit-bootstrap.sh')], { encoding: 'utf8', env: { ...process.env, CLAUDE_CODE_REMOTE: '' } });
     assert.equal(r.status, 0);
     assert.equal(r.stdout, '');
+  });
+
+  test('.claudeignore keeps graphify-out/ out of context and says where it lives', () => {
+    const text = read('.claudeignore');
+    assert.match(text, /^graphify-out\/$/m);
+    assert.match(text, /graph\/ branch/);
+    assert.match(text, /\.gitignore/);
+    assert.ok(text.split('\n').filter((l) => l && !l.startsWith('#')).every((l) => l === 'graphify-out/'), 'only graphify-out/ is ignored by default');
   });
 
   test('the rule seeds are short and path-scoped; CLAUDE.md is short and says why', () => {

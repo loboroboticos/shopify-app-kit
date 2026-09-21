@@ -8,9 +8,8 @@ allowed-tools: Read, Write, Edit, Glob, Grep, Bash(shopify app init *), Bash(git
 
 # shopify-app-kit new-app
 
-A new app is the official template plus this kit's shell, applied by scripts so every app starts the same way.
-The skill never touches an account (GitHub repo, Partner registration, hosting app, database project, secret):
-step 6 prints those as the maintainer's checklist. Depth: `references/scaffold.md`; earlier code: `references/carry-over.md`.
+A new app is the official template plus this kit's shell, applied by scripts so every app starts the same way. The
+skill never touches an account (step 6 prints the maintainer's checklist). Depth: `references/scaffold.md`; earlier code: `references/carry-over.md`.
 
 ## Steps
 
@@ -49,7 +48,8 @@ step 6 prints those as the maintainer's checklist. Depth: `references/scaffold.m
    the shopify-app-kit shell (kit vX.Y.Z)`, the version from `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json`.
    Print scaffold.md's checklist: remote and push; registration and `shopify app config link` (then the manifest's
    config and toml names); hosting app; database with the two roles (`DIRECT_DATABASE_URL` owner, `DATABASE_URL`
-   runtime, per `tenancy`) and the first migration; secrets; gitleaks pin; branch protection; first `/shopify-app-kit:doctor`.
+   runtime, per `tenancy`) and the first migration; secrets; gitleaks pin; branch protection; first `/shopify-app-kit:doctor`;
+   labels synced, the queue issue pinned, the app appended to the kit's `portfolio.json` and its routines created (by hand).
 7. **`--dry-run <dir>`.** Steps 2 to 5 into `<dir>` (a scratch directory), no `git init`, no commit; finish with
    the overlay's `--print-tree` output and its TODO list, so the shell can be read before a real run.
 

@@ -1,9 +1,10 @@
 # shopify-app-kit
 
 A Claude Code plugin for developer sessions that build Shopify apps. It ships generic tooling only: guard hooks
-that read a per-repo manifest, skills, and (later) review agents and workflows. Nothing in this repo knows about
-any particular app, store or hosting account; every repo-specific fact lives in the consumer's
-`.claude/shopify-app.json`.
+that read a per-repo manifest, skills, review agents and workflows, the repo shell a new app starts from, and
+the operating layer (a label set, the issue-filing rules, the scheduled routines' prompt texts, the portfolio).
+Nothing in this repo knows about any particular app, store or hosting account; every repo-specific fact lives
+in the consumer's `.claude/shopify-app.json`.
 
 The repo root is the plugin root and its own marketplace.
 
@@ -30,8 +31,8 @@ The repo root is the plugin root and its own marketplace.
 | `hooks/guard-protected-branch.sh` | PreToolUse guard for `git push`, `gh pr merge`, `gh pr edit --base`, `gh api` writes and `gh workflow run`, driven by `branches.protected` and `deploy.protectedWorkflows`. Lets the session open a promotion PR, never land one. Fails closed when the manifest, `jq` or a PR's base cannot be read. |
 | `hooks/guard-package-manager.sh` | PreToolUse guard that keeps `pnpm` and `npm` in the directories `packageManagers` maps them to (exact entry; effective directory after `cd`, `pnpm -C`, `npm --prefix`). Fails closed when the manifest or `jq` is missing. |
 | `hooks/lib.sh` | Shared bash the guards source: manifest resolution, block messages, path normalisation, heredoc stripping, command splitting with `cd` tracking. |
-| `hooks/doctor.sh` | SessionStart briefing: validates the manifest structurally, prints the app facts, reports vendored-hook drift, and checks the companion plugin (one warning with the install command when `claude plugin list` does not list `shopify-ai-toolkit`, one info line while its telemetry opt-out file is absent; silent without the `claude` binary, never blocks). Silent in repos without a manifest. |
-| `/shopify-app-kit:doctor` | Same checks, on demand, plus settings-registration drift; `references/companion.md` has the split between the companion plugin and the kit. |
+| `hooks/doctor.sh` | SessionStart briefing: validates the manifest structurally, prints the app facts, reports vendored-hook drift, checks the two companions (one warning with the install command when `claude plugin list` does not list `shopify-ai-toolkit`, one info line while its telemetry opt-out file is absent, one warning with the pinned `pip install graphifyy==<pin> && graphify install` when graphify is absent; silent without the `claude` binary, never blocks), and, when `gh` is on PATH, prints one `Schedule:` line per scheduled workflow with the age of its last successful run (a warning past twice the cadence read from its cron; silent without `gh`). Silent in repos without a manifest. |
+| `/shopify-app-kit:doctor` | Same checks, on demand, plus settings-registration drift; `references/companion.md` has the split between the two companions and the kit. |
 | `/shopify-app-kit:sync` | Vendors the guards into the consumer and records the kit version in the manifest. |
 | `/shopify-app-kit:new-app <app-name> [--server-dir <dir>] [--pm npm\|pnpm] [--default-branch <b>] [--protected-branch <b>] [--dry-run <dir>]` | Scaffolds a new app: `shopify app init` from the official React Router template (or a clone when init needs an account), the `templates/` shell applied by `skills/new-app/scripts/apply-overlay.mjs` with the placeholders substituted, the guards vendored, the manifest stamped, the expiring-token flag and session columns checked, the Prisma datasource pointed at Postgres, `docs/README.md` and the first ADR written; verified by the docs-consistency test, `scripts/validate-manifest.mjs` and `scripts/smoke-guards.sh`; one local commit and the maintainer's checklist (remote, registration, hosting, database roles, secrets). `references/carry-over.md` covers code from an earlier attempt. See [Scaffolding](#scaffolding). |
 | `dev-loop` (model-invocable) | Runs `shopify app dev` with the manifest's dev config and the bindings-file store, adds the sandbox port flag, ends every session with `app dev clean`, keeps theme work out of the app repo. `references/cli-traps.md` has the four CLI traps. |
@@ -42,7 +43,11 @@ The repo root is the plugin root and its own marketplace.
 | `tenancy` (model-invocable) | Tenant isolation keyed to `database.rls`, `auth.expiringOfflineTokens` and `paths.prisma`: fail-closed RLS with two database roles, the isolation canary and probe registry run as the runtime role, server-side tenant bootstrap with lazy provisioning, principal and append-only audit identity, one per-shop-locked refresh chokepoint for expiring offline tokens, the verify-record-process-mark webhook seam. Six references. |
 | `mcp-connector` (model-invocable) | Building the app's own operator-facing MCP server (a product feature, never part of the kit): per-grant tokens hashed at rest with tenant-prefixed routing under RLS, OAuth with dynamic client registration and PKCE, the redirect-URI policy with loopback bypass, a tool manifest with a build-time parity check, per-token rate limits and budgets on billed calls, operator skills shipped from the app. Six references. |
 | `templates/` | The repo shell a new app starts from: CI with migrate rehearsal and drift check, secret scanning from a checksum-verified binary, a dependency audit that opens issues, dependabot with framework majors ignored, the work-item issue template with the executor ladder, `.env.example` with public/secret/local markers, the docs map and its consistency test, the ADR shape and seed decisions, `.claude/` wiring (settings pin, bootstrap hook, starter manifest, rule seeds, CLAUDE.md). See [Scaffolding](#scaffolding). |
-| `/shopify-app-kit:kit-dev` | Maintainer guide for this repo. |
+| `issue-filing` (model-invocable) | Files, triages or relabels a GitHub issue on the operating model: the label set from `labels.json`, one work-type label from the executor ladder, one priority, one ROI bucket, the "Close condition needs" block, bootstraps that name where a value goes and what they unlock, decisions with options, irreversible work routed to a human, CI-filed issues deduped on the title prefix. `references/rules.md` (the ten rules and the queue exemption) and `references/executor-ladder.md` (each rung, readiness, substitution). See [The operating layer](#the-operating-layer). |
+| `labels.json` + `scripts/sync-labels.mjs` | The label set every consumer carries (eight work types, three priorities, five ROI buckets, gating and origin labels) with the `ladder` array, and the zero-dependency script that creates or updates them through `gh label create --force` (`--dry-run`, `--repo <owner>/<repo>`; never deletes). |
+| `routines/` | The committed prompt texts of the scheduled Routines (`triage`, `nuclear-review`, `pr-steward`, `kit-health`, `graphify-refresh`, `dependency-wave`), each with its cadence, environment, tools and boundaries, and `REGISTRY.md` with the table and the maintainer's `create_trigger` step. |
+| `portfolio.json` | Every product the cross-repo routines span: name, `<owner>/<repo>`, manifest path, environment, routines. One placeholder entry; `new-app`'s checklist appends the real ones. |
+| `/shopify-app-kit:kit-dev` | Maintainer guide for this repo, including how to add a routine. |
 | `lessons/INDEX.md` | One row per lesson extracted from the consumer apps, pointing at the reference file or agent section that owns it. See [Lessons](#lessons). |
 | `schemas/shopify-app.v1.schema.json` | The manifest contract (JSON Schema, draft 2020-12). |
 
@@ -110,9 +115,9 @@ an empty database and fails on schema drift, secret scanning from a version-pinn
 binary, a weekly dependency audit that opens an issue on a High or Critical finding, dependabot with framework
 majors ignored, the work-item issue template whose "Close condition needs" ladder names who can close each item,
 an `.env.example` that says which value is public, a docs map with the test that keeps it complete and undated,
-the ADR shape and the seed decisions a new app takes before Phase 1, and the `.claude/` wiring (the marketplace
-pin, the remote-session bootstrap hook, a starter manifest with expiring offline tokens, App Pricing and RLS
-Postgres, four path-scoped rule seeds, a short CLAUDE.md). `templates/README.md` lists every file and the
+the ADR shape and the seed decisions a new app takes before Phase 1, a `.claudeignore` that keeps `graphify-out/`
+out of context, and the `.claude/` wiring (the marketplace pin, the remote-session bootstrap hook, a starter
+manifest with expiring offline tokens, App Pricing and RLS Postgres, four path-scoped rule seeds, a short CLAUDE.md). `templates/README.md` lists every file and the
 placeholders (`{{APP_NAME}}`, `{{DEFAULT_BRANCH}}`, `{{PROTECTED_BRANCH}}`, `{{PACKAGE_MANAGER}}`,
 `{{SERVER_DIR}}`, plus the gitleaks version and checksum). `test/templates.test.mjs` keeps the directory honest.
 
@@ -138,9 +143,9 @@ manifest's optional `$schema` at the newest tag
 Tags are created by `.github/workflows/release-tag.yml` when a version bump merges to `main`; nobody pushes a
 kit tag by hand (see [Developing the kit](#developing-the-kit)).
 
-## Companion plugin
+## Companion plugins
 
-The kit's companion is Shopify's official `shopify-ai-toolkit` plugin:
+The kit has two companions. The first is Shopify's official `shopify-ai-toolkit` plugin:
 
 ```bash
 claude plugin install shopify-ai-toolkit@claude-plugins-official
@@ -162,6 +167,24 @@ PR of a public app. The doctor warns once when the companion is not installed an
 on; it never blocks. In a consumer scaffolded from `templates/`, `.claude/hooks/kit-bootstrap.sh` installs both
 plugins in a remote session and writes the opt-out. `skills/doctor/references/companion.md` is the home of the
 split (lesson `kit-1`).
+
+The second is [graphify](https://github.com/Graphify-Labs/graphify) (MIT), a Claude Code skill that turns a
+codebase into a queryable knowledge graph and writes `graphify-out/` (`graph.html`, `GRAPH_REPORT.md`,
+`graph.json`, a content-hash cache). It is not a plugin: its README installs the PyPI package `graphifyy` (the
+CLI and the skill command are `graphify`) and `graphify install` then registers the skill under
+`~/.claude/skills/graphify/`:
+
+```bash
+pip install graphifyy==0.9.65 && graphify install     # or: uv tool install graphifyy==0.9.65 / pipx install graphifyy==0.9.65
+```
+
+It covers the map: what connects to what, the god nodes, `/graphify query` over a repo in far fewer tokens than
+reading it. The kit covers the convention around it: the `graphify-refresh` routine rebuilds the graph weekly
+and commits `graphify-out/` on the `graph/` branch only (force-with-lease on that branch, never the default
+branch), so every session can start from a current map; `graphify-out/` is listed in the templates'
+`.claudeignore` and belongs in the consumer's `.gitignore`, so a local rebuild neither lands on the default
+branch nor invalidates the prompt cache. The bootstrap hook installs it pinned to the release above (the same
+pin the doctor names); the doctor warns once when it is absent; the routine skips without it (lesson `kit-2`).
 
 ## The manifest contract
 
@@ -294,6 +317,44 @@ agent that owns the text) and its source (`app-1`, `app-2`, `app-3`, the neutral
 from the `rule` rows and points back; `recipe` rows run through the owning skill; `lens` rows are already in the
 review agents; `adr-seed` rows are decisions a new app writes one ADR each for. `lessons/README.md` has the
 extraction discipline and how to add a lesson; `test/lessons-index.test.mjs` keeps the index honest.
+
+## The operating layer
+
+GitHub issues are the only work queue, for agents and humans alike; nothing writes to a project board. Every
+issue carries exactly one **work-type label** from the executor ladder, one priority and one ROI bucket, and its
+body says what closing it needs. Scheduled Claude Code Routines are the workforce.
+
+- **`labels.json`** is the label set: `code only` (a PR closes it), the agent rungs `agent:ci` (an Actions
+  workflow with the repo's existing secrets), `agent:cloud` (reaches the store, no login) and `agent:local` (the
+  maintainer's logged-in machine), the human rungs `human:bootstrap` (a one-time maintainer action whose Unlocks
+  become agent work), `human:decision` (answered by a `decision:` comment), `human:account` and `human:legal`;
+  `p1`/`p2`/`p3`; `roi:5`…`roi:1`; `launch-gate`, `blocked`, `deploy`; `qa`, `dependencies`, `bug`,
+  `documentation`. Its `ladder` array is the executor order. `node scripts/sync-labels.mjs [--repo <owner>/<repo>]
+  [--dry-run]` creates or updates them with `gh label create --force` and never deletes one.
+- **`issue-filing`** (model-invocable) applies the ten rules in `skills/issue-filing/references/rules.md`: the
+  least-privileged executor that can close it (R1), a "Close condition needs" line or no label (R2), decompose
+  at filing (R3), bootstraps titled `Bootstrap: <what> → <where>` that name where a value goes and what they
+  unlock (R4), decisions with options and a reversible default (R5), irreversibility beats the ladder (R6),
+  agents never close a `human:*` issue (R7), score in the same pass (R8), CI-filed issues deduped on the title
+  prefix with no traces attached (R9), no secret in an issue (R10). One pinned "maintainer's queue" issue is
+  the tracking surface the triage routine rewrites; it carries no work type, priority or ROI.
+- **`routines/`** holds the prompt texts, one file each with cadence, environment, tools, what it may touch and
+  what it never does, then the prompt verbatim: `triage` (weekly: lint, decisions, closed bootstraps, stale
+  scheduled workflows, re-score, rewrite the queue issue), `nuclear-review` (weekly: the `review` skill over
+  the week's merged diff, findings filed as issues, never a PR), `pr-steward` (daily: agent-owned PRs driven to
+  green, never merged), `kit-health` (monthly: the doctor, the kit version against the latest tag, the API
+  version's support window, library majors across the portfolio), `graphify-refresh` (weekly: `graphify-out/`
+  on the `graph/` branch), `dependency-wave` (weekly: High/Critical advisories and deferred majors in one
+  issue). Every prompt reads `.claude/shopify-app.json` and `labels.json` first, derives the repo from the git
+  remote, never closes a `human:*` issue, never dispatches a workflow in `deploy.protectedWorkflows`, and opens
+  at most one PR per run. `routines/REGISTRY.md` has the table and the maintainer's step: one `create_trigger`
+  call per routine per repo with `create_new_session_on_fire: true`, the cron and the prompt pasted.
+- **`portfolio.json`** lists every product (`name`, `repo` as `<owner>/<repo>`, `manifest`, `environment`,
+  `routines`) so a cross-repo routine can iterate them; `kit-health` reads it for library-major divergence. It
+  ships with one placeholder entry, and `/shopify-app-kit:new-app`'s checklist says to append the new app by
+  hand (the skill touches no other repository).
+
+`test/labels.test.mjs` and `test/routines.test.mjs` keep the set and the prompts in shape.
 
 ## The three-plugin rule
 

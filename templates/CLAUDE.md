@@ -40,4 +40,4 @@ Each is enforced by the named hook or test; the sentence here is the pointer, no
 - Decisions: `docs/adr/` (`SEEDS.md` lists the ones still to take).
 - Path-scoped rules: `.claude/rules/` (billing, prisma, docs, PRs and issues).
 - Kit skills: `/shopify-app-kit:doctor`, `/shopify-app-kit:sync`, `/shopify-app-kit:review`, and the
-  model-invoked `dev-loop`, `admin-api`, `tenancy`, `mcp-connector`, `tripwire`, `docs-owner`.
+  model-invoked `dev-loop`, `admin-api`, `tenancy`, `mcp-connector`, `tripwire`, `docs-owner`, `issue-filing`.

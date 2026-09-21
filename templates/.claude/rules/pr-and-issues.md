@@ -14,7 +14,9 @@ paths:
 - A session never closes a `human:decision`, `human:account` or `human:legal` issue, and never does the work
   behind one (real charges, production data outside a guarded script, one-way Shopify choices, brand or legal
   text). It may prepare the PR and say what the human must do.
-- Ticked lines from more than one group mean the issue is split before work starts.
+- Ticked lines from more than one group mean the issue is split before work starts. Filing, scoring (one
+  priority, one ROI bucket) and relabelling follow the kit's `issue-filing` skill; the pinned maintainer's
+  queue issue is rewritten by the triage routine and carries no work type, priority or ROI.
 - PRs target `branches.default`; `guard-protected-branch` blocks a push to or a merge into a protected branch.
   The promotion PR, when the repo has one, is opened by a session and landed by a human.
 - A PR body says what changed, which manifest keys or ADRs it touches, whether a migration is destructive, and

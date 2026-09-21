@@ -1,13 +1,12 @@
 ---
 name: doctor
-description: Validate this repo's .claude/shopify-app.json against the kit schema, print its app facts, report vendored-hook or settings drift, and check the companion plugin. Use when starting work in a Shopify app repo, after a kit sync, or when a guard hook blocked something unexpectedly.
-allowed-tools: Read, Grep, Glob, Bash(jq *), Bash(cat *), Bash(bash *), Bash(sed *), Bash(ls *), Bash(claude plugin list)
+description: Validate this repo's .claude/shopify-app.json against the kit schema, print its app facts, report vendored-hook or settings drift, check the two companions (the Shopify plugin and the graphify skill), and report the liveness of every scheduled workflow. Use when starting work in a Shopify app repo, after a kit sync, when a guard hook blocked something unexpectedly, or before creating the routine triggers.
+allowed-tools: Read, Grep, Glob, Bash(jq *), Bash(cat *), Bash(bash *), Bash(sed *), Bash(ls *), Bash(claude plugin list), Bash(gh run list *), Bash(gh workflow list *)
 ---
 
 # shopify-app-kit doctor
 
-Checks the consumer repo you are in, never the kit itself. Report findings as a short list; do not edit anything (the
-`sync` skill and the maintainer do that).
+Checks the consumer repo you are in, never the kit itself. Report findings as a short list; edit nothing.
 
 ## Steps
 
@@ -40,16 +39,22 @@ Checks the consumer repo you are in, never the kit itself. Report findings as a 
    `bash "$CLAUDE_PROJECT_DIR/.claude/hooks/kit/<guard>.sh"`. A guard that is vendored but not registered never
    fires. Also confirm `enabledPlugins` pins `shopify-app-kit@shopify-app-kit`.
 
-6. **Check the companion plugin.** The hook's output from step 2 ends with the companion lines: a warning when
-   `claude plugin list` runs and does not list `shopify-ai-toolkit` (the fix is the install command it prints),
-   and an info line while `~/.config/shopify-ai-toolkit/opt-out` is absent (telemetry is on; the line says how to
-   opt out). Relay both as findings, not blockers; when the `claude` binary is absent there is nothing to report.
-   What the companion covers and what the kit covers is in `references/companion.md`.
+6. **Check the companions.** The hook's output from step 2 carries the `Companion:` lines: a warning when
+   `claude plugin list` does not list `shopify-ai-toolkit` (the fix is the install command it prints), an info
+   line while `~/.config/shopify-ai-toolkit/opt-out` is absent (telemetry is on; the line says how to opt out),
+   and a warning when graphify is absent (no `graphify` on PATH, no `skills/graphify/SKILL.md` under the Claude
+   config dir or the repo; the fix is the pinned `pip install graphifyy==<pin> && graphify install` it prints).
+   Findings, not blockers; nothing to report without the `claude` binary. The split is in `references/companion.md`.
 
-7. **Report.** One line per problem, each with the fix: repair the manifest key, run `/shopify-app-kit:sync`, add
-   the settings snippet the sync skill prints, or install the companion. If everything is clean, say so in one line.
+7. **Check the scheduled workflows.** With `gh` on PATH the hook prints one `Schedule:` line per workflow under
+   `.github/workflows/` carrying `schedule:`, with the age of its last successful run and a warning past twice
+   the cadence read from the cron (daily 2 days, weekly 14, monthly 60); "no successful run on record" and "gh
+   could not list workflow runs" are findings too. GitHub disables schedules in a repository idle for 60 days,
+   so a stale line means dispatch it and check it is enabled. Silent without `gh`.
+
+8. **Report.** One line per problem, each with the fix: repair the manifest key, run `/shopify-app-kit:sync`, add
+   the settings snippet, install a companion, or dispatch a stale workflow. If everything is clean, say so in one line.
 
 ## References
 
-- `references/companion.md`: the split between the official companion plugin and the kit, where the kit's
-  skills call it, install and opt-out.
+- `references/companion.md`: the Shopify companion plugin, the graphify skill and the kit: the split, where the kit's skills call them, the `graph/` branch, install and opt-out.

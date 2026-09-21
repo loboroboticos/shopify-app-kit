@@ -3,6 +3,80 @@
 All notable changes to shopify-app-kit. The version is the plugin version in `.claude-plugin/plugin.json`; every
 vendored hook carries it on line 2 (`# shopify-app-kit vX.Y.Z`).
 
+## 0.9.0
+
+The operating layer: the label set and its sync script, the issue-filing rules, the committed prompt texts of the
+scheduled Routines, the portfolio, scheduled-workflow liveness in the doctor, and the graphify companion.
+
+- `labels.json` at the kit root: `labels` (eight work types: `code only` `ededed`; the agent rungs `agent:ci`
+  `bfd4f2`, `agent:cloud` `6fa8dc`, `agent:local` `1d5fa3`; the human rungs `human:bootstrap` `fbca04`,
+  `human:decision` `e99695`, `human:account` `d93f0b`, `human:legal` `b60205`; priorities `p1`..`p3`; ROI buckets
+  `roi:5`..`roi:1`; gating `launch-gate`, `blocked`, `deploy`; origin `qa`, `dependencies`, `bug`,
+  `documentation`) and `ladder`, the executor order (`code only` → `agent:ci` → `agent:cloud` → `agent:local` →
+  `human:decision` → `human:account` → `human:legal`, `human:bootstrap` alongside `human:account`).
+  `scripts/sync-labels.mjs` (zero dependencies) runs `gh label create <name> --color --description --force` per
+  label (idempotent; `--dry-run` prints the commands, `--repo <owner>/<repo>` optional, `--file` for a consumer's
+  own copy; never deletes). `test/labels.test.mjs`: valid JSON, unique names, six-hex colors, exactly eight work
+  types with the documented colors, the ladder, descriptions within GitHub's 100 characters, the dry-run listing
+  every label once, a failed gh call reported without deleting anything.
+- `skills/issue-filing` (model-invocable): read `labels.json` (the consumer's `.github/labels.json` when present),
+  the manifest, the work-item template; the ten rules in `references/rules.md` (R1 ladder, R2 close condition
+  needs, R3 decompose at filing, R4 bootstrap issues that name where a value goes and what they unlock, R5
+  decisions need options, R6 irreversibility beats the ladder, R7 agents never close a `human:*` issue and
+  relabel downward only on a `decision:` comment or a closed bootstrap, R8 same pass same PR, R9 CI-filed issues
+  deduped on the title prefix with `bug` + `p1` + the executor label and no traces, R10 secrets never appear in an
+  issue) plus the pinned maintainer's-queue exemption; `references/executor-ladder.md` (each rung's can and
+  cannot, the readiness table, a higher rung may always substitute). Lessons `ops-1` to `ops-9`.
+- `routines/`: one markdown file per routine with the header (cadence, environment, what it may touch, what it
+  must never do) and the prompt verbatim under `## Prompt`, written for a fresh cloud session with the GitHub
+  MCP tools unless stated; every prompt reads `.claude/shopify-app.json` and `labels.json` first, derives the
+  repository from the git remote, never closes a `human:*` issue, never relabels human → agent except per R7,
+  never dispatches a workflow in `deploy.protectedWorkflows`, and opens at most one PR per run to
+  `branches.default`. `triage.md` (weekly, six steps in order: lint, decisions, closed bootstraps, stale
+  scheduled workflows with dispatch and the 403 note, re-score with one ranking-doc PR, the queue issue rewritten;
+  every 13th run orphan labels and 90-day-old `human:*` issues), `nuclear-review.md` (weekly: `review` over the
+  week's merged diff or the whole default branch monthly, blockers and majors filed as issues after an R9 search,
+  pre-existing findings in one queue comment, never a PR), `pr-steward.md` (daily: agent-owned PRs to green,
+  the babysit posture, never merge, never push to a protected branch), `kit-health.md` (monthly: the doctor,
+  `kit.version` against the kit's latest tag, the pinned API version's support window through the companion's
+  docs search with an issue inside 3 months of end of support, library-major divergence across `portfolio.json`),
+  `graphify-refresh.md` (weekly: `graphify-out/` committed on the `graph/` branch with force-with-lease on that
+  branch only, skipped when nothing merged), `dependency-wave.md` (weekly: High/Critical advisories and the
+  deferred majors from `dependabot.yml`'s ignore block in one `dependencies` + `agent:ci` issue).
+  `routines/REGISTRY.md`: the table (routine, cron, environment, tools, may touch) and the maintainer's step, a
+  `create_trigger` call with `create_new_session_on_fire: true`, the cron and the prompt pasted.
+  `test/routines.test.mjs`: the header fields, the `## Prompt` section, the registry row with a five-field cron
+  matching the header, distinct off-the-hour minutes, no repository literal, the boundary phrases, the steps.
+- `portfolio.json`: `products[]` with `name`, `repo` (`<owner>/<repo>`), `manifest`, `environment`, `routines`;
+  one placeholder entry. The README's "The operating layer" section explains that cross-repo routines iterate it
+  and `new-app` appends to it; `skills/new-app` gains that as a documented manual step (checklist item 9: labels
+  synced, the queue issue pinned, the app appended, the triggers created), not code.
+- `hooks/doctor.sh`: when the consumer's `.github/workflows` has scheduled workflows and `gh` is on PATH, one
+  `Schedule:` line per workflow with the age of its last successful run (`gh run list --workflow <file> --status
+  success`), a warning past twice the cadence read from the cron line (daily, weekly, monthly), "no successful
+  run on record" for a workflow that never succeeded, one line when gh cannot list runs; silent without `gh`.
+  `skills/doctor` step 7. Tests with a fake `gh` that answers `run list` from a JSON map, like the hooks test's
+  fake `gh pr view`.
+- graphify companion (`Graphify-Labs/graphify`, MIT). Its README installs a PyPI package, not a plugin:
+  `pip install graphifyy && graphify install` (recommended `uv tool install graphifyy` or `pipx install
+  graphifyy`), after which `graphify install` writes the skill to `~/.claude/skills/graphify/SKILL.md` (or
+  `$CLAUDE_CONFIG_DIR/skills/graphify/`). The latest release is `v0.9.65` (2026-09-20, the PyPI version; the
+  repository also carries a stale `v1.0.0` tag from April whose `pyproject.toml` says 0.1.10, so the pin follows
+  PyPI). `templates/.claude/hooks/kit-bootstrap.sh` installs it the same guarded way as the Shopify companion,
+  pinned (`graphifyy==0.9.65`, `uv` then `pipx` then `pip`, then `graphify install`; skipped when the CLI or the
+  skill file exists; best-effort, exit 0). `hooks/doctor.sh` warns once when neither the `graphify` CLI nor the
+  skill file (config dir or repo) exists, naming the pinned install; `GRAPHIFY_VERSION` in the doctor and the
+  bootstrap hook must agree (`test/templates.test.mjs`). `templates/.claudeignore` lists `graphify-out/` (with the
+  note to add the same line to `.gitignore`: the template's own `.gitignore` is upstream's and is not overlaid),
+  so the graph is committed on the `graph/` branch only and never invalidates the prompt cache. README "Companion
+  plugins" gains the second entry with what graphify covers and what the kit covers (the refresh routine, the
+  branch convention); `skills/doctor/references/companion.md` gains "The graph companion" (lesson `kit-2`).
+- README: rows for `issue-filing`, `labels.json` + `sync-labels`, `routines/`, `portfolio.json`; the doctor rows;
+  "The operating layer" section. `kit-dev`: the layout rows and "Add a routine". `test/hooks.test.mjs` fakes
+  `gh run list`; `test/templates.test.mjs` checks the bootstrap pin and `.claudeignore`.
+- Hook headers, `KIT_VERSION`, `plugin.json` and the annotated fixture's `$schema` bumped to 0.9.0; guard logic
+  unchanged; the doctor gains the graphify line and the `Schedule:` lines.
+
 ## 0.8.0
 
 The `new-app` scaffold skill, and the companion plugin wired into the doctor and the skills.

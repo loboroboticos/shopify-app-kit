@@ -1,0 +1,5 @@
+# .claudeignore (shopify-app-kit template)
+# Paths a Claude Code session never reads into context. graphify-out/ is the knowledge graph the graphify-refresh
+# routine rebuilds weekly and commits on the graph/ branch only (add the same line to .gitignore on the default
+# branch); a local build kept out of context cannot invalidate the prompt cache on every rebuild.
+graphify-out/

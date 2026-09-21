@@ -1,10 +1,14 @@
 #!/usr/bin/env bash
-# shopify-app-kit v0.8.0
+# shopify-app-kit v0.9.0
 # hooks/doctor.sh: SessionStart briefing for a consumer repo. Validates .claude/shopify-app.json structurally
-# (required keys, enums, patterns of schema v1), prints one paragraph of facts to stdout, and reports vendored-hook
-# drift. Never exits non-zero. Silent when the repo has no manifest (it is not a consumer).
-# Registered by the plugin's hooks/hooks.json; not vendored.
+# (required keys, enums, patterns of schema v1), prints one paragraph of facts to stdout, reports vendored-hook
+# drift, checks the two companions (the Shopify plugin and the graphify skill), and, when gh is on PATH, prints
+# the last successful run of every scheduled workflow. Never exits non-zero. Silent when the repo has no
+# manifest (it is not a consumer). Registered by the plugin's hooks/hooks.json; not vendored.
 set -uo pipefail
+
+# The graphify release the templates' kit-bootstrap.sh installs; both pins are compared by test/templates.test.mjs.
+GRAPHIFY_VERSION="0.9.65"
 
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
@@ -101,7 +105,7 @@ elif [ -n "$kv" ]; then
   echo "Drift: the manifest says kit.version $kv but $root/.claude/hooks/kit/ does not exist; run /shopify-app-kit:sync."
 fi
 
-# Companion plugin: the admin-api, dev-loop and release skills use shopify-ai-toolkit (docs and schema search,
+# Companion plugins. Shopify: the admin-api, dev-loop and release skills use shopify-ai-toolkit (docs and schema search,
 # CLI reference, the App Store review check) when it is installed. One warning when `claude plugin list` runs
 # and does not list it; one info line while its telemetry opt-out file is absent. Silent when the claude binary
 # is absent (a plain shell, CI); never blocks.
@@ -113,5 +117,47 @@ if command -v claude >/dev/null 2>&1; then
   if [ ! -f "${HOME:-/nonexistent}/.config/shopify-ai-toolkit/opt-out" ]; then
     echo "Companion: shopify-ai-toolkit telemetry is on (no ~/.config/shopify-ai-toolkit/opt-out); to opt out: mkdir -p ~/.config/shopify-ai-toolkit && touch ~/.config/shopify-ai-toolkit/opt-out."
   fi
+  # graphify is a pip package plus a user-level skill (never a plugin): present when the CLI is on PATH or the
+  # skill file exists in the Claude config dir or in the repo. The graphify-refresh routine skips without it.
+  if ! command -v graphify >/dev/null 2>&1 \
+    && [ ! -f "${CLAUDE_CONFIG_DIR:-${HOME:-/nonexistent}/.claude}/skills/graphify/SKILL.md" ] \
+    && [ ! -f "$root/.claude/skills/graphify/SKILL.md" ]; then
+    echo "Companion: graphify is not installed; run: pip install graphifyy==$GRAPHIFY_VERSION && graphify install (the graphify-refresh routine builds graphify-out/ on the graph/ branch with it)."
+  fi
+fi
+
+# Scheduled workflows: GitHub disables schedule: triggers in a repository idle for 60 days, silently. When gh is
+# on PATH, one line per workflow under .github/workflows/ that carries schedule:, with the age of its last
+# successful run; a warning when that age exceeds twice the cadence read from the cron line. Silent without gh;
+# one line when gh cannot list runs (not logged in). Never blocks.
+wfdir="$root/.github/workflows"
+if [ -d "$wfdir" ] && command -v gh >/dev/null 2>&1; then
+  for wf in "$wfdir"/*.yml "$wfdir"/*.yaml; do
+    [ -f "$wf" ] || continue
+    grep -q '^[[:space:]]*schedule:' "$wf" || continue
+    file="$(basename "$wf")"
+    cron="$(sed -n "s/^[[:space:]]*-[[:space:]]*cron:[[:space:]]*['\"]\{0,1\}\([^'\"#]*[^'\"# ]\).*/\1/p" "$wf" | head -1)"
+    read -r _cmin chour cdom _cmon cdow <<<"$cron"
+    if [ -n "${cdow:-}" ] && [ "$cdow" != "*" ]; then cadence="weekly"; days=7
+    elif [ -n "${cdom:-}" ] && [ "$cdom" != "*" ]; then cadence="monthly"; days=30
+    elif [ -n "${chour:-}" ] && [ "$chour" != "*" ]; then cadence="daily"; days=1
+    else cadence="hourly"; days=1; fi
+    if ! last="$(cd "$root" && gh run list --workflow "$file" --status success --limit 1 --json updatedAt --jq '.[0].updatedAt // empty' 2>/dev/null)"; then
+      echo "Schedule: gh could not list workflow runs (not logged in, or no actions:read); scheduled-workflow liveness is unchecked."
+      break
+    fi
+    if [ -z "$last" ]; then
+      echo "Schedule: $file ($cadence) has no successful run on record; dispatch it (gh workflow run $file) and check it is enabled: GitHub disables schedules after 60 idle days."
+      continue
+    fi
+    age="$(jq -rn --arg t "$last" '($t | sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601) as $s | ((now - $s) / 86400) | floor' 2>/dev/null || true)"
+    if [ -z "$age" ]; then
+      echo "Schedule: $file ($cadence) last succeeded at $last."
+    elif [ "$age" -gt $((days * 2)) ]; then
+      echo "Schedule: $file ($cadence) last succeeded $age days ago, more than twice its cadence; dispatch it (gh workflow run $file) and check it is enabled: GitHub disables schedules after 60 idle days."
+    else
+      echo "Schedule: $file ($cadence) last succeeded $age days ago."
+    fi
+  done
 fi
 exit 0

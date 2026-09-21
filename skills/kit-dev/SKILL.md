@@ -27,6 +27,9 @@ Fixtures use invented names (`example-app`, `example-dev`).
 | `workflows/<name>.js` | Workflow scripts (plain JavaScript, `export const meta` first) that orchestrate the agents; loaded as `/shopify-app-kit:<name>` |
 | `lessons/INDEX.md`, `lessons/README.md` | the lessons catalogue and its extraction discipline; homes are reference files or agent sections |
 | `templates/` | the repo shell a new app starts from; every file listed in `templates/README.md` with its placeholders; `test/templates.test.mjs` |
+| `labels.json`, `scripts/sync-labels.mjs` | the label set (with the `ladder` array) and the script that applies it with `gh label create --force`; `test/labels.test.mjs` |
+| `routines/<name>.md`, `routines/REGISTRY.md` | the committed prompt texts of the scheduled Routines and the table with the trigger step; `test/routines.test.mjs` |
+| `portfolio.json` | the products the cross-repo routines span; one placeholder entry, appended by hand from `new-app`'s checklist |
 | `.github/workflows/release-tag.yml` | tags `v<version>` and publishes the release when a bump merges to `main` |
 | `test/` | `node --test test/`, zero dependencies |
 
@@ -91,6 +94,20 @@ and a `whenToUse` containing "Use when"; only `.js` is loaded (`.mjs`/`.ts` are 
 for any new branch of logic. Any addition under `agents/`, `hooks/`, `skills/`, `schemas/`, `workflows/`,
 `lessons/`, `.mcp.json` or `.claude-plugin/` requires a version bump (CI enforces it on PRs to `main`).
 
+## Add a routine
+
+A routine is one file `routines/<name>.md`: `# <name>`, one paragraph, then five header fields as a list
+(`- **Cadence:**` with the cron in backticks, `- **Environment:**`, `- **Tools:**`, `- **May touch:**`,
+`- **Never:**`), then `## Prompt` as the last section with the prompt text verbatim. The prompt is pasted into
+a `create_trigger` call with `create_new_session_on_fire: true`, so it is a complete standalone instruction: it
+starts by reading `.claude/shopify-app.json` (`branches.default`, `branches.protected`,
+`deploy.protectedWorkflows`) and `labels.json`, derives the repository from the git remote (never names one),
+says it never closes a `human:*` issue and never relabels `human:*` to `agent:*` except per R7, never dispatches
+a protected workflow, and opens at most one PR per run. Add its row to `routines/REGISTRY.md` (cron minute off
+the hour and distinct from the others), list it under the placeholder product's `routines` in `portfolio.json`
+when every product runs it, and extend `test/routines.test.mjs` (the file list and the boundary phrases).
+`routines/` is not plugin-visible, so a routine change alone needs no version bump; the CHANGELOG still gets a line.
+
 ## Test and validate
 
 ```bash
@@ -105,7 +122,8 @@ claude --plugin-dir . # then /shopify-app-kit:doctor should be listed
    and every `# shopify-app-kit vX.Y.Z` header on line 2 of `hooks/*.sh` (the header test fails otherwise).
    `grep -rn "<old version>"` should then hit only `CHANGELOG.md`.
 2. Add a `## X.Y.Z` section to `CHANGELOG.md`; the release notes are extracted from it verbatim.
-3. Open a PR to `main`; merge when CI is green.
+3. Open a PR to `main`; merge when CI is green. Read the diff once more for repo literals (business names, store
+   handles, product names), a reference not linked from its SKILL.md, and a stale `# shopify-app-kit v` header.
 4. Do not tag. `.github/workflows/release-tag.yml` runs on the push to `main`, creates the annotated tag
    `vX.Y.Z` on the merge commit if it does not exist, and publishes the GitHub Release with the CHANGELOG
    section as its notes. An existing tag is a logged no-op. Never push a kit tag by hand; if the workflow did not
