@@ -129,7 +129,11 @@ Printed after the commit, in the order the pieces depend on each other:
 6. Pin gitleaks in `secret-scan.yml` (version and checksum).
 7. Enable branch protection on `<protected-branch>` when the plan allows it; the vendored guard blocks the
    session side regardless.
-8. Open a session and run `/shopify-app-kit:doctor`: no drift, both plugins installed.
+8. Open a session and run `/shopify-app-kit:doctor`: no drift, both companions installed.
+9. Sync the labels (`node <plugin>/scripts/sync-labels.mjs --repo <owner>/<repo>`), pin the maintainer's queue
+   issue, and append the app to the kit's `portfolio.json` (name, `<owner>/<repo>`, manifest path, environment,
+   the routines it runs) so the cross-repo routines see it; then create the routine triggers from
+   `routines/REGISTRY.md`. All by hand: the skill touches no other repository.
 
 ## Why the skill never touches an account
 

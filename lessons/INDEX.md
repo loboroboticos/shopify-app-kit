@@ -114,6 +114,16 @@ home exists, every anchor matches a heading, and every reference file is the hom
 | new-3 | Carry over only `app/` modules and `prisma/` migrations that pass the new repo's tests; never a donor's `.engine/`, `.claude/`, CI or auth plumbing | rule | skills/new-app/references/carry-over.md#what-crosses-and-what-does-not | app-3, app-2 |
 | new-4 | Re-key the donor's ADR log into `docs/adr/` keeping numbers, then run the isolation probes and tripwires before the first push | recipe | skills/new-app/references/carry-over.md#before-the-first-push | app-3 |
 | kit-1 | The companion plugin answers what the platform does; the kit answers what this repo's manifest requires, and a kit skill says "unverified" without the companion | rule | skills/doctor/references/companion.md#the-split | app-1, app-3 |
+| kit-2 | graphify maps the codebase; `graphify-out/` lives on the `graph/` branch only and in `.claudeignore`, never on the default branch or in the prompt cache | rule | skills/doctor/references/companion.md#the-graph-companion | app-1, app-2 |
+| ops-1 | Label the least-privileged executor that can close the issue once its linked bootstraps are closed; the rung comes from the close condition | rule | skills/issue-filing/references/rules.md#r1-the-ladder | app-1, app-2 |
+| ops-2 | An issue with no ticked "Close condition needs" line cannot be labelled; lines from more than one executor are split before labelling | rule | skills/issue-filing/references/rules.md#r3-decompose-at-filing | app-1, app-2 |
+| ops-3 | A bootstrap names where the value goes, never the value, its sensitivity and expiry, and `Unlocks: #a #b`; value is the max of its Unlocks | rule | skills/issue-filing/references/rules.md#r4-bootstrap-issues | app-1, app-3 |
+| ops-4 | Irreversibility beats the ladder: money, production writes, one-way platform choices, brand or legal text go to a human whatever a CLI could do | rule | skills/issue-filing/references/rules.md#r6-irreversibility-beats-the-ladder | app-1, app-3 |
+| ops-5 | Agents never close a `human:*` issue and relabel it downward only on a `decision:` comment or a closed bootstrap that lists it under Unlocks | rule | skills/issue-filing/references/rules.md#r7-agents-never-close-a-human-issue | app-1, app-2 |
+| ops-6 | CI-filed issues dedupe on the title prefix, carry `bug` + `p1` + the executor label, and never attach traces or test results | rule | skills/issue-filing/references/rules.md#r9-ci-filed-issues | app-2, app-1 |
+| ops-7 | A decision issue carries at least two options and a recommended default; a reversible default is taken and stated in the PR | rule | skills/issue-filing/references/rules.md#r5-decisions-need-options | app-3 |
+| ops-8 | The pinned maintainer's queue is rewritten by triage, carries no work type, priority or ROI, and the lint skips it | rule | skills/issue-filing/references/rules.md#the-queue-exemption | app-1 |
+| ops-9 | A rung is live only once its bootstrap closed; a higher rung may always substitute, the ladder never climbs on its own | rule | skills/issue-filing/references/executor-ladder.md#readiness | app-1, app-2 |
 
 ## History
 

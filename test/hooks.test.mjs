@@ -138,10 +138,21 @@ describe('guard-shopify-cli.sh', () => {
 });
 
 // ---------------------------------------------------------------------------------------------- guard-protected-branch
-// A fake gh on PATH answers `gh pr view <sel> [-R repo] --json baseRefName --jq .baseRefName` with $FAKE_GH_BASE.
+// A fake gh on PATH answers `gh pr view <sel> [-R repo] --json baseRefName --jq .baseRefName` with $FAKE_GH_BASE, and
+// `gh run list --workflow <file> ... --jq '.[0].updatedAt // empty'` with the timestamp $FAKE_GH_RUNS (a JSON object
+// keyed by workflow file) maps that file to; FAKE_GH_RUNS=ERROR makes it fail like a logged-out gh.
 const fakeBin = path.join(consumer, 'fakebin');
 fs.mkdirSync(fakeBin, { recursive: true });
-fs.writeFileSync(path.join(fakeBin, 'gh'), "#!/usr/bin/env bash\ncase \" $* \" in *' pr view '*' --json baseRefName '*) printf '%s\\n' \"${FAKE_GH_BASE:-}\" ;; *) exit 1 ;; esac\n", { mode: 0o755 });
+fs.writeFileSync(path.join(fakeBin, 'gh'), `#!/usr/bin/env bash
+case " $* " in
+  *' pr view '*' --json baseRefName '*) printf '%s\\n' "\${FAKE_GH_BASE:-}" ;;
+  *' run list '*)
+    [ "\${FAKE_GH_RUNS:-}" = "ERROR" ] && { echo 'gh: not logged in' >&2; exit 1; }
+    wf=""; while [ $# -gt 0 ]; do [ "$1" = "--workflow" ] && wf="\${2:-}"; shift; done
+    printf '%s' "\${FAKE_GH_RUNS:-null}" | jq -r --arg w "$wf" '(. // {})[$w] // empty' ;;
+  *) exit 1 ;;
+esac
+`, { mode: 0o755 });
 // Workflow files whose display names the guard reads from <consumer root>/.github/workflows/<file>.
 fs.mkdirSync(path.join(consumer, '.github', 'workflows'), { recursive: true });
 fs.writeFileSync(path.join(consumer, '.github', 'workflows', 'deploy.yml'), 'name: Deploy\non: workflow_dispatch\n');
@@ -333,13 +344,35 @@ fs.writeFileSync(path.join(fakeBin, 'claude'), "#!/usr/bin/env bash\ncase \" $* 
 const fakeHome = fs.mkdtempSync(path.join(os.tmpdir(), 'shopify-app-kit-home-'));
 const optOut = path.join(fakeHome, '.config', 'shopify-ai-toolkit', 'opt-out');
 const BOTH_PLUGINS = 'shopify-app-kit@shopify-app-kit\nshopify-ai-toolkit@claude-plugins-official';
-const pathWithout = (bin) => process.env.PATH.split(path.delimiter).filter((d) => !fs.existsSync(path.join(d, bin))).join(path.delimiter);
+// When a test needs claude or gh to be absent, PATH becomes one directory holding symlinks to the tools the doctor
+// needs plus the fakes asked for: filtering the real PATH would drop /usr/bin (GitHub runners ship gh there) and
+// with it bash, and a real gh or claude on the machine must never leak into the doctor's checks.
+const REAL_TOOLS = ['bash', 'jq', 'sed', 'grep', 'head', 'basename', 'dirname', 'cat', 'sort', 'ls', 'mkdir', 'env', 'node'];
+const which = (bin) => process.env.PATH.split(path.delimiter).map((d) => path.join(d, bin)).find((p) => { try { fs.accessSync(p, fs.constants.X_OK); return fs.statSync(p).isFile(); } catch { return false; } });
+const sandboxes = new Map();
+function sandboxPath(fakes) {
+  const key = fakes.join('+');
+  if (!sandboxes.has(key)) {
+    const dir = fs.mkdtempSync(path.join(consumer, `bin-${key || 'none'}-`));
+    for (const t of REAL_TOOLS) { const p = which(t); if (p) fs.symlinkSync(p, path.join(dir, t)); }
+    for (const f of fakes) { fs.copyFileSync(path.join(fakeBin, f), path.join(dir, f)); fs.chmodSync(path.join(dir, f), 0o755); }
+    sandboxes.set(key, dir);
+  }
+  return sandboxes.get(key);
+}
 
-function runDoctor({ plugins = BOTH_PLUGINS, optedOut = true, claude = true, extraEnv = {}, ...opts } = {}) {
+// graphify is a user-level skill (~/.claude/skills/graphify/SKILL.md) installed by pip, so the fake HOME carries it by default.
+const graphifySkill = path.join(fakeHome, '.claude', 'skills', 'graphify', 'SKILL.md');
+const GRAPHIFY_VERSION = fs.readFileSync(path.join(hooksDir, 'doctor.sh'), 'utf8').match(/^GRAPHIFY_VERSION="([^"]+)"$/m)[1];
+
+function runDoctor({ plugins = BOTH_PLUGINS, optedOut = true, claude = true, graphify = true, gh = true, runs = {}, extraEnv = {}, ...opts } = {}) {
   fs.mkdirSync(path.dirname(optOut), { recursive: true });
   if (optedOut) fs.writeFileSync(optOut, ''); else fs.rmSync(optOut, { force: true });
-  const PATH = claude ? `${fakeBin}${path.delimiter}${process.env.PATH}` : pathWithout('claude');
-  return runHook('doctor.sh', { event: 'SessionStart', ...opts, extraEnv: { PATH, HOME: fakeHome, FAKE_CLAUDE_PLUGINS: plugins, ...extraEnv } });
+  fs.mkdirSync(path.dirname(graphifySkill), { recursive: true });
+  if (graphify) fs.writeFileSync(graphifySkill, '---\nname: graphify\n---\n'); else fs.rmSync(graphifySkill, { force: true });
+  // The fake bin (claude and gh) shadows the real PATH; when one must be absent, the sandbox PATH replaces it.
+  const PATH = claude && gh ? `${fakeBin}${path.delimiter}${process.env.PATH}` : sandboxPath([claude && 'claude', gh && 'gh'].filter(Boolean));
+  return runHook('doctor.sh', { event: 'SessionStart', ...opts, extraEnv: { PATH, HOME: fakeHome, CLAUDE_CONFIG_DIR: '', FAKE_CLAUDE_PLUGINS: plugins, FAKE_GH_RUNS: typeof runs === 'string' ? runs : JSON.stringify(runs), ...extraEnv } });
 }
 
 describe('doctor.sh', () => {
@@ -475,6 +508,88 @@ describe('doctor.sh', () => {
       const env = { ...process.env, PATH: `${fakeBin}${path.delimiter}${process.env.PATH}`, FAKE_CLAUDE_PLUGINS: 'x@y' };
       assert.equal(spawnSync('claude', ['plugin', 'list'], { encoding: 'utf8', env }).stdout, 'x@y\n');
       assert.equal(spawnSync('claude', ['--version'], { encoding: 'utf8', env }).status, 1);
+    });
+  });
+
+  describe('graphify companion', () => {
+    test('prints one line naming the pinned pip install when neither the CLI nor the skill file exists', () => {
+      const r = runDoctor({ manifest: npmRoot, graphify: false });
+      assert.equal(r.status, 0, r.stderr);
+      const lines = r.stdout.split('\n').filter((l) => l.startsWith('Companion:'));
+      assert.equal(lines.length, 1, r.stdout);
+      assert.equal(lines[0], `Companion: graphify is not installed; run: pip install graphifyy==${GRAPHIFY_VERSION} && graphify install (the graphify-refresh routine builds graphify-out/ on the graph/ branch with it).`);
+      assert.match(GRAPHIFY_VERSION, /^\d+\.\d+\.\d+$/);
+    });
+
+    test('says nothing when the skill file is under the Claude config dir, CLAUDE_CONFIG_DIR, or the repo', () => {
+      assert.doesNotMatch(runDoctor({ manifest: npmRoot }).stdout, /graphify/);
+      const cfg = fs.mkdtempSync(path.join(os.tmpdir(), 'shopify-app-kit-cfg-'));
+      fs.mkdirSync(path.join(cfg, 'skills', 'graphify'), { recursive: true });
+      fs.writeFileSync(path.join(cfg, 'skills', 'graphify', 'SKILL.md'), '');
+      assert.doesNotMatch(runDoctor({ manifest: npmRoot, graphify: false, extraEnv: { CLAUDE_CONFIG_DIR: cfg } }).stdout, /graphify/);
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'shopify-app-kit-projskill-'));
+      fs.mkdirSync(path.join(dir, '.claude', 'skills', 'graphify'), { recursive: true });
+      fs.copyFileSync(npmRoot, path.join(dir, '.claude', 'shopify-app.json'));
+      fs.writeFileSync(path.join(dir, '.claude', 'skills', 'graphify', 'SKILL.md'), '');
+      assert.doesNotMatch(runDoctor({ manifest: undefined, graphify: false, cwd: dir, extraEnv: { CLAUDE_PROJECT_DIR: dir } }).stdout, /graphify/);
+    });
+
+    test('is silent about graphify when the claude binary is absent', () => {
+      const r = runDoctor({ manifest: npmRoot, claude: false, graphify: false });
+      assert.equal(r.status, 0, r.stderr);
+      assert.doesNotMatch(r.stdout, /Companion:/);
+    });
+  });
+
+  describe('scheduled workflows', () => {
+    const iso = (daysAgo) => new Date(Date.now() - daysAgo * 86400e3).toISOString().replace(/\.\d{3}Z$/, 'Z');
+    function scheduledRepo() {
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'shopify-app-kit-sched-'));
+      fs.mkdirSync(path.join(dir, '.claude'), { recursive: true });
+      fs.mkdirSync(path.join(dir, '.github', 'workflows'), { recursive: true });
+      fs.copyFileSync(npmRoot, path.join(dir, '.claude', 'shopify-app.json'));
+      fs.writeFileSync(path.join(dir, '.github', 'workflows', 'audit.yml'), "name: audit\non:\n  schedule:\n    # weekly\n    - cron: '41 6 * * 1'\n  workflow_dispatch:\n");
+      fs.writeFileSync(path.join(dir, '.github', 'workflows', 'nightly.yml'), 'name: nightly\non:\n  schedule:\n    - cron: "17 3 * * *"\n');
+      fs.writeFileSync(path.join(dir, '.github', 'workflows', 'monthly.yaml'), 'on:\n  schedule:\n    - cron: 23 6 3 * *\n');
+      fs.writeFileSync(path.join(dir, '.github', 'workflows', 'deploy.yml'), 'name: Deploy\non: workflow_dispatch\n');
+      return dir;
+    }
+    const run = (dir, opts) => runDoctor({ manifest: undefined, cwd: dir, extraEnv: { CLAUDE_PROJECT_DIR: dir }, ...opts });
+    const scheduleLines = (r) => r.stdout.split('\n').filter((l) => l.startsWith('Schedule:'));
+
+    test('prints one line per scheduled workflow with the age of its last successful run, warning past twice the cadence', () => {
+      const dir = scheduledRepo();
+      const r = run(dir, { runs: { 'audit.yml': iso(3), 'nightly.yml': iso(5), 'monthly.yaml': iso(40) } });
+      assert.equal(r.status, 0, r.stderr);
+      const lines = scheduleLines(r);
+      assert.equal(lines.length, 3, r.stdout);
+      // .yml files first, then .yaml, each alphabetical (the glob order).
+      assert.equal(lines[0], 'Schedule: audit.yml (weekly) last succeeded 3 days ago.');
+      assert.match(lines[1], /^Schedule: nightly\.yml \(daily\) last succeeded 5 days ago, more than twice its cadence; dispatch it \(gh workflow run nightly\.yml\) and check it is enabled: GitHub disables schedules after 60 idle days\.$/);
+      assert.equal(lines[2], 'Schedule: monthly.yaml (monthly) last succeeded 40 days ago.');
+      assert.doesNotMatch(r.stdout, /deploy\.yml/);
+      assert.match(r.stdout, /OK \(schema v1/);
+      assert.equal(r.stderr, '');
+    });
+
+    test('a weekly workflow at 15 days and a monthly at 61 days warn; a workflow with no successful run is called out', () => {
+      const dir = scheduledRepo();
+      const r = run(dir, { runs: { 'audit.yml': iso(15), 'monthly.yaml': iso(61) } });
+      const lines = scheduleLines(r);
+      assert.match(lines[0], /^Schedule: audit\.yml \(weekly\) last succeeded 15 days ago, more than twice its cadence/);
+      assert.equal(lines[1], 'Schedule: nightly.yml (daily) has no successful run on record; dispatch it (gh workflow run nightly.yml) and check it is enabled: GitHub disables schedules after 60 idle days.');
+      assert.match(lines[2], /^Schedule: monthly\.yaml \(monthly\) last succeeded 61 days ago, more than twice its cadence/);
+    });
+
+    test('is silent without gh, prints one line when gh cannot list runs, and says nothing in a repo without schedules', () => {
+      const dir = scheduledRepo();
+      const quiet = run(dir, { gh: false, runs: { 'audit.yml': iso(99) } });
+      assert.equal(quiet.status, 0, quiet.stderr);
+      assert.doesNotMatch(quiet.stdout, /Schedule:/);
+      const loggedOut = run(dir, { runs: 'ERROR' });
+      assert.deepEqual(scheduleLines(loggedOut), ['Schedule: gh could not list workflow runs (not logged in, or no actions:read); scheduled-workflow liveness is unchecked.']);
+      assert.equal(loggedOut.stderr, '');
+      assert.doesNotMatch(runDoctor({ manifest: npmRoot, runs: { 'deploy.yml': iso(1) } }).stdout, /Schedule:/);
     });
   });
 });

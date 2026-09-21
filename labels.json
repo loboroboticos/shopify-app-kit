@@ -1,0 +1,29 @@
+{
+  "$comment": "labels.json (shopify-app-kit): the label set every consumer repo carries. `labels` is the list scripts/sync-labels.mjs creates or updates (never deletes); `ladder` is the executor order the issue-filing skill and the routines read (least privileged first; human:bootstrap sits beside human:account). Every issue carries exactly one work-type label (code only, agent:*, human:*), one priority (p1..p3) and one ROI bucket (roi:5..roi:1); the rest are gating and origin labels. Colors: the three agent rungs are a blue ramp, the four human rungs an amber-to-red ramp.",
+  "ladder": ["code only", "agent:ci", "agent:cloud", "agent:local", "human:decision", "human:account", "human:legal"],
+  "labels": [
+    { "name": "code only", "color": "ededed", "description": "Work type: a PR (code, config, docs, tests) fully closes it" },
+    { "name": "agent:ci", "color": "bfd4f2", "description": "Work type: closed by adding, editing or dispatching an Actions workflow with the repo's own secrets" },
+    { "name": "agent:cloud", "color": "6fa8dc", "description": "Work type: needs to reach the store itself, but no login and no maintainer-only file" },
+    { "name": "agent:local", "color": "1d5fa3", "description": "Work type: a Claude Code CLI session on the maintainer's machine (logged-in CLIs, .env, a browser)" },
+    { "name": "human:bootstrap", "color": "fbca04", "description": "Work type: a one-time maintainer action; the issues under Unlocks become agent work when it closes" },
+    { "name": "human:decision", "color": "e99695", "description": "Work type: a product, architecture or art-direction choice, answered by a comment starting decision:" },
+    { "name": "human:account", "color": "d93f0b", "description": "Work type: account, identity, payment, payout, tax, 2FA or dashboard-only work with no API" },
+    { "name": "human:legal", "color": "b60205", "description": "Work type: legal, compliance, trademark, DPA or third-party review" },
+    { "name": "p1", "color": "e11d21", "description": "Priority: unblocked work that gates a real install or protects money or data" },
+    { "name": "p2", "color": "f9d0c4", "description": "Priority: unblocked, planned" },
+    { "name": "p3", "color": "c2e0c6", "description": "Priority: deploy, blocked, or nice-to-have" },
+    { "name": "roi:5", "color": "0e8a16", "description": "ROI bucket 5 of 5: highest value per unit of effort" },
+    { "name": "roi:4", "color": "2cbe4e", "description": "ROI bucket 4 of 5" },
+    { "name": "roi:3", "color": "7fd18a", "description": "ROI bucket 3 of 5" },
+    { "name": "roi:2", "color": "bfe5bf", "description": "ROI bucket 2 of 5" },
+    { "name": "roi:1", "color": "e6f4e6", "description": "ROI bucket 1 of 5: lowest value per unit of effort" },
+    { "name": "launch-gate", "color": "5319e7", "description": "Gating: must close before the first real install" },
+    { "name": "blocked", "color": "000000", "description": "Gating: waiting on another issue; the body says which one (\"after #N\")" },
+    { "name": "deploy", "color": "0052cc", "description": "Gating: registration or deployment work" },
+    { "name": "qa", "color": "d876e3", "description": "Origin: opened by a scheduled QA workflow on failure" },
+    { "name": "dependencies", "color": "0366d6", "description": "Origin: dependency advisories and deliberate major upgrades" },
+    { "name": "bug", "color": "d73a4a", "description": "Something is broken" },
+    { "name": "documentation", "color": "0075ca", "description": "Documentation only" }
+  ]
+}

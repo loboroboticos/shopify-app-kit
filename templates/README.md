@@ -51,7 +51,8 @@ the guards and stamping the manifest. The same script works by hand:
 | `docs/adr/0000-template.md` | The record to copy for a new decision. | `docs/adr/README.md` |
 | `docs/adr/SEEDS.md` | The decisions a new Shopify app takes before Phase 1, each as a title and a question, no answers. | `lessons/INDEX.md` (`adr-seed` rows) |
 | `.claude/settings.json` | Pins the kit marketplace and plugin, registers the three vendored guards and the bootstrap hook. | `.claude/hooks/kit/*.sh` |
-| `.claude/hooks/kit-bootstrap.sh` | SessionStart hook for remote sessions: installs the kit and the official Shopify companion plugin when absent, writes the telemetry opt-out, never fails the session. | `.claude/settings.json` |
+| `.claude/hooks/kit-bootstrap.sh` | SessionStart hook for remote sessions: installs the kit and the official Shopify companion plugin when absent, writes the telemetry opt-out, installs the graphify companion (`pip install graphifyy==<pin> && graphify install`, the pin equal to the doctor's) when absent, never fails the session. | `.claude/settings.json`, `hooks/doctor.sh` |
+| `.claudeignore` | Paths a session never reads: `graphify-out/`, the knowledge graph the `graphify-refresh` routine commits on the `graph/` branch only. Add the same line to the repo's `.gitignore` (the template's own `.gitignore` is upstream's and is not overlaid). | `routines/graphify-refresh.md` |
 | `.claude/shopify-app.json` | The starter manifest: expiring offline tokens on, App Pricing, RLS Postgres, the docs map in `docs/README.md`. `new-app` stamps `kit.version` and the tag `$schema`, and renames the `example` configs and tomls to the app's slug. | `schemas/shopify-app.v1.schema.json` |
 | `.claude/rules/billing.md` | Path-scoped rule seed: billing method, test flag, plan names as data. | `billing.*` |
 | `.claude/rules/prisma.md` | Path-scoped rule seed: migrations own RLS and roles, no `db push`, the drift check. | `database.*`, `paths.prisma` |
