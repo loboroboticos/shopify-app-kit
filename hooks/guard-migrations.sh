@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shopify-app-kit v0.10.0
+# shopify-app-kit v0.11.0
 # hooks/guard-migrations.sh: PreToolUse(Bash) guard that keeps destructive Prisma database commands out of an agent
 # session, driven by .claude/shopify-app.json (paths.prisma, deploy.scaleToZeroBeforeMigrate, database.*).
 #

@@ -3,6 +3,36 @@
 All notable changes to shopify-app-kit. The version is the plugin version in `.claude-plugin/plugin.json`; every
 vendored hook carries it on line 2 (`# shopify-app-kit vX.Y.Z`).
 
+## 0.11.0
+
+Cheap, high-speed classification (Jev / TypeSafe) as a first-class kit capability: the generic transport contract,
+the manifest governance and one worked exemplar, no opinionated vertical handlers.
+
+- `skills/classify` (`/shopify-app-kit:classify`, model-invocable): the classification primitive as a contract the
+  consumer app implements, the way `mcp-connector` ships an MCP server the kit never runs. One transport calling
+  `provider: jev` through a single module that reads `TYPESAFE_API_KEY` in one place and returns
+  `{ choice, confidence, probabilities }`; every call names a `labelSets` id declared in the manifest; the call is
+  billed against a per-tenant budget decremented in the same transaction and, under `database.rls`, inside
+  `withTenant`; a call auto-acts only when `confidence >=` its threshold and otherwise escalates to a cheap,
+  reversible path. Five references: `jev-transport.md` (one transport, the three typed primitives Choice/Score/
+  boolean, text-only, rules stay rules), `label-registry.md` (the manifest as the label source of truth and the
+  parity tripwire), `budget.md` (the per-tenant budget), `thresholds-and-escalation.md` (never auto-act below the
+  floor, cheap reversible escalation), `operator-mcp-tool.md` (the billed, budgeted, role-scoped operator MCP
+  classify tool — the cheapest first call, near-zero new plumbing on the existing MCP surface). Lessons `cls-1`..
+  `cls-5` in `lessons/INDEX.md`.
+- `schemas/shopify-app.v1.schema.json`: an additive `classify` section — `provider` (`jev`),
+  `defaultEscalateThreshold`, `budget.monthlyCap`, and a `labelSets` registry mapping a job id to its `labels`
+  (2..255) and an optional `escalateThreshold`. Top level stays closed; the section grows additively. Exercised by
+  a new `classify` block in `test/schema.test.mjs` (a valid section validates; unknown provider, a labelSet under
+  two labels and a missing `labels` array fail; older fixtures still validate without it).
+- `agents/classifier-reviewer.md` (read-only, manifest-aware): checks a diff's classification against the
+  `classify` section — every call names a declared label set, is budgeted, never auto-acts below its threshold,
+  passes no image to the text-only classifier, and keeps deterministic signals as rules. The `review` skill
+  launches it alongside `review-correctness` and `review-quality` when the manifest declares `classify`. Lens
+  `cls-6`.
+- `templates/.env.example`: `TYPESAFE_API_KEY` (SECRET), present only when the app uses the classify skill.
+- README "What you get" and the manifest contract document the new skill, agent and `classify` keys.
+
 ## 0.10.0
 
 The release gate and the plan gate as workflows, a fourth guard for destructive Prisma commands, and the procedure
