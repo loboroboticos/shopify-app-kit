@@ -120,4 +120,49 @@ describe('schema v1', () => {
       for (const k of ['adrDir', 'mapFile', 'mapHeading']) assert.ok(schema.properties.docs.properties[k].description.length > 20, k);
     });
   });
+
+  describe('classify (additive in v1)', () => {
+    const withClassify = (m) => {
+      m.classify = {
+        provider: 'jev',
+        defaultEscalateThreshold: 0.75,
+        budget: { monthlyCap: 100000 },
+        labelSets: {
+          supportIntent: {
+            labels: ['order-status', 'return-exchange', 'sizing-fit', 'shipping-delivery', 'complaint', 'spam'],
+            escalateThreshold: 0.7,
+          },
+        },
+      };
+    };
+
+    test('a classify section validates', () => {
+      assert.deepEqual(validate(mutate('multi-tenant-app.json', withClassify), schema), []);
+    });
+
+    test('classify stays additive (no additionalProperties: false)', () => {
+      assert.notEqual(schema.properties.classify.additionalProperties, false);
+    });
+
+    test('an unknown provider is rejected', () => {
+      const errs = validate(mutate('multi-tenant-app.json', (m) => { withClassify(m); m.classify.provider = 'gpt'; }), schema);
+      assert.ok(errs.some((e) => /classify\.provider: must be one of jev/.test(e)), JSON.stringify(errs));
+    });
+
+    test('a labelSet needs at least two labels', () => {
+      const errs = validate(mutate('multi-tenant-app.json', (m) => { withClassify(m); m.classify.labelSets.supportIntent.labels = ['only-one']; }), schema);
+      assert.ok(errs.some((e) => /classify\.labelSets\.supportIntent\.labels: fewer than 2 items/.test(e)), JSON.stringify(errs));
+    });
+
+    test('a labelSet needs its labels array', () => {
+      const errs = validate(mutate('multi-tenant-app.json', (m) => { withClassify(m); delete m.classify.labelSets.supportIntent.labels; }), schema);
+      assert.ok(errs.some((e) => /classify\.labelSets\.supportIntent: missing required labels/.test(e)), JSON.stringify(errs));
+    });
+
+    test('the older fixtures validate without a classify section', () => {
+      const m = load('npm-root-app.json');
+      assert.ok(!('classify' in m));
+      assert.deepEqual(validate(m, schema), []);
+    });
+  });
 });

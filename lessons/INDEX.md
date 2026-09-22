@@ -124,6 +124,12 @@ home exists, every anchor matches a heading, and every reference file is the hom
 | ops-7 | A decision issue carries at least two options and a recommended default; a reversible default is taken and stated in the PR | rule | skills/issue-filing/references/rules.md#r5-decisions-need-options | app-3 |
 | ops-8 | The pinned maintainer's queue is rewritten by triage, carries no work type, priority or ROI, and the lint skips it | rule | skills/issue-filing/references/rules.md#the-queue-exemption | app-1 |
 | ops-9 | A rung is live only once its bootstrap closed; a higher rung may always substitute, the ladder never climbs on its own | rule | skills/issue-filing/references/executor-ladder.md#readiness | app-1, app-2 |
+| cls-1 | Call Jev through one module that reads TYPESAFE_API_KEY in one place and returns choice+confidence; it is never a client-reachable endpoint | rule | skills/classify/references/jev-transport.md#one-transport-module-one-key | app-2, app-3 |
+| cls-2 | classify.labelSets in the manifest is the only label vocabulary; a call to an undeclared id is refused and a tripwire fails when code labels drift from it | rule | skills/classify/references/label-registry.md#the-manifest-owns-the-labels | app-2, app-3 |
+| cls-3 | A classify call decrements a per-tenant cap in the same transaction it records the call and refuses when exhausted; billed classification needs a budget | rule | skills/classify/references/budget.md#one-per-tenant-budget-decremented-with-the-call | app-2, app-3 |
+| cls-4 | Auto-act on a classification only at or above its threshold; below it escalate to a human, rule or LLM, and keep every classify action cheap and reversible | rule | skills/classify/references/thresholds-and-escalation.md#never-auto-act-below-the-threshold | app-2, app-3 |
+| cls-5 | An MCP classify tool asserts role, is billed with a budget, names a declared labelSet, and returns choice+confidence to auto-act above threshold or escalate | recipe | skills/classify/references/operator-mcp-tool.md#a-billed-budgeted-role-scoped-tool | app-2, app-3 |
+| cls-6 | Classify review lens: every call names a declared labelSet, is budgeted, never auto-acts below threshold, passes no image, and keeps blocklists as rules | lens | agents/classifier-reviewer.md#manifest-checks | app-3 |
 
 ## History
 

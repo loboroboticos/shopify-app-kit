@@ -39,6 +39,8 @@ maintainability against the app's canonical layers. Both are diff-scoped and evi
 
    - `subagent_type: "shopify-app-kit:review-correctness"` for bugs, breakage, security, manifest contracts, devex.
    - `subagent_type: "shopify-app-kit:review-quality"` for structure, spaghetti growth, file size, layers, conventions.
+   - `subagent_type: "shopify-app-kit:classifier-reviewer"` **only when the manifest declares `classify`**, for the
+     app's classification calls: declared label sets, per-call budgets, confidence-gated auto-action, text-only input.
 
    Ask each for prioritized findings with file:line evidence in its documented output format.
 
@@ -69,4 +71,5 @@ maintainability against the app's canonical layers. Both are diff-scoped and evi
   For plans, run `/shopify-app-kit:plan-review <plan file | PR number | #issue>`, which launches the four
   design-review agents and dedupes the findings; `/shopify-app-kit:pre-pr-review` does the same for the diff-stage
   roster, and `/shopify-app-kit:release-readiness` checks a promotion range before the promotion PR. See the
-  README's "Review roster". This skill launches only the two agents above.
+  README's "Review roster". This skill launches the two agents above, plus `classifier-reviewer` when the manifest
+  declares a `classify` section.

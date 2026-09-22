@@ -195,6 +195,51 @@
           "type": "string"
         }
       }
+    },
+    "classify": {
+      "description": "How the app calls a cheap, high-speed classification provider (Jev / TypeSafe) for typed, calibrated decisions. Every classify call names a labelSet declared here; the transport is billed and budgeted, and a call auto-acts only at or above its confidence threshold. Additive: absent means the app ships no classification.",
+      "type": "object",
+      "properties": {
+        "provider": {
+          "description": "The classification provider. `jev` is TypeSafe's System One model, called through @typesafe-ai/sdk with TYPESAFE_API_KEY; it returns a typed Choice (one label from a fixed set), Score or boolean with a calibrated confidence, never a free-text string.",
+          "type": "string",
+          "enum": ["jev"]
+        },
+        "defaultEscalateThreshold": {
+          "description": "The confidence (0..1) below which any classify call escalates to a human or a fallback instead of auto-acting, unless its labelSet overrides it. A calibrated classifier abstains rather than guessing under this floor.",
+          "type": "number"
+        },
+        "budget": {
+          "description": "The per-tenant spend ceiling for billed classify calls; the transport decrements it in the same transaction it records the call and refuses when exhausted, the rule mcp-connector applies to every billed tool.",
+          "type": "object",
+          "properties": {
+            "monthlyCap": {
+              "description": "Maximum classify spend per tenant per calendar month, in the provider's billing unit.",
+              "type": "number"
+            }
+          }
+        },
+        "labelSets": {
+          "description": "The registry of candidate label sets, one per classification job, keyed by an id the calling code references. This is the single source of truth a tripwire asserts the code's Choice options against; a call naming an id absent here is rejected.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "required": ["labels"],
+            "properties": {
+              "labels": {
+                "description": "The candidate labels for this job, up to 255 (Jev's Choice cap); the classifier returns exactly one, never a label outside this set.",
+                "type": "array",
+                "minItems": 2,
+                "items": { "type": "string", "minLength": 1 }
+              },
+              "escalateThreshold": {
+                "description": "The confidence (0..1) below which a call on this labelSet escalates instead of auto-acting; overrides defaultEscalateThreshold.",
+                "type": "number"
+              }
+            }
+          }
+        }
+      }
     }
   },
   "$defs": {
