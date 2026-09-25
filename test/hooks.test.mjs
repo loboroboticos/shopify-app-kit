@@ -517,6 +517,19 @@ describe('doctor.sh', () => {
     assert.doesNotMatch(r.stdout, /Billing method/);
   });
 
+  test('knows every top-level key the schema allows (the list is derived, not kept by hand)', () => {
+    const schema = JSON.parse(fs.readFileSync(path.join(hooksDir, '..', 'schemas', 'shopify-app.v1.schema.json'), 'utf8'));
+    const m = JSON.parse(fs.readFileSync(path.join(fixtures, 'multi-tenant-app.json'), 'utf8'));
+    // Fill every section the fixture lacks with a minimal valid value, so the manifest declares all of them.
+    const minimal = { classify: { provider: 'jev', labelSets: { intent: { labels: ['a', 'b'] } } }, webhooks: { topics: [] }, scopes: { required: [] }, checks: {}, deploy: {}, apiVersion: { expected: '2026-07' }, paths: {}, docs: {}, auth: {}, billing: {}, database: { provider: 'postgres' } };
+    for (const k of Object.keys(schema.properties)) if (!(k in m)) m[k] = k.startsWith('$') ? 'x' : (minimal[k] ?? {});
+    const p = path.join(consumer, 'every-section-manifest.json');
+    fs.writeFileSync(p, JSON.stringify(m));
+    const r = runDoctor({ manifest: p });
+    assert.equal(r.status, 0, r.stderr);
+    assert.doesNotMatch(r.stdout, /unknown top-level key/, r.stdout);
+  });
+
   test('still reports an unrelated unknown top-level key', () => {
     const m = JSON.parse(fs.readFileSync(path.join(fixtures, 'annotated-app.json'), 'utf8'));
     m.$notes = 'x';
