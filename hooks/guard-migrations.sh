@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shopify-app-kit v0.11.1
+# shopify-app-kit v0.12.0
 # hooks/guard-migrations.sh: PreToolUse(Bash) guard that keeps destructive Prisma database commands out of an agent
 # session, driven by .claude/shopify-app.json (paths.prisma, deploy.scaleToZeroBeforeMigrate, database.*).
 #
@@ -30,11 +30,10 @@ lower_input="$(printf '%s' "$input" | tr '[:upper:]' '[:lower:]')"
 if ! kit_has_jq; then
   case "$lower_input" in
     *"migrate reset"* | *"--force-reset"* | *"--accept-data-loss"*)
-      block "jq is not installed, so a destructive Prisma command cannot be checked against the manifest (fail closed)" "Install jq (brew install jq / apt-get install jq)." ;;
+      kit_require_jq "a destructive Prisma command cannot be checked against the manifest" ;;
     *"db execute"*)
       case "$lower_input" in
-        *"drop database"* | *"drop schema"* | *truncate*)
-          block "jq is not installed, so a destructive Prisma command cannot be checked against the manifest (fail closed)" "Install jq (brew install jq / apt-get install jq)." ;;
+        *"drop database"* | *"drop schema"* | *truncate*) kit_require_jq "a destructive Prisma command cannot be checked against the manifest" ;;
       esac ;;
   esac
   exit 0
@@ -45,25 +44,21 @@ case "$cmd" in *prisma*) ;; *) exit 0 ;; esac
 
 lower_cmd="$(printf '%s' "$cmd" | tr '[:upper:]' '[:lower:]')"
 
-manifest_loaded=0
 prisma_path=""
 provider=""
 shared_dev=""
 scale_to_zero=""
 RULE=""
 
-# ensure_manifest: resolve and read the manifest the first time a guarded form is seen, failing closed when it is
-# missing; the block message then names the database facts the manifest carries.
+# ensure_manifest: read the database facts the first time a guarded form is seen (lib.sh fails closed when the
+# manifest is missing); the block message then names them.
 ensure_manifest() {
-  [ "$manifest_loaded" -eq 1 ] && return 0
-  kit_resolve_manifest "$cwd"
-  kit_manifest_ok || block "the repo manifest is missing or unreadable ($manifest), so the command cannot be checked (fail closed)" "$KIT_MANIFEST_RULE"
+  kit_ensure_manifest || return 0
   prisma_path="$(mf '.paths.prisma // "prisma"')"
   provider="$(mf '.database.provider // "unknown"')"
   shared_dev="$(mf '.database.sharedDevDbWithBeta // false')"
   scale_to_zero="$(mf '.deploy.scaleToZeroBeforeMigrate // false')"
   RULE="Destructive Prisma commands never run from an agent session: the database this checkout reaches may be shared or production (per .claude/shopify-app.json: database.provider $provider, database.sharedDevDbWithBeta $shared_dev, migrations under $prisma_path). Write a forward-only migration and apply it with prisma migrate deploy through the branch; a local-only reset is the maintainer's to run (skills/release/references/migrations-and-zero-downtime.md)."
-  manifest_loaded=1
 }
 
 # manifest_read_or_skip: for the allowed migrate deploy reminder only; a missing manifest means no reminder, never a block.

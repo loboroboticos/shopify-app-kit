@@ -7,10 +7,10 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { kitRoot } from './lib/fs.mjs';
+import { frontmatter } from './lib/frontmatter.mjs';
 
-const here = path.dirname(fileURLToPath(import.meta.url));
-const skillsDir = path.resolve(here, '..', 'skills');
+const skillsDir = path.join(kitRoot, 'skills');
 
 const ALLOWED_KEYS = new Set(['name', 'description', 'allowed-tools', 'disallowed-tools', 'disable-model-invocation', 'user-invocable',
   'context', 'agent', 'paths', 'argument-hint', 'arguments', 'model', 'effort', 'license', 'compatibility', 'metadata']);
@@ -19,21 +19,6 @@ const ALLOWED_ENTRIES = new Set(['SKILL.md', 'references', 'scripts']);
 const SOURCE_LABELS = new Set(['app-1', 'app-2', 'app-3']);
 // A SKILL.md with references/ is the short entry point; the depth lives in the references.
 const MAX_SKILL_LINES_WITH_REFERENCES = 60;
-
-// Minimal frontmatter reader: top-level `key: value` lines between the first two `---` lines.
-// Nested values (metadata:) are folded into their parent key and not interpreted.
-function frontmatter(text) {
-  const m = text.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/);
-  assert.ok(m, 'frontmatter block');
-  const out = {};
-  for (const line of m[1].split(/\r?\n/)) {
-    if (!line.trim() || /^\s/.test(line)) continue;
-    const kv = line.match(/^([A-Za-z][A-Za-z0-9-]*):\s*(.*)$/);
-    assert.ok(kv, `unparseable frontmatter line: ${line}`);
-    out[kv[1]] = kv[2].trim();
-  }
-  return out;
-}
 
 describe('skills parity', () => {
   const dirs = fs.readdirSync(skillsDir, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name);

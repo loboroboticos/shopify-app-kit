@@ -2,13 +2,10 @@
 // (type, const, enum, pattern, minLength, minItems, required, properties, additionalProperties, items, allOf,
 // if/then, $ref). Zero dependencies. Shared by test/schema.test.mjs and test/templates.test.mjs.
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { kitRoot, read } from './fs.mjs';
 
-const here = path.dirname(fileURLToPath(import.meta.url));
-export const kitRoot = path.resolve(here, '..', '..');
-export const schema = JSON.parse(fs.readFileSync(path.join(kitRoot, 'schemas', 'shopify-app.v1.schema.json'), 'utf8'));
+export { kitRoot };
+export const schema = JSON.parse(read('schemas', 'shopify-app.v1.schema.json'));
 
 function typeOf(v) {
   if (v === null) return 'null';

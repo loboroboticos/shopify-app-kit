@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shopify-app-kit v0.11.1
+# shopify-app-kit v0.12.0
 # hooks/doctor.sh: SessionStart briefing for a consumer repo. Validates .claude/shopify-app.json structurally
 # (required keys, enums, patterns of schema v1), prints one paragraph of facts to stdout, reports vendored-hook
 # drift, checks the two companions (the Shopify plugin and the graphify skill), and, when gh is on PATH, prints
@@ -89,18 +89,30 @@ mf '
   + "Guard hooks read this manifest and fail closed when it is missing."
 '
 
-# Vendored-hook drift: each .claude/hooks/kit/*.sh header should match kit.version.
+# Vendored-hook drift: each .claude/hooks/kit/*.sh header should match kit.version; a vendored guard the kit no
+# longer ships is stale, and one the kit marks `# Deprecated:` (line 3 of the plugin's copy) is leaving.
 kv="$(mf '.kit.version // empty')"
 hookdir="$root/.claude/hooks/kit"
+plugin_hooks="$(dirname "${BASH_SOURCE[0]}")"
 if [ -d "$hookdir" ]; then
   for f in "$hookdir"/*.sh; do
     [ -f "$f" ] || continue
+    name="$(basename "$f")"
     hv="$(sed -n '2s/^# shopify-app-kit v//p' "$f")"
     if [ -z "$hv" ]; then
-      echo "Drift: $(basename "$f") has no '# shopify-app-kit vX.Y.Z' header; re-run /shopify-app-kit:sync."
+      echo "Drift: $name has no '# shopify-app-kit vX.Y.Z' header; re-run /shopify-app-kit:sync."
     elif [ -n "$kv" ] && [ "$hv" != "$kv" ]; then
-      echo "Drift: $(basename "$f") is v$hv but the manifest's kit.version is $kv; re-run /shopify-app-kit:sync."
+      echo "Drift: $name is v$hv but the manifest's kit.version is $kv; re-run /shopify-app-kit:sync."
     fi
+    case "$name" in
+      guard-*.sh)
+        if [ ! -f "$plugin_hooks/$name" ]; then
+          echo "Drift: $name is vendored but the kit no longer ships it; delete it and its .claude/settings.json entry (kit-dev: Remove a skill, agent, hook, workflow or routine)."
+        else
+          dep="$(sed -n '3s/^# Deprecated: //p' "$plugin_hooks/$name")"
+          [ -n "$dep" ] && echo "Deprecated: $name: $dep It leaves the kit in the next minor; remove it from .claude/settings.json and .claude/hooks/kit/ now."
+        fi ;;
+    esac
   done
   if [ -f "$root/.claude/settings.json" ] && ! grep -q 'hooks/kit/guard-' "$root/.claude/settings.json" 2>/dev/null; then
     echo "Drift: .claude/settings.json does not register .claude/hooks/kit/guard-*.sh under PreToolUse; the vendored guards will not fire. /shopify-app-kit:sync prints the snippet."

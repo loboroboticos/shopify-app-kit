@@ -6,10 +6,10 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { kitRoot } from './lib/fs.mjs';
+import { split } from './lib/frontmatter.mjs';
 
-const here = path.dirname(fileURLToPath(import.meta.url));
-const agentsDir = path.resolve(here, '..', 'agents');
+const agentsDir = path.join(kitRoot, 'agents');
 
 // The Claude Code plugin reference's agent fields, exactly. Plugin agents may not set hooks, mcpServers or
 // permissionMode, and color is not a plugin field.
@@ -27,19 +27,6 @@ const OPERATOR_DECIDES = /you report; the operator decides/i;
 // Upstream Engine frontmatter keys and machinery that must not survive the port.
 const ENGINE_KEYS = /^(role|lens|model-tier|permissions|reviewer-contract(-version)?|output-contract):/m;
 const ENGINE_STRINGS = ['reviewer-contract', 'output-contract', '.engine/', 'review packet'];
-
-function split(text) {
-  const m = text.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/);
-  assert.ok(m, 'frontmatter block');
-  const fm = {};
-  for (const line of m[1].split(/\r?\n/)) {
-    if (!line.trim() || /^\s/.test(line)) continue;
-    const kv = line.match(/^([A-Za-z][A-Za-z0-9-]*):\s*(.*)$/);
-    assert.ok(kv, `unparseable frontmatter line: ${line}`);
-    fm[kv[1]] = kv[2].trim();
-  }
-  return { fm, body: text.slice(m[0].length) };
-}
 
 const list = (value) => (value ? value.split(',').map((t) => t.trim()).filter(Boolean) : []);
 

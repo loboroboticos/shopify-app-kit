@@ -6,10 +6,8 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { kitRoot } from './lib/fs.mjs';
 
-const here = path.dirname(fileURLToPath(import.meta.url));
-const kitRoot = path.resolve(here, '..');
 const dir = path.join(kitRoot, 'routines');
 const registry = fs.readFileSync(path.join(dir, 'REGISTRY.md'), 'utf8');
 const portfolio = JSON.parse(fs.readFileSync(path.join(kitRoot, 'portfolio.json'), 'utf8'));

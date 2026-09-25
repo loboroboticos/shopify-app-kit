@@ -6,13 +6,11 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { kitRoot } from './lib/fs.mjs';
+import { KIT_VERSION } from './lib/kit.mjs';
 
-const here = path.dirname(fileURLToPath(import.meta.url));
-const kitRoot = path.resolve(here, '..');
 const hooksDir = path.join(kitRoot, 'hooks');
-const fixtures = path.join(here, 'fixtures', 'manifests');
-const KIT_VERSION = JSON.parse(fs.readFileSync(path.join(kitRoot, '.claude-plugin', 'plugin.json'), 'utf8')).version;
+const fixtures = path.join(kitRoot, 'test', 'fixtures', 'manifests');
 
 // A fake consumer checkout: the guard treats this as the repo root (theme dev "from the repo root" cases).
 const consumer = fs.mkdtempSync(path.join(os.tmpdir(), 'shopify-app-kit-consumer-'));
@@ -33,6 +31,47 @@ function runHook(hook, { manifest, command, cwd = consumer, event = 'PreToolUse'
 
 const npmRoot = path.join(fixtures, 'npm-root-app.json');
 const pnpmRoot = path.join(fixtures, 'pnpm-root-app.json');
+
+// A PATH with bash and the coreutils the guards need, but no jq (lib.sh's kit_require_jq then fails closed).
+let noJq;
+function noJqPath() {
+  if (!noJq) {
+    noJq = fs.mkdtempSync(path.join(consumer, 'bin-nojq-'));
+    for (const t of ['bash', 'tr', 'cat', 'dirname', 'sed', 'head', 'grep']) { const p = which(t); if (p) fs.symlinkSync(p, path.join(noJq, t)); }
+  }
+  return noJq;
+}
+const which = (bin) => process.env.PATH.split(path.delimiter).map((d) => path.join(d, bin)).find((p) => { try { fs.accessSync(p, fs.constants.X_OK); return fs.statSync(p).isFile(); } catch { return false; } });
+
+// Without jq every guard fails closed on its guarded verbs and stays silent on everything else; no branch,
+// directory or workflow literal decides it (the manifest is unreadable, so the names are unknown).
+describe('without jq', () => {
+  const run = (hook, command) => runHook(hook, { manifest: npmRoot, command, extraEnv: { PATH: noJqPath() } });
+  test('guard-shopify-cli blocks a shopify command and ignores the rest', () => {
+    const r = run('guard-shopify-cli.sh', 'shopify app deploy --config example');
+    assert.equal(r.status, 2, r.stderr);
+    assert.match(r.stderr, /jq is not installed, so a shopify\/deploy command cannot be inspected/);
+    // The no-jq pre-filter matches the raw hook JSON, cwd included, so the allow case runs from a plain path.
+    const plain = fs.mkdtempSync(path.join(os.tmpdir(), 'plain-'));
+    assert.equal(runHook('guard-shopify-cli.sh', { manifest: npmRoot, command: 'git status', cwd: plain, extraEnv: { PATH: noJqPath() } }).status, 0);
+  });
+  test('guard-protected-branch blocks every guarded verb, whatever branch it names', () => {
+    for (const c of ['git push origin feature/x', 'git push origin main', 'gh pr merge 12', 'gh workflow run other.yml']) {
+      const r = run('guard-protected-branch.sh', c);
+      assert.equal(r.status, 2, `${c}: ${r.stderr}`);
+      assert.match(r.stderr, /jq is not installed, so a push, merge, base change, API write or workflow run cannot be checked/);
+    }
+    assert.equal(run('guard-protected-branch.sh', 'git status && git log --oneline').status, 0);
+  });
+  test('guard-package-manager blocks pnpm in every directory', () => {
+    for (const c of ['pnpm install', 'cd web && pnpm install']) {
+      const r = run('guard-package-manager.sh', c);
+      assert.equal(r.status, 2, `${c}: ${r.stderr}`);
+      assert.match(r.stderr, /jq is not installed, so a pnpm command cannot be checked/);
+    }
+    assert.equal(run('guard-package-manager.sh', 'npm test').status, 0);
+  });
+});
 
 // { fixture, cmd, cwd?, exit, stderr? (regex the stderr must match when blocked) }
 const cases = [
@@ -423,10 +462,7 @@ describe('guard-migrations.sh', () => {
   }
 
   test('fails closed without jq for the guarded forms only', () => {
-    // A PATH with bash and the coreutils the guard needs, but no jq.
-    const dir = fs.mkdtempSync(path.join(consumer, 'bin-nojq-'));
-    for (const t of ['bash', 'tr', 'cat', 'dirname']) { const p = which(t); if (p) fs.symlinkSync(p, path.join(dir, t)); }
-    const run = (command) => runHook('guard-migrations.sh', { manifest: npmRoot, command, extraEnv: { PATH: dir } });
+    const run = (command) => runHook('guard-migrations.sh', { manifest: npmRoot, command, extraEnv: { PATH: noJqPath() } });
     const blocked = run('npx prisma migrate reset');
     assert.equal(blocked.status, 2, blocked.stderr);
     assert.match(blocked.stderr, /jq is not installed, so a destructive Prisma command cannot be checked/);
@@ -451,7 +487,6 @@ const BOTH_PLUGINS = 'shopify-app-kit@shopify-app-kit\nshopify-ai-toolkit@claude
 // needs plus the fakes asked for: filtering the real PATH would drop /usr/bin (GitHub runners ship gh there) and
 // with it bash, and a real gh or claude on the machine must never leak into the doctor's checks.
 const REAL_TOOLS = ['bash', 'jq', 'sed', 'grep', 'head', 'basename', 'dirname', 'cat', 'sort', 'ls', 'mkdir', 'env', 'node'];
-const which = (bin) => process.env.PATH.split(path.delimiter).map((d) => path.join(d, bin)).find((p) => { try { fs.accessSync(p, fs.constants.X_OK); return fs.statSync(p).isFile(); } catch { return false; } });
 const sandboxes = new Map();
 function sandboxPath(fakes) {
   const key = fakes.join('+');
@@ -574,6 +609,32 @@ describe('doctor.sh', () => {
     assert.equal(r.status, 0, r.stderr);
     assert.match(r.stdout, /Drift: guard-shopify-cli\.sh is v0\.0\.9 but the manifest's kit\.version is 0\.1\.0/);
     assert.match(r.stdout, /Drift: \.claude\/settings\.json does not register/);
+  });
+
+  test('reports a vendored guard the kit no longer ships, and one the plugin marks deprecated', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'shopify-app-kit-stale-'));
+    fs.mkdirSync(path.join(dir, '.claude', 'hooks', 'kit'), { recursive: true });
+    fs.copyFileSync(npmRoot, path.join(dir, '.claude', 'shopify-app.json'));
+    for (const g of ['guard-shopify-cli.sh', 'guard-old-thing.sh']) fs.writeFileSync(path.join(dir, '.claude', 'hooks', 'kit', g), `#!/usr/bin/env bash\n# shopify-app-kit v${KIT_VERSION}\nexit 0\n`);
+    // A stale copy: the kit ships no guard-old-thing.sh.
+    let r = runDoctor({ manifest: undefined, cwd: dir, extraEnv: { CLAUDE_PROJECT_DIR: dir } });
+    assert.equal(r.status, 0, r.stderr);
+    assert.match(r.stdout, /Drift: guard-old-thing\.sh is vendored but the kit no longer ships it; delete it and its \.claude\/settings\.json entry/);
+    assert.doesNotMatch(r.stdout, /guard-shopify-cli\.sh is vendored but/);
+    assert.doesNotMatch(r.stdout, /Deprecated:/);
+    // A deprecated guard: the doctor reads line 3 of the plugin's copy, so run a copy of the plugin's hooks with
+    // guard-shopify-cli.sh marked. (The schema is not next to that copy, so its unknown-key check is skipped.)
+    const plugin = fs.mkdtempSync(path.join(os.tmpdir(), 'shopify-app-kit-plugin-'));
+    for (const f of fs.readdirSync(hooksDir)) fs.copyFileSync(path.join(hooksDir, f), path.join(plugin, f));
+    const lines = fs.readFileSync(path.join(plugin, 'guard-shopify-cli.sh'), 'utf8').split('\n');
+    lines.splice(2, 0, '# Deprecated: use guard-new-thing.sh.');
+    fs.writeFileSync(path.join(plugin, 'guard-shopify-cli.sh'), lines.join('\n'));
+    const payload = JSON.stringify({ hook_event_name: 'SessionStart', source: 'startup', cwd: dir });
+    const env = { ...process.env, CLAUDE_PROJECT_DIR: dir, PATH: `${fakeBin}${path.delimiter}${process.env.PATH}`, HOME: fakeHome, CLAUDE_CONFIG_DIR: '', FAKE_CLAUDE_PLUGINS: BOTH_PLUGINS, FAKE_GH_RUNS: '{}' };
+    delete env.SHOPIFY_APP_KIT_MANIFEST; delete env.SHOPIFY_APP_KIT_ROOT;
+    const res = spawnSync('bash', [path.join(plugin, 'doctor.sh')], { input: payload, encoding: 'utf8', env, cwd: dir });
+    assert.equal(res.status, 0, res.stderr);
+    assert.match(res.stdout, /Deprecated: guard-shopify-cli\.sh: use guard-new-thing\.sh\. It leaves the kit in the next minor; remove it from \.claude\/settings\.json and \.claude\/hooks\/kit\/ now\./);
   });
 
   describe('companion plugin', () => {

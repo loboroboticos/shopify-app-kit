@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shopify-app-kit v0.11.1
+# shopify-app-kit v0.12.0
 # hooks/lib.sh: shared helpers for the shopify-app-kit guard hooks. Sourced, never executed.
 # Vendored into consumers at .claude/hooks/kit/lib.sh by /shopify-app-kit:sync, next to the guards.
 #
@@ -11,10 +11,13 @@
 #   kit_manifest_ok           -> 0 when the manifest is readable and kit.schemaVersion == 1
 #   mf JQ_FILTER              -> jq -r over the manifest
 #   block REASON RULE         -> standard block message on stderr, exit 2
+#   kit_require_jq WHAT       -> block when jq is missing ("jq is not installed, so WHAT (fail closed)")
+#   kit_require_manifest [DIR]-> resolve the manifest and block when it is missing or unreadable
+#   kit_ensure_manifest       -> the lazy form: 0 the first time (read your keys now), 1 once loaded
 #   kit_walk_commands CMD CB  -> calls CB "<effective dir>" <prog> <args...> for every simple command in CMD,
 #                                after heredoc stripping, control-operator splitting and cd/pushd/popd tracking.
 
-KIT_VERSION="0.11.1"
+KIT_VERSION="0.12.0"
 KIT_HOOK_NAME="${KIT_HOOK_NAME:-hook}"
 KIT_MANIFEST_RULE="Add or repair .claude/shopify-app.json (the repo manifest the kit's guard hooks read; schema: shopify-app-kit schemas/shopify-app.v1.schema.json)."
 
@@ -90,6 +93,29 @@ kit_manifest_ok() {
 }
 
 mf() { jq -r "$1" "$manifest"; }
+
+# ---------------------------------------------------------------- fail-closed prologue
+
+KIT_JQ_RULE="Install jq (brew install jq / apt-get install jq)."
+manifest_loaded=0
+
+# kit_require_jq WHAT: block when jq is missing, naming what could not be inspected without it.
+kit_require_jq() { kit_has_jq || block "jq is not installed, so $1 (fail closed)" "$KIT_JQ_RULE"; }
+
+# kit_require_manifest [START_DIR]: resolve the manifest and block when it is missing or unreadable.
+kit_require_manifest() {
+  kit_resolve_manifest "${1:-$cwd}"
+  kit_manifest_ok || block "the repo manifest is missing or unreadable ($manifest), so the command cannot be checked (fail closed)" "$KIT_MANIFEST_RULE"
+}
+
+# kit_ensure_manifest: for a guard that reads the manifest only once a guarded form is seen (so a command that
+# merely mentions its tool in prose never needs one). Returns 0 the first time, when the caller reads its keys,
+# and 1 on every later call.
+kit_ensure_manifest() {
+  [ "$manifest_loaded" -eq 1 ] && return 1
+  kit_require_manifest "$cwd"
+  manifest_loaded=1
+}
 
 # ---------------------------------------------------------------- paths
 

@@ -25,6 +25,9 @@ their logic, and touches nothing outside `.claude/`.
 
    Show a `diff -r` of `.claude/hooks/kit/` before and after when files already existed, so local edits are noticed
    (they are lost by design: the kit is the source of truth; repo-specific behaviour belongs in the manifest).
+   Then delete every `.claude/hooks/kit/guard-*.sh` that has no counterpart under `${CLAUDE_PLUGIN_ROOT}/hooks/`
+   (a guard the kit removed) together with its `settings.json` entry, and say which; the doctor reports such a
+   copy as stale until it is gone.
 
 3. **Stamp the headers.** Line 2 of every copied file must be `# shopify-app-kit v<version>` where `<version>` is the
    plugin version from step 1. The kit ships them stamped; verify with

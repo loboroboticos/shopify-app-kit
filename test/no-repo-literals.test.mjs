@@ -8,9 +8,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
+import { kitRoot, walk } from './lib/fs.mjs';
 
-const here = path.dirname(fileURLToPath(import.meta.url));
-const kitRoot = path.resolve(here, '..');
 const self = fileURLToPath(import.meta.url);
 
 // Generic hosts that betray a real store or deployment, spelled out.
@@ -38,19 +37,6 @@ const LENGTHS = [...new Set(FORBIDDEN_HASHED.map(([n]) => n))];
 // Every hashed term is made of these characters, so only runs of them are windowed.
 const RUN = /[a-z0-9\u00c0-\u024f.-]+/g;
 const digest = (s) => createHash('sha256').update(s).digest('hex').slice(0, 16);
-
-const SKIP_DIRS = new Set(['node_modules', '.git']);
-
-function* walk(dir) {
-  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    const p = path.join(dir, entry.name);
-    if (entry.isDirectory()) {
-      if (!SKIP_DIRS.has(entry.name)) yield* walk(p);
-    } else if (entry.isFile()) {
-      yield p;
-    }
-  }
-}
 
 test('no repo-specific literals anywhere in the kit', () => {
   const hits = [];
@@ -80,7 +66,7 @@ test('no repo-specific literals anywhere in the kit', () => {
 });
 
 test('the fixtures use invented names', () => {
-  const dir = path.join(here, 'fixtures', 'manifests');
+  const dir = path.join(kitRoot, 'test', 'fixtures', 'manifests');
   for (const f of fs.readdirSync(dir)) {
     const m = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'));
     for (const handle of Object.values(m.app.handles ?? {})) assert.match(handle, /^(example|sample)/, `${f} handle ${handle}`);
