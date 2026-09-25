@@ -22,7 +22,7 @@ performs on push. Never merge, never run a protected workflow by hand, never tou
    For a public app (`billing.method` is `app-pricing`, or its distribution is the App Store) it also asks for the
    companion's `shopify-app-store-review` skill: run it and attach its summary, or say the companion is not installed.
 
-3. **Promotion (`beta`).** Open the PR with the step 7 checklist (as the workflow pre-ticked it) as its body, then
+3. **Promotion (`beta`).** Open the PR with the workflow's checklist block (step 2) as its body, then
    stop: `gh pr create --base <promotion.to> --head <promotion.from>`. The merge is the human gate; the kit's
    `guard-protected-branch` hook blocks `gh pr merge` and pushes to the protected branch, so do not try.
 
@@ -41,17 +41,9 @@ performs on push. Never merge, never run a protected workflow by hand, never tou
    plan change against the production registration is a real charge to a real merchant. The only agent-safe
    billing path is the test flag (`billing.testFlag`) under the dev registration (`references/billing-live-posture.md`).
 
-7. **Checklist.** End with one the operator can paste into the PR (the workflow's block, or this one by hand):
-
-   ```
-   - [ ] CI green on <from>; migrate diff clean; tripwires green; release-readiness: go / go-with-notes
-   - [ ] App Store review check (public app): summary attached / companion not installed
-   - [ ] Migration in this release? scale to zero first (scaleToZeroBeforeMigrate): yes / no
-   - [ ] Extension version to release: <handle>-<N>; verified in an asset URL after deploy
-   - [ ] Server target(s): <workflow> on push to <branch>
-   - [ ] Billing live: no plan or price change in this release / change reviewed
-   - [ ] app dev clean run on the dev registration
-   ```
+7. **Checklist.** End with the workflow's checklist block from step 2, the one source of the release checklist
+   (its lines live in `workflows/release-readiness.js`); the operator pastes it into the PR body and ticks as they
+   go. Do not write one by hand.
 
 ## References
 

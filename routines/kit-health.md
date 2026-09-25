@@ -56,7 +56,7 @@ one issue `kit-health: API version <version> ends support <date>`, `code only`, 
 together (the `admin-api` skill's `api-version-drift.md`: a version bump is its own PR). If the companion is
 not installed, say "unverified" in the summary and open no issue.
 
-Step 3b, review personas. The kit's nine `design-review-*` and `qa-review-*` agents are ported from the
+Step 3b, review personas. The kit's `design-review-*` and `qa-review-*` agents are ported from the
 `StarshipSuperjam/engine-template` repository at the commit its CHANGELOG records under the most recent
 "Ported from" or "Re-synced" line. Shallow-clone that repository's `main` (read-only, into a scratch directory)
 and count the `.claude/agents/engine-*.md` files whose content changed since that commit (`git diff --stat
