@@ -84,7 +84,7 @@ describe('docs mirror their sources', () => {
   });
 
   test('every version-bump sentence lists exactly the directories CI watches', () => {
-    for (const [file, from, to] of [['README.md', 'Any change under', 'version bump'], ['CLAUDE.md', 'Every change under', 'bumps the version'], ['skills/kit-dev/SKILL.md', 'Any change under', 'bumps the version']]) {
+    for (const [file, from, to] of [['README.md', 'Any change under', 'version bump'], ['.claude/rules/kit.md', 'Every change under', 'bumps the version'], ['skills/kit-dev/SKILL.md', 'Any change under', 'bumps the version']]) {
       const dirs = uniq(ticks(region(read(file), from, to)).filter((t) => t.endsWith('/')).map((t) => t.slice(0, -1)));
       assert.deepEqual(dirs, bumpDirs, `${file}: the version-bump directories`);
     }
@@ -94,6 +94,15 @@ describe('docs mirror their sources', () => {
     const pins = [...readme.matchAll(/graphifyy==([0-9.]+)/g)].map((m) => m[1]);
     assert.ok(pins.length > 0, 'the README names the pinned graphify install');
     for (const p of pins) assert.equal(p, GRAPHIFY_VERSION);
+  });
+
+  test('every doc that lists the validate commands lists exactly the ones CI runs', () => {
+    const ci = uniq([...read('.github', 'workflows', 'ci.yml').matchAll(/^\s+(claude plugin validate [^\n]+)$/gm)].map((m) => m[1].trim()));
+    assert.ok(ci.length > 0, 'ci.yml runs claude plugin validate');
+    for (const file of ['README.md', 'skills/kit-dev/SKILL.md', '.claude/rules/kit.md']) {
+      const listed = uniq([...read(file).matchAll(/^(claude plugin validate [^\n]+)$/gm)].map((m) => m[1].trim()));
+      assert.deepEqual(listed, ci, `${file}: the validate commands`);
+    }
   });
 
   test('the release skill does not carry a hand-written copy of the workflow\'s checklist', () => {

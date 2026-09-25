@@ -376,6 +376,8 @@ business names, so operator or repo facts cannot leak into the kit.
 ```bash
 node --test "test/**/*.test.mjs"     # or: npm test
 claude plugin validate . --strict
+claude plugin validate .claude-plugin/plugin.json --strict
+claude plugin validate skills --strict
 claude --plugin-dir .                # /shopify-app-kit:doctor should be listed
 ```
 

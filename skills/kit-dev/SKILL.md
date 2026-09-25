@@ -34,6 +34,8 @@ depth in `references/`, mechanics in `scripts/`), `agents/`, `workflows/`, `less
 ```bash
 npm test                              # node --test "test/**/*.test.mjs"
 claude plugin validate . --strict
+claude plugin validate .claude-plugin/plugin.json --strict
+claude plugin validate skills --strict
 claude --plugin-dir .                 # then /shopify-app-kit:doctor should be listed
 ```
 

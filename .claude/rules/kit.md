@@ -2,6 +2,8 @@
 
 A Claude Code plugin for sessions that build Shopify apps. The repo root is the plugin root and its own
 marketplace. Everything here is generic: a consumer's facts live in its own `.claude/shopify-app.json`.
+This file is the repo's own always-loaded context (an unscoped `.claude/rules/` file); it is not plugin content
+and never ships to a consumer, which is why it is not a root `CLAUDE.md` (the plugin validator rejects one there).
 
 ## The posture
 
@@ -21,6 +23,8 @@ terms by hash, so they never appear in the kit either. Refer to a consumer as "a
 ```bash
 npm test                              # node --test "test/**/*.test.mjs", zero dependencies
 claude plugin validate . --strict
+claude plugin validate .claude-plugin/plugin.json --strict
+claude plugin validate skills --strict
 ```
 
 Every change under `skills/`, `agents/`, `hooks/`, `workflows/`, `schemas/`, `lessons/` or `.claude-plugin/`

@@ -26,8 +26,12 @@ only ratchets down, and the kit has its own CLAUDE.md.
   (`test/skills-parity.test.mjs`): `review` and `sync` are trimmed to fit, and `kit-dev` keeps its procedures in
   `references/` (`layout`, `add`, `remove`, `personas`, `release`), exempt from the `Sources:` line and the
   lesson-home rule because they are maintainer procedures, not consumer lessons. (#23)
-- `CLAUDE.md` at the root: the posture (one source per fact, additions name their consumer evidence, removal is a
-  procedure), the private-name rule, the two commands and the version-bump rule, in under 40 lines. (#25)
+- `.claude/rules/kit.md`, the repo's own always-loaded context: the posture (one source per fact, additions name
+  their consumer evidence, removal is a procedure), the private-name rule, the commands and the version-bump rule,
+  in under 40 lines. It is an unscoped rules file rather than a root `CLAUDE.md` because the repo root is the plugin
+  root and `claude plugin validate --strict` rejects a `CLAUDE.md` there (it is not plugin content and must not ship
+  to consumers). The three `claude plugin validate` commands CI runs are now listed, identically, in the README,
+  `kit-dev` and this file, and `test/docs-mirror.test.mjs` holds them to `ci.yml`. (#25)
 
 ### Budget
 

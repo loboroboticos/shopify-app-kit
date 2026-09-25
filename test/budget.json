@@ -16,7 +16,7 @@
   "files": {
     "README.md": 400,
     "CHANGELOG.md": 700,
-    "CLAUDE.md": 40
+    ".claude/rules/kit.md": 40
   },
   "classes": {
     "skill": 60,
