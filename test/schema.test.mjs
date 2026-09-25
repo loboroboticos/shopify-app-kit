@@ -4,11 +4,9 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { schema, validate } from './lib/schema-validate.mjs';
+import { kitRoot, schema, validate } from './lib/schema-validate.mjs';
 
-const here = path.dirname(fileURLToPath(import.meta.url));
-const fixtures = path.join(here, 'fixtures', 'manifests');
+const fixtures = path.join(kitRoot, 'test', 'fixtures', 'manifests');
 
 const load = (name) => JSON.parse(fs.readFileSync(path.join(fixtures, name), 'utf8'));
 const mutate = (name, fn) => { const m = load(name); fn(m); return m; };

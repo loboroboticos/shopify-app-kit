@@ -22,10 +22,12 @@ export const meta = {
 //   reviewers  restrict the roster to these agent names
 //   all        true forces the stack reviewers to run even when the diff does not touch their files
 
+// @shared constants
 const SEVERITIES = ['blocker', 'major', 'minor', 'note']
 const RANK = { blocker: 0, major: 1, minor: 2, note: 3 }
 const LINE_FUZZ = 3 // findings on the same file within this many lines are one finding
 const VERIFY_CAP = 12 // skeptics per run; the rest are reported unverified, never dropped
+// @end
 
 // The roster and when each reviewer runs. Names resolve as shopify-app-kit:<name> (agents/<name>.md).
 const ROSTER = [
@@ -61,6 +63,7 @@ const SCOPE_SCHEMA = {
     'touchesPrisma', 'extensionsDeclared', 'touchesExtensions', 'notes'],
 }
 
+// @shared findings-schema
 const FINDINGS_SCHEMA = {
   type: 'object',
   properties: {
@@ -85,7 +88,9 @@ const FINDINGS_SCHEMA = {
   },
   required: ['headline', 'findings', 'checked'],
 }
+// @end
 
+// @shared verdict-schema
 const VERDICT_SCHEMA = {
   type: 'object',
   properties: {
@@ -95,6 +100,7 @@ const VERDICT_SCHEMA = {
   },
   required: ['refuted', 'reason', 'severity'],
 }
+// @end
 
 // ---------------------------------------------------------------------------------------------------------
 phase('Scope')
@@ -183,25 +189,33 @@ for (const f of failed) log(`reviewer ${f} returned nothing (skipped or failed);
 log(`${raw.length} raw findings from ${ran.length} reviewers`)
 
 // ---------------------------------------------------------------------------------------------------------
-// Dedupe in plain code: same file within LINE_FUZZ lines, or the same normalised section/claim when no file.
+// Two reviewers on the same file-less section ("whole change") are one finding; nothing extra is carried.
+const TOPIC_NEEDS_SAME_CLAIM = false
+const mergeExtra = () => {}
+const newExtra = () => ({})
+// @shared dedupe
+// Dedupe in plain code: same file within LINE_FUZZ lines, or the same normalised section/claim when there is no
+// file. TOPIC_NEEDS_SAME_CLAIM, mergeExtra and newExtra are declared by each workflow just above this block.
 const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().slice(0, 80)
-const sorted = raw.slice().sort((a, b) => (a.file || '~').localeCompare(b.file || '~') || (a.line || 0) - (b.line || 0))
+const sorted = raw.slice().sort((a, b) => (a.file || '~').localeCompare(b.file || '~') || (a.line || 0) - (b.line || 0) || norm(a.section || a.claim).localeCompare(norm(b.section || b.claim)))
 const merged = []
 for (const f of sorted) {
   const prev = merged[merged.length - 1]
   const sameSpot = prev && f.file && prev.file === f.file && Math.abs((f.line || 0) - (prev.line || 0)) <= LINE_FUZZ
-  const sameTopic = prev && !f.file && !prev.file && norm(f.section || f.claim) === norm(prev.section || prev.claim)
+  const sameTopic = prev && !f.file && !prev.file && norm(f.section || f.claim) === norm(prev.section || prev.claim) && (!TOPIC_NEEDS_SAME_CLAIM || norm(f.claim) === norm(prev.claim))
   if (sameSpot || sameTopic) {
     if (RANK[f.severity] < RANK[prev.severity]) { prev.severity = f.severity; prev.claim = f.claim; prev.fix = f.fix }
+    mergeExtra(prev, f)
     if (!prev.reviewers.includes(f.reviewer)) prev.reviewers.push(f.reviewer)
     if (!prev.claims.includes(f.claim)) prev.claims.push(f.claim)
     if (f.evidence && !prev.evidence.includes(f.evidence)) prev.evidence = `${prev.evidence}\n${f.evidence}`
     continue
   }
   merged.push({ severity: f.severity, claim: f.claim, file: f.file, line: f.line, section: f.section, evidence: f.evidence,
-    fix: f.fix, reviewers: [f.reviewer], claims: [f.claim] })
+    fix: f.fix, ...newExtra(f), reviewers: [f.reviewer], claims: [f.claim] })
 }
 log(`${merged.length} findings after dedupe`)
+// @end
 
 // ---------------------------------------------------------------------------------------------------------
 // Verify: one skeptic per blocker or major, capped; a refuted finding is kept as a note with the reason.
@@ -225,6 +239,7 @@ handled, or out of this branch's scope (pre-existing and untouched). Return refu
 partly. Either way give the reason and the severity you would assign (blocker | major | minor | note).`,
     { label: `verify:${f.file ? f.file.split('/').pop() : 'whole'}#${i + 1}`, phase: 'Verify', schema: VERDICT_SCHEMA })))
 
+// @shared skeptic-apply
 const refuted = []
 toVerify.forEach((f, i) => {
   const v = verdicts[i]
@@ -240,12 +255,15 @@ toVerify.forEach((f, i) => {
 })
 for (const f of serious.slice(VERIFY_CAP)) f.verification = 'unverified (over the skeptic cap)'
 for (const f of merged) if (!f.verification) f.verification = 'not verified (minor or note)'
+// @end
 
 // ---------------------------------------------------------------------------------------------------------
 // Verdict on the review skill's scale.
-merged.sort((a, b) => RANK[a.severity] - RANK[b.severity] || (a.file || '~').localeCompare(b.file || '~') || (a.line || 0) - (b.line || 0))
+// @shared verdict-counts
+merged.sort((a, b) => RANK[a.severity] - RANK[b.severity] || (a.file || '~').localeCompare(b.file || '~') || (a.line || 0) - (b.line || 0) || norm(a.section).localeCompare(norm(b.section)))
 const counts = { blocker: 0, major: 0, minor: 0, note: 0 }
 for (const f of merged) counts[f.severity]++
+// @end
 // A reviewer that returned nothing left its lens uncovered, so the diff is never approved on its account.
 const verdict = counts.blocker > 0 ? 'block' : (counts.major > 0 || failed.length > 0) ? 'changes-needed' : 'approve'
 log(`verdict: ${verdict} (${counts.blocker} blocker, ${counts.major} major, ${counts.minor} minor, ${counts.note} note; ${refuted.length} refuted${failed.length ? `; uncovered: ${failed.join(', ')}` : ''})`)

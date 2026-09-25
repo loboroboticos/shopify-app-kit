@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shopify-app-kit v0.11.1
+# shopify-app-kit v0.12.0
 # hooks/guard-shopify-cli.sh: PreToolUse(Bash) guard for Shopify CLI commands, driven by .claude/shopify-app.json.
 #
 #   shopify app dev [clean]     per shopifyCli.devPolicy      (config-required: --config must equal configs.dev)
@@ -20,17 +20,14 @@ KIT_HOOK_NAME=guard-shopify-cli
 kit_read_input
 
 if ! kit_has_jq; then
-  case "$input" in
-    *shopify* | *deploy*) block "jq is not installed, so a shopify/deploy command cannot be inspected (fail closed)" "Install jq (brew install jq / apt-get install jq)." ;;
-  esac
+  case "$input" in *shopify* | *deploy*) kit_require_jq "a shopify/deploy command cannot be inspected" ;; esac
   exit 0
 fi
 
 kit_parse_input
 case "$cmd" in *shopify* | *deploy*) ;; *) exit 0 ;; esac
 
-kit_resolve_manifest "$cwd"
-kit_manifest_ok || block "the repo manifest is missing or unreadable ($manifest), so the command cannot be checked (fail closed)" "$KIT_MANIFEST_RULE"
+kit_require_manifest "$cwd"
 
 cfg_dev="$(mf '.shopifyCli.configs.dev // empty')"
 cfg_deploy="$(mf '.shopifyCli.configs.deploy // empty')"

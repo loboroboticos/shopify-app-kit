@@ -9,15 +9,13 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { schema, validate } from './lib/schema-validate.mjs';
+import { kitRoot, walk } from './lib/fs.mjs';
+import { PLACEHOLDER } from './lib/kit.mjs';
 
-const here = path.dirname(fileURLToPath(import.meta.url));
-const kitRoot = path.resolve(here, '..');
 const templatesDir = path.join(kitRoot, 'templates');
 const readme = fs.readFileSync(path.join(templatesDir, 'README.md'), 'utf8');
 
-const PLACEHOLDER = /\{\{([A-Z][A-Z0-9_]*)\}\}/g;
 const SUBSTITUTIONS = {
   APP_NAME: 'Example App',
   DEFAULT_BRANCH: 'main',
@@ -29,14 +27,6 @@ const SUBSTITUTIONS = {
 };
 const MAX_RULE_LINES = 25;
 const MAX_CLAUDE_MD_LINES = 60;
-
-function* walk(dir) {
-  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    const p = path.join(dir, entry.name);
-    if (entry.isDirectory()) yield* walk(p);
-    else if (entry.isFile()) yield p;
-  }
-}
 
 const files = [...walk(templatesDir)].map((f) => path.relative(templatesDir, f).split(path.sep).join('/')).filter((f) => f !== 'README.md').sort();
 const read = (f) => fs.readFileSync(path.join(templatesDir, f), 'utf8');

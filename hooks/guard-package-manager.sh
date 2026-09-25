@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shopify-app-kit v0.11.1
+# shopify-app-kit v0.12.0
 # hooks/guard-package-manager.sh: PreToolUse(Bash) guard that keeps each directory on the package manager
 # .claude/shopify-app.json maps it to (packageManagers: { "<dir>": "npm" | "pnpm" }, "." = the consumer root).
 #
@@ -21,13 +21,7 @@ KIT_HOOK_NAME=guard-package-manager
 kit_read_input
 
 if ! kit_has_jq; then
-  case "$input" in
-    *pnpm*)
-      case "$input" in
-        *"cd web"*) ;;
-        *) block "jq is not installed, so a pnpm command cannot be checked against the manifest's package managers (fail closed)" "Install jq (brew install jq / apt-get install jq)." ;;
-      esac ;;
-  esac
+  case "$input" in *pnpm*) kit_require_jq "a pnpm command cannot be checked against the manifest's package managers" ;; esac
   exit 0
 fi
 
@@ -37,16 +31,12 @@ case "$cmd" in *pnpm* | *npm*) ;; *) exit 0 ;; esac
 RULE_CD="Which package manager applies depends on the directory; cd to a literal path first (per .claude/shopify-app.json packageManagers)."
 
 pm_map=""
-manifest_loaded=0
 
-# ensure_manifest: resolve and read the manifest the first time a guarded command is seen (so a command that only
-# mentions npm in prose never needs one), failing closed when it is missing.
+# ensure_manifest: read the package-manager map the first time a guarded command is seen (lib.sh fails closed
+# when the manifest is missing; a command that only mentions npm in prose never needs one).
 ensure_manifest() {
-  [ "$manifest_loaded" -eq 1 ] && return 0
-  kit_resolve_manifest "$cwd"
-  kit_manifest_ok || block "the repo manifest is missing or unreadable ($manifest), so the command cannot be checked (fail closed)" "$KIT_MANIFEST_RULE"
+  kit_ensure_manifest || return 0
   pm_map="$(mf '.packageManagers // {} | to_entries[] | "\(.key)\t\(.value)"')"
-  manifest_loaded=1
 }
 
 # pm_for DIR: the manifest's package manager for the exact repo-relative form of DIR, or nothing.

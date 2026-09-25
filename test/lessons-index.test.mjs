@@ -5,10 +5,8 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { kitRoot } from './lib/fs.mjs';
 
-const here = path.dirname(fileURLToPath(import.meta.url));
-const kitRoot = path.resolve(here, '..');
 const indexPath = path.join(kitRoot, 'lessons', 'INDEX.md');
 const readmePath = path.join(kitRoot, 'lessons', 'README.md');
 

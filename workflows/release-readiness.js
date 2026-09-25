@@ -23,10 +23,12 @@ export const meta = {
 //   pr          a PR number; its body is read for acknowledgements
 //   dimensions  restrict the run to these dimension names
 
+// @shared constants
 const SEVERITIES = ['blocker', 'major', 'minor', 'note']
 const RANK = { blocker: 0, major: 1, minor: 2, note: 3 }
 const LINE_FUZZ = 3 // findings on the same file within this many lines are one finding
 const VERIFY_CAP = 12 // skeptics per run; the rest are reported unverified, never dropped
+// @end
 
 // The dimensions, the kit agent each runs as (name resolves as shopify-app-kit:<name>, agents/<name>.md) and when
 // it runs. app-store-review launches nothing: it is one note telling the operator to run the companion's skill.
@@ -82,6 +84,7 @@ const SCOPE_SCHEMA = {
 }
 
 // The same finding shape as pre-pr-review, so the two workflows' outputs look alike.
+// @shared findings-schema
 const FINDINGS_SCHEMA = {
   type: 'object',
   properties: {
@@ -106,7 +109,9 @@ const FINDINGS_SCHEMA = {
   },
   required: ['headline', 'findings', 'checked'],
 }
+// @end
 
+// @shared verdict-schema
 const VERDICT_SCHEMA = {
   type: 'object',
   properties: {
@@ -116,6 +121,7 @@ const VERDICT_SCHEMA = {
   },
   required: ['refuted', 'reason', 'severity'],
 }
+// @end
 
 // ---------------------------------------------------------------------------------------------------------
 phase('Scope')
@@ -260,26 +266,34 @@ for (const f of failed) log(`dimension ${f} returned nothing (skipped or failed)
 log(`${raw.length} raw findings from ${dimensions.length} dimensions`)
 
 // ---------------------------------------------------------------------------------------------------------
-// Dedupe in plain code: same file within LINE_FUZZ lines, or the same normalised section/claim when no file.
+// A file-less finding's section is its dimension name, so two distinct claims in one dimension stay apart; the
+// dimensions a finding came from are carried through the merge.
+const TOPIC_NEEDS_SAME_CLAIM = true
+const mergeExtra = (prev, f) => { if (!prev.dimensions.includes(f.dimension)) prev.dimensions.push(f.dimension) }
+const newExtra = (f) => ({ dimensions: [f.dimension] })
+// @shared dedupe
+// Dedupe in plain code: same file within LINE_FUZZ lines, or the same normalised section/claim when there is no
+// file. TOPIC_NEEDS_SAME_CLAIM, mergeExtra and newExtra are declared by each workflow just above this block.
 const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().slice(0, 80)
-const sorted = raw.slice().sort((a, b) => (a.file || '~').localeCompare(b.file || '~') || norm(a.section || a.claim).localeCompare(norm(b.section || b.claim)) || (a.line || 0) - (b.line || 0))
+const sorted = raw.slice().sort((a, b) => (a.file || '~').localeCompare(b.file || '~') || (a.line || 0) - (b.line || 0) || norm(a.section || a.claim).localeCompare(norm(b.section || b.claim)))
 const merged = []
 for (const f of sorted) {
   const prev = merged[merged.length - 1]
   const sameSpot = prev && f.file && prev.file === f.file && Math.abs((f.line || 0) - (prev.line || 0)) <= LINE_FUZZ
-  const sameTopic = prev && !f.file && !prev.file && norm(f.section || f.claim) === norm(prev.section || prev.claim) && norm(f.claim) === norm(prev.claim)
+  const sameTopic = prev && !f.file && !prev.file && norm(f.section || f.claim) === norm(prev.section || prev.claim) && (!TOPIC_NEEDS_SAME_CLAIM || norm(f.claim) === norm(prev.claim))
   if (sameSpot || sameTopic) {
     if (RANK[f.severity] < RANK[prev.severity]) { prev.severity = f.severity; prev.claim = f.claim; prev.fix = f.fix }
-    if (!prev.dimensions.includes(f.dimension)) prev.dimensions.push(f.dimension)
+    mergeExtra(prev, f)
     if (!prev.reviewers.includes(f.reviewer)) prev.reviewers.push(f.reviewer)
     if (!prev.claims.includes(f.claim)) prev.claims.push(f.claim)
     if (f.evidence && !prev.evidence.includes(f.evidence)) prev.evidence = `${prev.evidence}\n${f.evidence}`
     continue
   }
   merged.push({ severity: f.severity, claim: f.claim, file: f.file, line: f.line, section: f.section, evidence: f.evidence,
-    fix: f.fix, dimensions: [f.dimension], reviewers: [f.reviewer], claims: [f.claim] })
+    fix: f.fix, ...newExtra(f), reviewers: [f.reviewer], claims: [f.claim] })
 }
 log(`${merged.length} findings after dedupe`)
+// @end
 
 // ---------------------------------------------------------------------------------------------------------
 // Verify: one skeptic per blocker or major, capped; a refuted finding is kept as a note with the reason.
@@ -304,6 +318,7 @@ wrong, already handled or acknowledged, or outside this range (pre-existing and 
 when it stands, even partly. Either way give the reason and the severity you would assign (blocker | major | minor | note).`,
     { label: `verify:${f.file ? f.file.split('/').pop() : f.section}#${i + 1}`, phase: 'Verify', schema: VERDICT_SCHEMA })))
 
+// @shared skeptic-apply
 const refuted = []
 toVerify.forEach((f, i) => {
   const v = verdicts[i]
@@ -319,12 +334,15 @@ toVerify.forEach((f, i) => {
 })
 for (const f of serious.slice(VERIFY_CAP)) f.verification = 'unverified (over the skeptic cap)'
 for (const f of merged) if (!f.verification) f.verification = 'not verified (minor or note)'
+// @end
 
 // ---------------------------------------------------------------------------------------------------------
 // Verdict: no-go on a surviving blocker; go only when every dimension ran clean; go-with-notes otherwise.
-merged.sort((a, b) => RANK[a.severity] - RANK[b.severity] || (a.file || '~').localeCompare(b.file || '~') || (a.line || 0) - (b.line || 0))
+// @shared verdict-counts
+merged.sort((a, b) => RANK[a.severity] - RANK[b.severity] || (a.file || '~').localeCompare(b.file || '~') || (a.line || 0) - (b.line || 0) || norm(a.section).localeCompare(norm(b.section)))
 const counts = { blocker: 0, major: 0, minor: 0, note: 0 }
 for (const f of merged) counts[f.severity]++
+// @end
 const verdict = counts.blocker > 0 ? 'no-go' : (merged.length > 0 || failed.length > 0) ? 'go-with-notes' : 'go'
 log(`verdict: ${verdict} (${counts.blocker} blocker, ${counts.major} major, ${counts.minor} minor, ${counts.note} note; ${refuted.length} refuted; ${failed.length} failed)`)
 

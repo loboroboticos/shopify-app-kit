@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shopify-app-kit v0.11.1
+# shopify-app-kit v0.12.0
 # hooks/guard-protected-branch.sh: PreToolUse(Bash) guard that keeps a session off the protected branches named in
 # .claude/shopify-app.json (branches.protected, branches.default, branches.promotion, deploy.protectedWorkflows).
 #
@@ -25,9 +25,10 @@ KIT_HOOK_NAME=guard-protected-branch
 kit_read_input
 
 if ! kit_has_jq; then
+  # Without jq the protected names cannot be read, so every guarded verb fails closed, whatever it names.
   case "$input" in
-    *" main"* | *":main"* | *heads/main* | *deploy.yml* | *mergePullRequest*)
-      block "jq is not installed, so a command that mentions main or a deploy cannot be inspected (fail closed)" "Install jq (brew install jq / apt-get install jq)." ;;
+    *"git push"* | *"gh pr merge"* | *"gh pr edit"* | *"gh api"* | *"gh workflow run"* | *mergePullRequest*)
+      kit_require_jq "a push, merge, base change, API write or workflow run cannot be checked against the manifest's protected branches" ;;
   esac
   exit 0
 fi
@@ -35,9 +36,9 @@ fi
 kit_parse_input
 case "$cmd" in *git* | *gh*) ;; *) exit 0 ;; esac
 
-kit_resolve_manifest "$cwd"
-kit_manifest_ok && jq -e '(.branches.protected | type == "array") and (.branches.protected | length) > 0' "$manifest" >/dev/null 2>&1 \
-  || block "the repo manifest is missing or unreadable ($manifest), so the command cannot be checked (fail closed)" "$KIT_MANIFEST_RULE"
+kit_require_manifest "$cwd"
+jq -e '(.branches.protected | type == "array") and (.branches.protected | length) > 0' "$manifest" >/dev/null 2>&1 \
+  || block "the repo manifest is missing or unreadable ($manifest): branches.protected must be a non-empty array, so the command cannot be checked (fail closed)" "$KIT_MANIFEST_RULE"
 
 mapfile -t PROTECTED < <(mf '.branches.protected[]')
 mapfile -t WORKFLOWS < <(mf '.deploy.protectedWorkflows[]?')

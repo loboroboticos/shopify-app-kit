@@ -1,7 +1,34 @@
 # Changelog
 
 All notable changes to shopify-app-kit. The version is the plugin version in `.claude-plugin/plugin.json`; every
-vendored hook carries it on line 2 (`# shopify-app-kit vX.Y.Z`).
+vendored hook carries it on line 2 (`# shopify-app-kit vX.Y.Z`). A version that deprecates something lists it under
+`### Deprecated`; the next minor deletes it and lists it under `### Removed` (`kit-dev`: "Remove a skill, agent,
+hook, workflow or routine").
+
+## 0.12.0
+
+Phase 1 of the self-maintenance plan (#30): the mechanics that keep the kit tight, and the first removal
+procedure. No behaviour a consumer relies on changes except the two no-jq fallbacks below.
+
+- `hooks/lib.sh` gains the fail-closed prologue every guard shares: `kit_require_jq`, `kit_require_manifest` and
+  the lazy `kit_ensure_manifest`. The four guards call them instead of carrying copies. Two no-jq fallbacks that
+  hard-coded repo assumptions are gone: `guard-package-manager` no longer lets `cd web && pnpm …` through, and
+  `guard-protected-branch` fails closed on every guarded verb (`git push`, `gh pr merge`, `gh pr edit`, `gh api`,
+  `gh workflow run`) rather than on commands mentioning `main` or `deploy.yml`; without jq the manifest's names
+  cannot be read, so no name may decide it. `test/hooks.test.mjs` has a no-jq case per guard. (#18)
+- `test/lib/fs.mjs`, `frontmatter.mjs` and `kit.mjs` hold the helpers the test files re-implemented per file
+  (`kitRoot`, `walk`, `read`, the frontmatter reader, `KIT_VERSION`, `PLACEHOLDER`, `run`). Behaviour unchanged. (#19)
+- `workflows/`: the blocks the three scripts share (constants, the two schemas, dedupe, the skeptic pass, the
+  verdict counts) are marked `// @shared <name>` … `// @end`, and `test/workflows-shared.test.mjs` keeps every copy
+  byte-identical, naming the first differing line. Per-workflow behaviour goes through three parameters declared
+  above the dedupe block (`TOPIC_NEEDS_SAME_CLAIM`, `mergeExtra`, `newExtra`). The three divergences that had crept
+  in are reconciled: one sort order (file, line, section) for every workflow, and `release-readiness`'s "same
+  section needs the same claim" rule is now the declared parameter, not a fork. (#20)
+- `kit-dev` gains "Remove a skill, agent, hook, workflow or routine": deprecate in one minor (a `Deprecated:`
+  description prefix, or line 3 of a guard's header), delete in the next. `hooks/doctor.sh` reports a vendored
+  guard the kit no longer ships and one the plugin marks deprecated; `sync` deletes stale vendored copies. (#22)
+- Version 0.12.0 (`lib.sh` API, doctor output, `kit-dev`).
+
 
 ## 0.11.1
 

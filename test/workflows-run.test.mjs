@@ -4,13 +4,9 @@
 // a refuted finding demoted to a note, a reviewer that returns nothing recorded as failed, and the verdict.
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { read } from './lib/fs.mjs';
 
-const here = path.dirname(fileURLToPath(import.meta.url));
-const scripts = Object.fromEntries(['pre-pr-review', 'release-readiness', 'plan-review']
-  .map((n) => [n, fs.readFileSync(path.resolve(here, '..', 'workflows', `${n}.js`), 'utf8')]));
+const scripts = Object.fromEntries(['pre-pr-review', 'release-readiness', 'plan-review'].map((n) => [n, read('workflows', `${n}.js`)]));
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
 
 // The runtime wraps the body in an async function (top-level `return` is allowed); mirror that.

@@ -7,40 +7,19 @@
 // and a second run changes nothing. Zero dependencies; the guard smoke test needs jq like the guards themselves.
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { kitRoot, walk } from './lib/fs.mjs';
+import { frontmatter } from './lib/frontmatter.mjs';
+import { KIT_VERSION, PLACEHOLDER, run } from './lib/kit.mjs';
 
-const here = path.dirname(fileURLToPath(import.meta.url));
-const kitRoot = path.resolve(here, '..');
 const skillDir = path.join(kitRoot, 'skills', 'new-app');
 const scripts = path.join(skillDir, 'scripts');
 const templatesDir = path.join(kitRoot, 'templates');
-const KIT_VERSION = JSON.parse(fs.readFileSync(path.join(kitRoot, '.claude-plugin', 'plugin.json'), 'utf8')).version;
 const skill = fs.readFileSync(path.join(skillDir, 'SKILL.md'), 'utf8');
 const templatesReadme = fs.readFileSync(path.join(templatesDir, 'README.md'), 'utf8');
-const PLACEHOLDER = /\{\{([A-Z][A-Z0-9_]*)\}\}/g;
-
-function frontmatter(text) {
-  const m = text.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/);
-  const out = {};
-  for (const line of m[1].split(/\r?\n/)) {
-    const kv = line.match(/^([A-Za-z][A-Za-z0-9-]*):\s*(.*)$/);
-    if (kv) out[kv[1]] = kv[2].trim().replace(/^"(.*)"$/, '$1');
-  }
-  return out;
-}
-
-function* walk(dir) {
-  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    const p = path.join(dir, entry.name);
-    if (entry.isDirectory()) { if (entry.name !== 'node_modules' && entry.name !== '.git') yield* walk(p); } else if (entry.isFile()) yield p;
-  }
-}
 const snapshot = (dir) => Object.fromEntries([...walk(dir)].sort().map((f) => [path.relative(dir, f), fs.readFileSync(f, 'utf8')]));
-const run = (cmd, args, opts = {}) => spawnSync(cmd, args, { encoding: 'utf8', ...opts });
 // A nested `node --test` must not inherit this runner's child context, or it reports to us instead of stdout.
 const childEnv = () => { const env = { ...process.env }; delete env.NODE_TEST_CONTEXT; return env; };
 const docsTest = (cwd) => run(process.execPath, ['--test', 'test/docs-consistency.test.mjs'], { cwd, env: childEnv() });
@@ -93,7 +72,7 @@ function overlay(dir, extra = []) {
 }
 
 describe('skills/new-app/SKILL.md', () => {
-  const fm = frontmatter(skill);
+  const fm = frontmatter(skill, { lenient: true });
   test('is user-invoked with the documented argument hint', () => {
     assert.equal(fm.name, 'new-app');
     assert.equal(fm['disable-model-invocation'], 'true');

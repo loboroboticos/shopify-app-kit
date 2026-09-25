@@ -4,14 +4,12 @@
 // deletes. Zero dependencies (node:test); the script is never run against a real gh here.
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { kitRoot } from './lib/fs.mjs';
+import { run as spawn } from './lib/kit.mjs';
 
-const here = path.dirname(fileURLToPath(import.meta.url));
-const kitRoot = path.resolve(here, '..');
 const labelsPath = path.join(kitRoot, 'labels.json');
 const script = path.join(kitRoot, 'scripts', 'sync-labels.mjs');
 
@@ -23,7 +21,7 @@ const HUMAN_COLORS = { 'human:bootstrap': 'fbca04', 'human:decision': 'e99695', 
 const doc = JSON.parse(fs.readFileSync(labelsPath, 'utf8'));
 const labels = doc.labels;
 const names = labels.map((l) => l.name);
-const run = (args, opts = {}) => spawnSync(process.execPath, [script, ...args], { encoding: 'utf8', ...opts });
+const run = (args, opts = {}) => spawn(process.execPath, [script, ...args], opts);
 
 describe('labels.json', () => {
   test('is an object with a ladder and a labels array of { name, color, description }', () => {
@@ -73,7 +71,7 @@ describe('labels.json', () => {
 
 describe('scripts/sync-labels.mjs', () => {
   test('passes a syntax check and starts with a comment naming itself', () => {
-    assert.equal(spawnSync(process.execPath, ['--check', script], { encoding: 'utf8' }).status, 0);
+    assert.equal(spawn(process.execPath, ['--check', script]).status, 0);
     const text = fs.readFileSync(script, 'utf8');
     assert.ok(text.slice(0, 600).includes('scripts/sync-labels.mjs'));
     assert.doesNotMatch(text, /^\s*import .* from ['"](?!node:)/m, 'imports only node: builtins');
