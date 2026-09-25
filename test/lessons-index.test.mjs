@@ -78,7 +78,8 @@ describe('lessons index', () => {
     const homes = new Set(all.map((r) => r.home.split('#')[0]));
     const skillsDir = path.join(kitRoot, 'skills');
     const missing = [];
-    for (const skill of fs.readdirSync(skillsDir)) {
+    // kit-dev's references are maintainer procedures, not lessons (test/skills-parity.test.mjs exempts them too).
+    for (const skill of fs.readdirSync(skillsDir).filter((s) => s !== 'kit-dev')) {
       const refs = path.join(skillsDir, skill, 'references');
       if (!fs.existsSync(refs)) continue;
       for (const f of fs.readdirSync(refs)) {

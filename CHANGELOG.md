@@ -5,6 +5,36 @@ vendored hook carries it on line 2 (`# shopify-app-kit vX.Y.Z`). A version that 
 `### Deprecated`; the next minor deletes it and lists it under `### Removed` (`kit-dev`: "Remove a skill, agent,
 hook, workflow or routine").
 
+## 0.13.0
+
+Phase 1, second half (#30): the docs are asserted against their sources, the whole tree has a size budget that
+only ratchets down, and the kit has its own CLAUDE.md.
+
+- `test/docs-mirror.test.mjs`: every enumeration the README and the skills carry is checked against the thing it
+  enumerates: the shipped guards (the "What you get" table and the `sync` snippet), the routines (both README
+  lists), the review rosters and the release dimensions (the workflows' tables), the dedupe window and the skeptic
+  cap (`LINE_FUZZ`, `VERIFY_CAP`), the label set, the version-bump directories (CI's list, in README, CLAUDE.md
+  and `kit-dev`), the graphify pin. The copies that could not be asserted are gone: the README's settings snippet
+  (now a pointer to `sync`), the `release` skill's hand-written checklist (the workflow is its one source), the
+  `doctor` skill's guard names (the glob is the rule), and the counted enumerations ("nine personas", "six
+  references"). The README is capped at 400 lines: the `new-app`, `pre-pr-review` and `release-readiness`
+  restatements are shortened to what the README alone says. (#21)
+- `test/budget.json` and `test/budget.test.mjs`: a line ceiling per top-level directory, per root file (README
+  400, CHANGELOG 700, CLAUDE.md 40) and per file class (a SKILL.md 60, a reference 155, an agent 140, a routine
+  115). Lowering a ceiling is free; raising one sets `raisedIn` and needs a `### Budget` line in that version's
+  CHANGELOG section. The test prints the headroom per directory. The 60-line SKILL cap now applies to every skill
+  (`test/skills-parity.test.mjs`): `review` and `sync` are trimmed to fit, and `kit-dev` keeps its procedures in
+  `references/` (`layout`, `add`, `remove`, `personas`, `release`), exempt from the `Sources:` line and the
+  lesson-home rule because they are maintainer procedures, not consumer lessons. (#23)
+- `CLAUDE.md` at the root: the posture (one source per fact, additions name their consumer evidence, removal is a
+  procedure), the private-name rule, the two commands and the version-bump rule, in under 40 lines. (#25)
+
+### Budget
+
+The first ceilings: each directory at its size on this version rounded up about 5%, the file classes at their
+largest member rounded up, README at 400 (it was 439), CLAUDE.md at 40. No consumer need is named because nothing
+was raised; every later raise names one here.
+
 ## 0.12.0
 
 Phase 1 of the self-maintenance plan (#30): the mechanics that keep the kit tight, and the first removal

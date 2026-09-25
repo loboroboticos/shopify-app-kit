@@ -17,8 +17,11 @@ const ALLOWED_KEYS = new Set(['name', 'description', 'allowed-tools', 'disallowe
 // scripts/: zero-dependency .mjs or .sh files a skill runs (only new-app so far); each is linked from its SKILL.md.
 const ALLOWED_ENTRIES = new Set(['SKILL.md', 'references', 'scripts']);
 const SOURCE_LABELS = new Set(['app-1', 'app-2', 'app-3']);
-// A SKILL.md with references/ is the short entry point; the depth lives in the references.
-const MAX_SKILL_LINES_WITH_REFERENCES = 60;
+// Every SKILL.md is a short entry point; depth lives in references/ (test/budget.json carries the same cap).
+const MAX_SKILL_LINES = 60;
+// Maintainer skills document the kit itself: their references are procedures, not lessons, so they carry no
+// Sources: line and test/lessons-index.test.mjs does not require them to be a lesson's home.
+const MAINTAINER_SKILLS = new Set(['kit-dev']);
 
 describe('skills parity', () => {
   const dirs = fs.readdirSync(skillsDir, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name);
@@ -29,6 +32,8 @@ describe('skills parity', () => {
     const refsDir = path.join(skillDir, 'references');
     test(`skills/${dir}/SKILL.md`, () => {
       assert.ok(fs.existsSync(file), 'SKILL.md exists');
+      const lines = fs.readFileSync(file, 'utf8').split(/\r?\n/).filter((l, i, a) => !(i === a.length - 1 && l === '')).length;
+      assert.ok(lines <= MAX_SKILL_LINES, `skills/${dir}/SKILL.md is ${lines} lines; keep it ≤ ${MAX_SKILL_LINES} and move depth into references/`);
       for (const entry of fs.readdirSync(skillDir)) {
         assert.ok(ALLOWED_ENTRIES.has(entry), `skills/${dir}/${entry}: only SKILL.md and references/ belong in a skill directory`);
       }
@@ -64,9 +69,6 @@ describe('skills parity', () => {
     if (!fs.existsSync(refsDir)) continue;
     test(`skills/${dir}/references/`, () => {
       const skill = fs.readFileSync(file, 'utf8');
-      const lines = skill.split(/\r?\n/).filter((l, i, a) => !(i === a.length - 1 && l === '')).length;
-      assert.ok(lines <= MAX_SKILL_LINES_WITH_REFERENCES,
-        `skills/${dir}/SKILL.md is ${lines} lines; keep it ≤ ${MAX_SKILL_LINES_WITH_REFERENCES} and move depth into references/`);
       const refs = fs.readdirSync(refsDir);
       assert.ok(refs.length > 0, 'references/ is not empty');
       for (const ref of refs) {
@@ -76,6 +78,7 @@ describe('skills parity', () => {
         const text = fs.readFileSync(refPath, 'utf8');
         assert.ok(!text.startsWith('---'), `references/${ref} has no frontmatter`);
         assert.match(text, /^# /m, `references/${ref} has a title`);
+        if (MAINTAINER_SKILLS.has(dir)) continue;
         const last = text.trimEnd().split(/\r?\n/).pop();
         assert.match(last, /^Sources: /, `references/${ref} ends with a "Sources:" line`);
         const labels = last.match(/app-\d+/g) ?? [];

@@ -24,18 +24,9 @@ maintainability against the app's canonical layers. Both are diff-scoped and evi
    files, and the full contents of each changed file that is under about 400 lines (paths only for larger ones;
    the agents read those themselves). Note the PR number if one exists.
 
-2. **Launch both agents in one message**, in the background, with the same context:
-
-   ```
-   ### Manifest
-   <manifest JSON verbatim, or "none">
-   ### Base and PR
-   base <base>, head <branch>, PR #<n> or none
-   ### Diff
-   <git diff output>
-   ### Changed files
-   <path, then contents or "read from checkout">
-   ```
+2. **Launch both agents in one message**, in the background, with the same context: the manifest JSON verbatim
+   (or "none"), base, head and PR number, the diff, and the changed files (path, then contents or "read from
+   checkout").
 
    - `subagent_type: "shopify-app-kit:review-correctness"` for bugs, breakage, security, manifest contracts, devex.
    - `subagent_type: "shopify-app-kit:review-quality"` for structure, spaghetti growth, file size, layers, conventions.
@@ -48,28 +39,18 @@ maintainability against the app's canonical layers. Both are diff-scoped and evi
    disagreements with your own reading of the code, and say when you overruled a reviewer and why. Verify any P0
    or blocking finding yourself before repeating it.
 
-4. **Report**, briefly. Do not restate either reviewer's output wholesale. Structure:
-
-   ```
-   ## Verdict: block | changes-needed | approve
-   Top findings (at most ~7), each: severity, path:line, claim, fix.
-   Manifest checks: one line per manifest section reviewed, ok or finding reference.
-   Disagreements or uncertainty: one line each.
-   ```
+4. **Report**, briefly, never restating a reviewer wholesale: `## Verdict: block | changes-needed | approve`, the
+   top findings (at most ~7: severity, path:line, claim, fix), one line per manifest section reviewed (ok or a
+   finding reference), and one line per disagreement or uncertainty.
 
 5. **Posting.** Only when the user asks, post the verdict to the PR (`gh pr comment`) or as a review; never
    approve or merge on their behalf.
 
 ## Notes
 
-- Base selection follows the manifest so that a promotion PR (`beta → main`) is reviewed against the right branch.
-- The agents never edit files. If the user wants fixes applied, do that afterwards, one finding at a time,
-  re-running the relevant checks (`checks.fileSize`, tests in `checks.tripwireDir`) before pushing.
-- Findings against files under `.claude/hooks/kit/` mean "re-run `/shopify-app-kit:sync`", not "edit the hook".
-- For a single-lens pass the kit also ships a review roster (`agents/design-review-*.md` on a plan before building,
-  `agents/qa-review-*.md`, `prisma-migration-reviewer` and `storefront-extension-reviewer` on a diff before a PR).
-  For plans, run `/shopify-app-kit:plan-review <plan file | PR number | #issue>`, which launches the four
-  design-review agents and dedupes the findings; `/shopify-app-kit:pre-pr-review` does the same for the diff-stage
-  roster, and `/shopify-app-kit:release-readiness` checks a promotion range before the promotion PR. See the
-  README's "Review roster". This skill launches the two agents above, plus `classifier-reviewer` when the manifest
-  declares a `classify` section.
+- Base selection follows the manifest so a promotion PR (`beta → main`) is reviewed against the right branch.
+- The agents never edit files. Apply fixes afterwards, one finding at a time, re-running `checks.fileSize` and the
+  tests in `checks.tripwireDir` before pushing. A finding under `.claude/hooks/kit/` means "re-run
+  `/shopify-app-kit:sync`", not "edit the hook".
+- For single-lens passes the kit ships a roster (the README's "Review roster"): `/shopify-app-kit:plan-review` on
+  a plan, `/shopify-app-kit:pre-pr-review` on a diff, `/shopify-app-kit:release-readiness` on a promotion range.

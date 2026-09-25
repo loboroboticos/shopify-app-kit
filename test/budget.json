@@ -1,0 +1,27 @@
+{
+  "$comment": "The kit's size ceilings, in lines as wc -l counts them: per top-level directory, per named file, and per file class. test/budget.test.mjs fails when anything exceeds its ceiling. A ceiling may be lowered in any PR; raising one sets raisedIn to that version and that version's CHANGELOG section explains it under a `### Budget` line.",
+  "raisedIn": "0.13.0",
+  "dirs": {
+    "agents": 760,
+    "hooks": 1070,
+    "lessons": 200,
+    "routines": 610,
+    "schemas": 270,
+    "scripts": 70,
+    "skills": 3380,
+    "templates": 1150,
+    "test": 3420,
+    "workflows": 1020
+  },
+  "files": {
+    "README.md": 400,
+    "CHANGELOG.md": 700,
+    "CLAUDE.md": 40
+  },
+  "classes": {
+    "skill": 60,
+    "reference": 155,
+    "agent": 140,
+    "routine": 115
+  }
+}

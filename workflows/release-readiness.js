@@ -14,7 +14,7 @@ export const meta = {
 // Reads the consumer's .claude/shopify-app.json and the promotion range, then runs one read-only kit agent per
 // release dimension the manifest enables, merges findings that cite the same location, sends every blocker and
 // major to a skeptic that tries to refute it, and returns one verdict (go | go-with-notes | no-go) with the
-// merged findings and a checklist block for the promotion PR body (the release skill's step 7 list, pre-ticked
+// merged findings and a checklist block for the promotion PR body (the release checklist, pre-ticked
 // where a dimension passed). The launching session reports; nobody opens or posts to the PR from here.
 //
 // args (all optional): { base, head, pr, dimensions }
@@ -346,7 +346,7 @@ for (const f of merged) counts[f.severity]++
 const verdict = counts.blocker > 0 ? 'no-go' : (merged.length > 0 || failed.length > 0) ? 'go-with-notes' : 'go'
 log(`verdict: ${verdict} (${counts.blocker} blocker, ${counts.major} major, ${counts.minor} minor, ${counts.note} note; ${refuted.length} refuted; ${failed.length} failed)`)
 
-// The checklist for the PR body: the release skill's step 7 list plus one line per dimension, pre-ticked where the
+// The checklist for the PR body: the release checklist (this array is its one source) plus one line per dimension, pre-ticked where the
 // dimension ran and raised nothing above a note.
 const passed = (id) => dimensions.some((d) => d.dimension === id && d.status === 'ran') && !merged.some((f) => f.dimensions.includes(id) && RANK[f.severity] <= RANK.minor)
 const ran = (id) => dimensions.some((d) => d.dimension === id)

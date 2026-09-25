@@ -44,9 +44,9 @@ The repo root is the plugin root and its own marketplace.
 | `/shopify-app-kit:release [beta\|extension\|server]` | Opens the promotion PR (never merges), releases extensions with the deploy config and verifies the slug, explains the server release by push, scales to zero before migrating, warns before live billing, ends with a checklist. References on billing posture, migrations, CI posture. |
 | `tripwire` (model-invocable) | Writes one offline test that fails when two files disagree and names the repair. References: the patterns worth copying, checks vs probes. |
 | `docs-owner` (model-invocable) | Puts a fact in the one document that owns it, keeps reference docs undated, replaces warnings with checks, keeps CLAUDE.md under 200 lines with mechanics in path-scoped rules, shapes ADRs. |
-| `tenancy` (model-invocable) | Tenant isolation keyed to `database.rls`, `auth.expiringOfflineTokens` and `paths.prisma`: fail-closed RLS with two database roles, the isolation canary and probe registry run as the runtime role, server-side tenant bootstrap with lazy provisioning, principal and append-only audit identity, one per-shop-locked refresh chokepoint for expiring offline tokens, the verify-record-process-mark webhook seam. Six references. |
-| `mcp-connector` (model-invocable) | Building the app's own operator-facing MCP server (a product feature, never part of the kit): per-grant tokens hashed at rest with tenant-prefixed routing under RLS, OAuth with dynamic client registration and PKCE, the redirect-URI policy with loopback bypass, a tool manifest with a build-time parity check, per-token rate limits and budgets on billed calls, operator skills shipped from the app. Six references. |
-| `classify` (model-invocable) | Cheap, high-speed classification (Jev / TypeSafe) as a capability the app adopts: one transport reading `TYPESAFE_API_KEY`, a `classify` manifest section that registers every label set and a per-tenant budget, a calibrated confidence the caller thresholds on to auto-act or escalate, and the operator MCP classify tool as the first call. Text-only; deterministic signals stay rules. Five references. |
+| `tenancy` (model-invocable) | Tenant isolation keyed to `database.rls`, `auth.expiringOfflineTokens` and `paths.prisma`: fail-closed RLS with two database roles, the isolation canary and probe registry run as the runtime role, server-side tenant bootstrap with lazy provisioning, principal and append-only audit identity, one per-shop-locked refresh chokepoint for expiring offline tokens, the verify-record-process-mark webhook seam. |
+| `mcp-connector` (model-invocable) | Building the app's own operator-facing MCP server (a product feature, never part of the kit): per-grant tokens hashed at rest with tenant-prefixed routing under RLS, OAuth with dynamic client registration and PKCE, the redirect-URI policy with loopback bypass, a tool manifest with a build-time parity check, per-token rate limits and budgets on billed calls, operator skills shipped from the app. |
+| `classify` (model-invocable) | Cheap, high-speed classification (Jev / TypeSafe) as a capability the app adopts: one transport reading `TYPESAFE_API_KEY`, a `classify` manifest section that registers every label set and a per-tenant budget, a calibrated confidence the caller thresholds on to auto-act or escalate, and the operator MCP classify tool as the first call. Text-only; deterministic signals stay rules. |
 | `templates/` | The repo shell a new app starts from: CI with migrate rehearsal and drift check, secret scanning from a checksum-verified binary, a dependency audit that opens issues, dependabot with framework majors ignored, the work-item issue template with the executor ladder, `.env.example` with public/secret/local markers, the docs map and its consistency test, the ADR shape and seed decisions, `.claude/` wiring (settings pin, bootstrap hook, starter manifest, rule seeds, CLAUDE.md). See [Scaffolding](#scaffolding). |
 | `issue-filing` (model-invocable) | Files, triages or relabels a GitHub issue on the operating model: the label set from `labels.json`, one work-type label from the executor ladder, one priority, one ROI bucket, the "Close condition needs" block, bootstraps that name where a value goes and what they unlock, decisions with options, irreversible work routed to a human, CI-filed issues deduped on the title prefix. `references/rules.md` (the ten rules and the queue exemption) and `references/executor-ladder.md` (each rung, readiness, substitution). See [The operating layer](#the-operating-layer). |
 | `labels.json` + `scripts/sync-labels.mjs` | The label set every consumer carries (eight work types, three priorities, five ROI buckets, gating and origin labels) with the `ladder` array, and the zero-dependency script that creates or updates them through `gh label create --force` (`--dry-run`, `--repo <owner>/<repo>`; never deletes). |
@@ -82,28 +82,10 @@ The repo root is the plugin root and its own marketplace.
    `test/fixtures/manifests/npm-root-app.json` or `pnpm-root-app.json`).
 
 3. Run `/shopify-app-kit:sync`. It copies `hooks/lib.sh` and `hooks/guard-*.sh` into `.claude/hooks/kit/`, sets
-   `kit.version` in the manifest, and prints the `hooks.PreToolUse` snippet to add to `.claude/settings.json`:
-
-   ```json
-   {
-     "hooks": {
-       "PreToolUse": [
-         {
-           "matcher": "Bash",
-           "hooks": [
-             { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/kit/guard-shopify-cli.sh\"" },
-             { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/kit/guard-protected-branch.sh\"" },
-             { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/kit/guard-package-manager.sh\"" },
-             { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/kit/guard-migrations.sh\"" }
-           ]
-         }
-       ]
-     }
-   }
-   ```
-
-   Guards are vendored on purpose: they fire from the consumer's own settings even when the plugin has not
-   loaded (fresh clone, offline marketplace). The plugin's `hooks/hooks.json` registers only the SessionStart doctor.
+   `kit.version` in the manifest, and prints the `hooks.PreToolUse` snippet to add to `.claude/settings.json`
+   (one entry per guard; the snippet is in `skills/sync/SKILL.md`, step 5). Guards are vendored on purpose: they
+   fire from the consumer's own settings even when the plugin has not loaded (fresh clone, offline marketplace).
+   The plugin's `hooks/hooks.json` registers only the SessionStart doctor.
 
 4. Commit `.claude/shopify-app.json`, `.claude/hooks/kit/` and `.claude/settings.json`. Run `/shopify-app-kit:doctor`
    in a new session; it should report no drift.
@@ -128,19 +110,12 @@ vendored guards registered, a short CLAUDE.md). `templates/README.md` lists ever
 placeholders (`{{APP_NAME}}`, `{{DEFAULT_BRANCH}}`, `{{PROTECTED_BRANCH}}`, `{{PACKAGE_MANAGER}}`,
 `{{SERVER_DIR}}`, plus the gitleaks version and checksum). `test/templates.test.mjs` keeps the directory honest.
 
-`/shopify-app-kit:new-app <app-name>` does the whole thing: it checks the preconditions (the CLI on PATH, an
-empty target, valid arguments), runs `shopify app init` with the flags the installed CLI lists (or clones the
-template when init would need the maintainer's account: in a non-interactive shell init asks for an
-organization or client id and a login, which the skill never supplies), applies the overlay with
-`skills/new-app/scripts/apply-overlay.mjs` (substitution, the merge rules for files the template already has,
-the guards vendored, `kit.version` and the tag `$schema` stamped), makes the edits a public app needs
-(`future.expiringOfflineAccessTokens`, the session refresh columns, a Postgres datasource, `docs/README.md`
-with the docs map, `docs/adr/0001-scaffold.md`), verifies with the docs-consistency test,
-`scripts/validate-manifest.mjs` and `scripts/smoke-guards.sh`, and makes one local commit. It never creates
-the GitHub repository, the Partner registration, the hosting app, the database project or a secret: those are
-the maintainer's, printed as a checklist at the end. `--dry-run <dir>` does everything but the commit into a
-scratch directory and prints the tree. `skills/new-app/references/carry-over.md` says how to bring code from
-an earlier attempt into the scaffold without its tooling.
+`/shopify-app-kit:new-app <app-name>` does the whole thing: the preconditions, `shopify app init` (or a clone
+when init would need the maintainer's account), the overlay through `skills/new-app/scripts/apply-overlay.mjs`,
+the edits a public app needs, verification, one local commit, and the maintainer's checklist for everything it
+never creates (the GitHub repository, the registration, the hosting app, the database, secrets). `--dry-run <dir>`
+stops before the commit. The steps and the merge rules are the skill's own (`skills/new-app/SKILL.md` and its
+references); this README does not repeat them.
 
 Upgrading: bump nothing in the consumer, just re-run `/shopify-app-kit:sync` after the kit tags a new version.
 The doctor flags hook headers whose `# shopify-app-kit vX.Y.Z` line no longer matches `kit.version`. Point the
@@ -298,7 +273,7 @@ checkout are enough to launch it (`subagent_type: "shopify-app-kit:<name>"`).
   (version pins, webhook parity, scopes, compliance, billing, `userErrors`, session tokens) stays in
   `review-correctness`.
 
-The nine `design-review-*` and `qa-review-*` personas are ported from the
+The `design-review-*` and `qa-review-*` personas are ported from the
 [Engine template](https://github.com/StarshipSuperjam/engine-template) with its orchestrator, packets and memory
 servers rewritten into the plan file, the PR description, the diff and the manifest (see `CHANGELOG.md` for the
 port rules).
@@ -306,54 +281,33 @@ port rules).
 ### The pre-pr-review workflow
 
 `/shopify-app-kit:pre-pr-review [base | { "base", "pr", "reviewers", "all" }]` runs the diff-stage roster in one
-go. It is a Claude Code workflow script (`workflows/pre-pr-review.js`, plain JavaScript loaded from the plugin):
-
-1. **Scope.** One cheap agent reads the manifest, picks the base the way the review skill does (argument, then the
-   PR's base, then `promotion.to` from the promotion branch, then `branches.default`, then `main`), lists the
-   changed files, and takes the intent from the PR body or a plan file the branch adds.
-2. **Review.** The five `qa-review-*` agents run in parallel; `prisma-migration-reviewer` runs when the diff touches
-   `paths.prisma`, a `schema.prisma` or a migrations directory, and `storefront-extension-reviewer` when
-   `paths.extensions` is declared and touched (`all: true` forces both). Every reviewer returns findings on the
-   shared shape. Skipped reviewers and reviewers that return nothing are listed, never silently dropped.
-3. **Dedupe.** Findings on the same file within three lines, or on the same section when there is no file, merge
-   into one carrying the highest severity and every reviewer that raised it.
-4. **Verify.** Each blocker and major (up to twelve; the rest are reported unverified) goes to a read-only skeptic
-   that tries to refute it. A refuted finding is kept as a `note` with the reason, so the operator sees what was
-   argued away.
-5. **Verdict.** `block` on a surviving blocker, `changes-needed` on a major, else `approve`; the launching session
-   reports it. Nothing is posted to the PR and no file is modified.
+go (`workflows/pre-pr-review.js`, plain JavaScript loaded from the plugin): one cheap scoping agent picks the base
+the way the review skill does and lists the changed files; the roster runs in parallel (the stack reviewers only
+when the diff touches their files; `all: true` forces both); findings on the same file within three lines, or on
+the same section when there is no file, merge into one; each blocker and major (up to twelve, the rest reported
+unverified) goes to a read-only skeptic, and a refuted finding stays as a `note` with the reason; the verdict is
+`block` on a surviving blocker, `changes-needed` on a major or a reviewer that returned nothing, else `approve`.
+Nothing is posted to the PR and no file is modified.
 
 ### The release-readiness and plan-review workflows
 
-`/shopify-app-kit:release-readiness [{ "base", "head", "pr", "dimensions" }]` has the same three-phase shape and
-the same finding shape, applied to a promotion range instead of a branch. Its scope agent reads the manifest and
-diffs `branches.promotion.from` against `.to` (or the arguments), lists the changed files, migrations, pin files,
-tomls, extension files and workflow files, and takes the PR body when the promotion PR is already open. Then only
-the dimensions the manifest enables run, each as one read-only kit agent: `api-version` (every `apiVersion.pins`
-file and every toml's `[webhooks] api_version` carry `apiVersion.expected`; `review-correctness`), `webhooks`
-(every subscription has a handler, compliance handlers present; `review-correctness`), `migrations` (only when the
-range touches `paths.prisma`: no destructive operation without a PR-body acknowledgement, schema edits with their
-migrations, the scale-to-zero step noted; `prisma-migration-reviewer`), `branch-model` (the range is exactly the
-promotion pair, no commit on the protected branch outside a merge, `deploy.protectedWorkflows` untouched or
-reviewed; `qa-review-security-governance`), `billing` (only when `billing.live`: no tier, price or name change
-without it being called out, the test flag untouched in production; `review-correctness`), `extension` (only when
-`paths.extensions` is non-empty; `storefront-extension-reviewer`) and `app-store-review` (only for a public app:
-one note telling the operator to run the companion's `shopify-app-store-review` skill; no agent). Blockers and
-majors go to a skeptic; the verdict is `no-go` on a surviving blocker, `go` only when every dimension ran clean,
-`go-with-notes` otherwise (a dimension that returned nothing is listed as uncovered and keeps the verdict off
-`go`). The result carries a checklist block for the promotion PR body: the `release` skill's step 7 lines plus one
-per dimension, ticked where the dimension passed or does not apply, open where it raised something, failed or
-needs the operator. The `release` skill runs it before opening the promotion PR; a `no-go` means the PR is not
-opened.
+`/shopify-app-kit:release-readiness [{ "base", "head", "pr", "dimensions" }]` has the same three-phase shape,
+applied to the promotion range (`branches.promotion.from` against `.to`, or the arguments). Only the dimensions
+the manifest enables run, each as one read-only kit agent: `api-version` (every pin file and toml carries
+`apiVersion.expected`), `webhooks` (every subscription has a handler; compliance handlers present), `migrations`
+(only when the range touches `paths.prisma`: no destructive operation without a PR-body acknowledgement),
+`branch-model` (the range is exactly the promotion pair; protected workflows untouched or reviewed), `billing`
+(only when `billing.live`: no tier, price or name change without it being called out), `extension` (only when
+`paths.extensions` is non-empty) and `app-store-review` (a public app: one note to run the companion's
+`shopify-app-store-review` skill; no agent). The verdict is `no-go` on a surviving blocker, `go` only when every
+dimension ran clean, else `go-with-notes`; the result carries the release checklist for the promotion PR body,
+ticked where a dimension passed or does not apply. The `release` skill runs it before opening the promotion PR.
 
 `/shopify-app-kit:plan-review <plan file | PR number | #issue | { "plan", "pr", "issue", "reviewers" }>` runs the
-four `design-review-*` agents on a plan that has not been built. The scope agent returns the plan text, its
-sections, the raw request it cites, the manifest sections it touches (and the ones it should mention but does
-not), and the ADR directory when `docs.adrDir` is set. The reviewers return findings on the shared shape with the
-plan section as the location and an optional `adr: true` tag for a finding whose fix is a decision worth an ADR;
-findings on the same section merge into one carrying both claims and the higher severity; blockers and majors go
-to a skeptic; the verdict is `rethink` on a surviving blocker, `revise` on a major or an uncovered lens, else
-`sound`. The result lists the ADR decisions separately so the operator can write them before building.
+four `design-review-*` agents on a plan that has not been built, with the manifest facts it touches and the ADR
+directory in their prompts; findings on the same section merge into one carrying both claims; the verdict is
+`rethink` on a surviving blocker, `revise` on a major or an uncovered lens, else `sound`, and the decisions the
+plan should record as ADRs (findings tagged `adr: true`) are listed separately.
 
 ## Lessons
 
