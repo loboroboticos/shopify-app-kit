@@ -3,6 +3,18 @@
 All notable changes to shopify-app-kit. The version is the plugin version in `.claude-plugin/plugin.json`; every
 vendored hook carries it on line 2 (`# shopify-app-kit vX.Y.Z`).
 
+## Unreleased
+
+- `routines/dev-parity.md` (weekly, `43 6 * * 4`): keeps a consumer's dev registration and hosted beta at parity
+  with its prod app while they sit dormant before launch. It diffs the paired app tomls, Fly tomls and deploy
+  workflows down to by-design keys after the repo's own tripwires, checks that the beta deploys are green on
+  the newest touching commit, reads each host's health endpoint for ok, the deployed commit and the billing mode,
+  and once a month comments the unticked human checklist on the parity issue the trigger's preamble names. Each
+  drift is one `dev-parity:` issue (R9); it never fixes, dispatches, pushes or runs a Shopify or Fly CLI. It has a
+  row in `routines/REGISTRY.md`, runs only where the manifest has a beta target and a dev config, and stays off
+  the placeholder roster in `portfolio.json`; `test/routines.test.mjs` covers it. `routines/` is not
+  plugin-visible, so no version bump.
+
 ## 0.11.0
 
 Cheap, high-speed classification (Jev / TypeSafe) as a first-class kit capability: the generic transport contract,

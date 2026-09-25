@@ -26,6 +26,7 @@ an issue, a comment or a PR.
 | `kit-health.md` | monthly, `23 6 3 * *`, once per repo | fresh cloud session with the checkout, the kit and the Shopify companion | `doctor`, `git ls-remote --tags` on the kit repo, the companion's docs search, `portfolio.json`, issues | new issues, comments |
 | `graphify-refresh.md` | weekly, `11 4 * * 0` | fresh cloud session with the checkout, graphify installed, push to `graph/` | git, the `graphify` skill | the `graph/` branch only |
 | `dependency-wave.md` | weekly, `53 6 * * 3` | fresh cloud session with the checkout and the GitHub MCP tools | `npm audit` / `pnpm audit`, `dependabot.yml`, issues | one `dependencies` + `agent:ci` issue |
+| `dev-parity.md` | weekly, `43 6 * * 4`; only where the manifest has a `beta` deploy target and a dev CLI config | fresh cloud session with the checkout and the GitHub MCP tools, egress to the beta and prod hosts | the repo's tripwire tests, git and diff (read), workflow runs (read), issues, an HTTPS GET on each health endpoint | new issues, comments, one monthly comment on the parity issue |
 
 Cron minutes are off the hour and distinct across routines (and from the consumer's own scheduled workflows),
 so the fired sessions never queue behind each other.
@@ -34,6 +35,8 @@ so the fired sessions never queue behind each other.
 
 `portfolio.json` at the kit root lists every product with the routines it runs (`routines: ["triage", ...]`).
 Cross-repo routines (`kit-health`'s portfolio step) iterate it; `new-app`'s checklist appends the new product.
+`dev-parity` is not on the placeholder roster: it runs only for a product with a dev registration and a hosted
+beta, and is added to that product's `routines` by hand.
 
 ## The maintainer's step: creating a trigger
 
