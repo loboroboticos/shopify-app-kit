@@ -31,7 +31,7 @@ Fixtures use invented names (`example-app`, `example-dev`).
 | `routines/<name>.md`, `routines/REGISTRY.md` | the committed prompt texts of the scheduled Routines and the table with the trigger step; `test/routines.test.mjs` |
 | `portfolio.json` | the products the cross-repo routines span; one placeholder entry, appended by hand from `new-app`'s checklist |
 | `.github/workflows/release-tag.yml` | tags `v<version>` and publishes the release when a bump merges to `main` |
-| `test/` | `node --test test/`, zero dependencies |
+| `test/` | `npm test` (`node --test "test/**/*.test.mjs"`), zero dependencies |
 
 ## Add a guard hook
 
@@ -96,7 +96,7 @@ and a `whenToUse` containing "Use when"; only `.js` is loaded (`.mjs`/`.ts` are 
 `test/workflows-parity.test.mjs` checks the meta, the phase titles and the agent names, and
 `test/workflows-run.test.mjs` runs the script under a stub runtime with canned reviewer output, so add a case there
 for any new branch of logic. Any addition under `agents/`, `hooks/`, `skills/`, `schemas/`, `workflows/`,
-`lessons/`, `.mcp.json` or `.claude-plugin/` requires a version bump (CI enforces it on PRs to `main`).
+`lessons/` or `.claude-plugin/` requires a version bump (CI enforces it on PRs to `main`).
 
 ## Re-sync the review personas from upstream
 
@@ -148,7 +148,7 @@ when every product runs it, and extend `test/routines.test.mjs` (the file list a
 ## Test and validate
 
 ```bash
-node --test test/
+npm test                              # node --test "test/**/*.test.mjs"
 claude plugin validate . --strict
 claude --plugin-dir . # then /shopify-app-kit:doctor should be listed
 ```

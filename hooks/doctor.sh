@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shopify-app-kit v0.11.0
+# shopify-app-kit v0.11.1
 # hooks/doctor.sh: SessionStart briefing for a consumer repo. Validates .claude/shopify-app.json structurally
 # (required keys, enums, patterns of schema v1), prints one paragraph of facts to stdout, reports vendored-hook
 # drift, checks the two companions (the Shopify plugin and the graphify skill), and, when gh is on PATH, prints
@@ -31,13 +31,17 @@ if ! jq -e . "$manifest" >/dev/null 2>&1; then
   exit 0
 fi
 
-problems="$(jq -r '
+# The known top-level keys come from the schema next to this hook, never from a second list here: a section added
+# to the schema is known to the doctor in the same commit. Without the schema the unknown-key check is skipped.
+schema="$(dirname "${BASH_SOURCE[0]}")/../schemas/shopify-app.v1.schema.json"
+known="$(jq -c '.properties | keys' "$schema" 2>/dev/null || echo null)"
+
+problems="$(jq -r --argjson known "$known" '
   def policies: ["config-required", "operator-only", "allowed"];
   def prob(c; m): if c then [] else [m] end;
   def isstr: type == "string";
   def isobj: type == "object";
   def strarr: type == "array" and all(.[]; type == "string");
-  def known: ["$schema","$comment","kit","app","shopifyCli","branches","packageManagers","paths","apiVersion","webhooks","scopes","deploy","billing","database","checks","auth","docs"];
   prob(isobj; "manifest must be a JSON object")
   + prob(.kit.schemaVersion == 1; "kit.schemaVersion must be 1")
   + prob((.kit.version == null) or (.kit.version | isstr); "kit.version must be a string or null")
@@ -55,7 +59,7 @@ problems="$(jq -r '
   + prob((.packageManagers | isobj) and all(.packageManagers[]; . == "npm" or . == "pnpm"); "packageManagers must map directories to npm | pnpm")
   + prob((.apiVersion == null) or (.apiVersion.expected | isstr and test("^20[0-9][0-9]-(01|04|07|10)$")); "apiVersion.expected must look like 2026-07")
   + prob((.database == null) or (.database.provider | isstr); "database.provider must be a string")
-  + ((keys - known) | map("unknown top-level key: " + .))
+  + (if $known == null then [] else ((keys - $known) | map("unknown top-level key: " + .)) end)
   | .[]
 ' "$manifest" 2>&1)"
 

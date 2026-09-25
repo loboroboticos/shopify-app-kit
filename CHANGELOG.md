@@ -3,7 +3,20 @@
 All notable changes to shopify-app-kit. The version is the plugin version in `.claude-plugin/plugin.json`; every
 vendored hook carries it on line 2 (`# shopify-app-kit vX.Y.Z`).
 
-## Unreleased
+## 0.11.1
+
+Phase 0 of the self-maintenance plan (#30): the defects the survey found, and the drifted docs.
+
+- `hooks/doctor.sh` derives the manifest's known top-level keys from `schemas/shopify-app.v1.schema.json` instead of
+  a hand-kept list that had already fallen behind (`classify` was reported as an unknown key). Without the schema
+  next to the hook the unknown-key check is skipped. `test/hooks.test.mjs` runs the doctor over a manifest that
+  declares every schema section. (#15)
+- `workflows/pre-pr-review.js`: a reviewer that returned nothing keeps the verdict off `approve`
+  (`changes-needed`, the uncovered lens named in the log), matching `plan-review` and `release-readiness`.
+  `test/workflows-run.test.mjs` covers a dead reviewer with no other findings. (#16)
+- Docs: the README's routine lists include `dev-parity`; `kit-dev` gives `npm test` (the bare `node --test test/`
+  form fails on Node 22); the phantom `.mcp.json` is gone from the version-bump directories in CI, the README and
+  `kit-dev`. (#17)
 
 - `routines/dev-parity.md` (weekly, `43 6 * * 4`): keeps a consumer's dev registration and hosted beta at parity
   with its prod app while they sit dormant before launch. It diffs the paired app tomls, Fly tomls and deploy

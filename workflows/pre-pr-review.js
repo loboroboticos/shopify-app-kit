@@ -246,8 +246,9 @@ for (const f of merged) if (!f.verification) f.verification = 'not verified (min
 merged.sort((a, b) => RANK[a.severity] - RANK[b.severity] || (a.file || '~').localeCompare(b.file || '~') || (a.line || 0) - (b.line || 0))
 const counts = { blocker: 0, major: 0, minor: 0, note: 0 }
 for (const f of merged) counts[f.severity]++
-const verdict = counts.blocker > 0 ? 'block' : counts.major > 0 ? 'changes-needed' : 'approve'
-log(`verdict: ${verdict} (${counts.blocker} blocker, ${counts.major} major, ${counts.minor} minor, ${counts.note} note; ${refuted.length} refuted)`)
+// A reviewer that returned nothing left its lens uncovered, so the diff is never approved on its account.
+const verdict = counts.blocker > 0 ? 'block' : (counts.major > 0 || failed.length > 0) ? 'changes-needed' : 'approve'
+log(`verdict: ${verdict} (${counts.blocker} blocker, ${counts.major} major, ${counts.minor} minor, ${counts.note} note; ${refuted.length} refuted${failed.length ? `; uncovered: ${failed.join(', ')}` : ''})`)
 
 return {
   verdict,

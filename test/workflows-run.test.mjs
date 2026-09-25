@@ -118,6 +118,13 @@ describe('pre-pr-review under a stub runtime', () => {
     assert.ok(result.skipped.some((s) => s.name === 'prisma-migration-reviewer'));
     assert.ok(rt.calls[0].prompt.includes('the operator asked for "beta"'), 'a string arg is the base branch');
 
+    // A dead reviewer with no findings anywhere is still not an approve: its lens is uncovered.
+    const dead = runtime({ scope: { ...baseScope, touchesPrisma: false }, reviews: { 'qa-review-usability': null }, verdicts: {} });
+    const uncovered = await load()(dead.agent, dead.parallel, dead.pipeline, dead.phase, dead.log, 'beta', dead.budget);
+    assert.equal(uncovered.verdict, 'changes-needed');
+    assert.deepEqual(uncovered.failed, ['qa-review-usability']);
+    assert.equal(uncovered.findings.length, 0);
+
     const quiet = runtime({ scope: { ...baseScope, touchesPrisma: false }, reviews: {}, verdicts: {} });
     const ok = await load()(quiet.agent, quiet.parallel, quiet.pipeline, quiet.phase, quiet.log, { all: true }, quiet.budget);
     assert.equal(ok.verdict, 'approve');
