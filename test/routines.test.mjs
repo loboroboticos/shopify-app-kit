@@ -26,8 +26,8 @@ const read = (f) => fs.readFileSync(path.join(dir, f), 'utf8');
 const tableRows = [...registry.matchAll(/^\| `([a-z-]+)\.md` \| ([^|]+) \|/gm)].map((m) => ({ file: `${m[1]}.md`, cadence: m[2].trim() }));
 
 describe('routines/', () => {
-  test('the six routines exist', () => {
-    assert.deepEqual(files, ['dependency-wave.md', 'graphify-refresh.md', 'kit-health.md', 'nuclear-review.md', 'pr-steward.md', 'triage.md']);
+  test('the seven routines exist', () => {
+    assert.deepEqual(files, ['dependency-wave.md', 'dev-parity.md', 'graphify-refresh.md', 'kit-health.md', 'nuclear-review.md', 'pr-steward.md', 'triage.md']);
   });
 
   for (const f of files) {
@@ -72,7 +72,7 @@ describe('routines/', () => {
     assert.ok(registry.includes('create_new_session_on_fire: true'));
     assert.ok(registry.includes('cron_expression'));
     assert.ok(registry.includes(NEVER_CLOSES));
-    for (const s of ['`triage.md`', '`nuclear-review.md`', '`pr-steward.md`', '`kit-health.md`', '`graphify-refresh.md`', '`dependency-wave.md`']) assert.ok(registry.includes(s), s);
+    for (const s of ['`triage.md`', '`nuclear-review.md`', '`pr-steward.md`', '`kit-health.md`', '`graphify-refresh.md`', '`dependency-wave.md`', '`dev-parity.md`']) assert.ok(registry.includes(s), s);
   });
 
   test('the triage prompt has the six steps in order and the 13th-run sweep', () => {
@@ -95,9 +95,13 @@ describe('routines/', () => {
     assert.doesNotMatch(graph, /force-with-lease origin (main|master)\b/);
     const deps = read('dependency-wave.md');
     for (const s in { '--audit-level=high': 1, 'dependabot.yml': 1, 'semver-major': 1, '`dependencies`, `agent:ci`': 1 }) assert.ok(deps.includes(s), `dependency-wave: ${s}`);
+    const parity = read('dev-parity.md');
+    for (const s of ['shopifyCli.configs', 'paths.appTomls', 'deploy.targets.beta', 'branches.promotion', 'billing.testFlag', 'checks.tripwireDir', 'repo preamble', 'unverified', 'first 7 days', 'dev-parity: <the drift in six words>', 'for that title prefix', '`human:account`', 'never with a closing', 'no workflow dispatch of any kind', 'no Shopify CLI', 'no Fly CLI', 'raw health response', 'No PR and no push']) assert.ok(parity.includes(s), `dev-parity: ${s}`);
+    assert.doesNotMatch(parity, /\b(closes|fixes|resolves) #/i, 'dev-parity: no closing keyword');
   });
 
   test('portfolio.json lists routines that exist, with one placeholder product', () => {
+    // dev-parity runs only for a product with a dev registration and a beta, so it is never on the placeholder.
     assert.ok(Array.isArray(portfolio.products) && portfolio.products.length === 1);
     const [p] = portfolio.products;
     assert.deepEqual(Object.keys(p).sort(), ['environment', 'manifest', 'name', 'repo', 'routines']);
@@ -107,5 +111,6 @@ describe('routines/', () => {
     assert.match(p.environment, /^<.*>$/);
     for (const r of p.routines) assert.ok(files.includes(`${r}.md`), `routine ${r} does not exist`);
     assert.ok(p.routines.length >= 5);
+    assert.ok(!p.routines.includes('dev-parity'), 'dev-parity is not on the placeholder roster');
   });
 });
