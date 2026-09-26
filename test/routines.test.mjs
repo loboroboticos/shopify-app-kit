@@ -102,7 +102,7 @@ describe('routines/', () => {
     for (const s of ['shopifyCli.configs', 'paths.appTomls', 'deploy.targets.beta', 'branches.promotion', 'billing.testFlag', 'checks.tripwireDir', 'repo preamble', 'unverified', 'first 7 days', 'dev-parity: <the drift in six words>', 'for that title prefix', '`human:account`', 'never with a closing', 'no workflow dispatch of any kind', 'no Shopify CLI', 'no Fly CLI', 'raw health response', 'No PR and no push']) assert.ok(parity.includes(s), `dev-parity: ${s}`);
     assert.doesNotMatch(parity, /\b(closes|fixes|resolves) #/i, 'dev-parity: no closing keyword');
     const tidy = read('kit-tidy.md');
-    for (const s of ['Step 1, the suite', 'Step 2, duplicated prose', 'Step 3, things nothing reads', 'Step 4, the size trend', 'Step 5, docs that restate a test', 'Step 6, mechanical drift', 'Step 7, the portfolio', 'At most one PR per run', 'Never a deletion', 'no-repo-literals', 'kit-tidy: <the finding in six words>', 'that title prefix', 'never with a closing']) assert.ok(tidy.includes(s), `kit-tidy: ${s}`);
+    for (const s of ['Step 1, the suite', 'Step 2, duplicated prose', 'Step 3, things nothing reads', 'Step 4, the size trend', 'Step 5, docs that restate a test', 'Step 6, mechanical drift', 'Step 7, the portfolio', 'Step 8, deprecation candidates', 'this routine deprecates\nnothing', 'At most one PR per run', 'Never a deletion', 'no-repo-literals', 'kit-tidy: <the finding in six words>', 'that title prefix', 'never with a closing']) assert.ok(tidy.includes(s), `kit-tidy: ${s}`);
   });
 
   test('every manifest that declares kit.routines names routines that exist', () => {

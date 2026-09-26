@@ -32,7 +32,9 @@ The index is the catalogue; the reference files are the text. Nothing here resta
 
 ## Sources
 
-The only way to cite. Never expand these labels into names.
+The only way to cite, and the tests read the allowed set from this table's first column. A source is a
+product's `kit.portfolioId` (an opaque id, never a name); the three `app-N` labels below are the founding
+sources, kept for the rows in History. Add a row here when a product first contributes a lesson.
 
 | Label | What it is | Documents drawn on | Period |
 | --- | --- | --- | --- |
@@ -42,14 +44,7 @@ The only way to cite. Never expand these labels into names.
 
 ## Adding a lesson
 
-1. Decide the class and the owning reference file (or extend an existing section of it).
-2. Write the section: the rule in the present tense, the mechanism, the failure it prevents. End the file's
-   `Sources:` line with the labels it now draws on.
-3. Add one row to `INDEX.md` with a new id in that file's prefix series, a one-line rule, the class, the home
-   as `skills/<skill>/references/<file>.md#<heading-anchor>` (or `agents/<agent>.md#<anchor>` for a lens), and
-   the source labels.
-4. Cite the id from the artifact that needs it (the skill step, agent section, rule seed, workflow or routine
-   prompt that would otherwise restate the rule). A row nothing cites does not enter.
-5. Run `node --test test/lessons-index.test.mjs`: every home must exist, every anchor must match a heading, every
-   live row must be cited, and ids must be unique.
-6. Bump the kit version (`skills/kit-dev/SKILL.md`); reference files are plugin-visible.
+A lesson enters through the lesson-proposal issue template (`.github/ISSUE_TEMPLATE/lesson-proposal.md`): the
+rule, the failure, where it bit (portfolio ids, twice in one product or once in two), the proposed home and
+class, and the artifact that will cite it. The landing procedure is `kit-dev`'s "Add a lesson"
+(`skills/kit-dev/references/add.md`), which this file does not repeat.

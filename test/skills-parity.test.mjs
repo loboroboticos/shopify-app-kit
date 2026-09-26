@@ -16,7 +16,9 @@ const ALLOWED_KEYS = new Set(['name', 'description', 'allowed-tools', 'disallowe
   'context', 'agent', 'paths', 'argument-hint', 'arguments', 'model', 'effort', 'license', 'compatibility', 'metadata']);
 // scripts/: zero-dependency .mjs or .sh files a skill runs (only new-app so far); each is linked from its SKILL.md.
 const ALLOWED_ENTRIES = new Set(['SKILL.md', 'references', 'scripts']);
-const SOURCE_LABELS = new Set(['app-1', 'app-2', 'app-3']);
+// The allowed source labels are the first column of lessons/README.md's Sources table (portfolio ids and the
+// founding app-N labels), so a new product's id is added there and nowhere else.
+const SOURCE_LABELS = new Set([...fs.readFileSync(path.join(kitRoot, 'lessons', 'README.md'), 'utf8').matchAll(/^\| `([a-z0-9][a-z0-9-]*)` \|/gm)].map((m) => m[1]));
 // Every SKILL.md is a short entry point; depth lives in references/ (test/budget.json carries the same cap).
 const MAX_SKILL_LINES = 60;
 // Maintainer skills document the kit itself: their references are procedures, not lessons, so they carry no
@@ -81,7 +83,8 @@ describe('skills parity', () => {
         if (MAINTAINER_SKILLS.has(dir)) continue;
         const last = text.trimEnd().split(/\r?\n/).pop();
         assert.match(last, /^Sources: /, `references/${ref} ends with a "Sources:" line`);
-        const labels = last.match(/app-\d+/g) ?? [];
+        // Labels are the words left after the parenthesised descriptions go: `app-1 (…); p-7 (…).` or `app-2, app-3.`
+        const labels = last.slice('Sources:'.length).replace(/\([^()]*\)/g, '').match(/[a-z0-9][a-z0-9-]*/g) ?? [];
         assert.ok(labels.length > 0, `references/${ref} Sources line names at least one source label`);
         for (const l of labels) assert.ok(SOURCE_LABELS.has(l), `references/${ref} cites unknown source ${l}`);
       }

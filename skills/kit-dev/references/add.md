@@ -38,8 +38,10 @@ carry no `Sources:` line and need no row in `lessons/INDEX.md` (both tests exemp
 
 ## Add a lesson
 
-Lessons are facts a session needs more than once, written generically and cited only as `app-1`, `app-2` or
-`app-3` (defined in `lessons/README.md`; never expand them). One owner per fact:
+Lessons are facts a session needs more than once, written generically and cited by a source label from
+`lessons/README.md`'s Sources table (a product's `kit.portfolioId`, or a founding `app-N` label; never a name).
+A lesson arrives as a lesson-proposal issue (`.github/ISSUE_TEMPLATE/lesson-proposal.md`) with the evidence and
+the artifact that will cite it. One owner per fact:
 
 1. Find or create the section in the owning reference file (or the agent section, for a `lens`); write the rule
    in the present tense with the mechanism and the failure it prevents. Update the file's `Sources:` line.

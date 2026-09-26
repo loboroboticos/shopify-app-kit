@@ -12,7 +12,8 @@ const indexPath = path.join(kitRoot, 'lessons', 'INDEX.md');
 const readmePath = path.join(kitRoot, 'lessons', 'README.md');
 
 const CLASSES = new Set(['rule', 'recipe', 'lens', 'adr-seed']);
-const SOURCES = new Set(['app-1', 'app-2', 'app-3']);
+// The allowed sources are the first column of lessons/README.md's Sources table (see test/skills-parity.test.mjs).
+const SOURCES = new Set([...fs.readFileSync(readmePath, 'utf8').matchAll(/^\| `([a-z0-9][a-z0-9-]*)` \|/gm)].map((m) => m[1]));
 const HOME = /^(skills\/[a-z-]+\/references\/[a-z-]+\.md|agents\/[a-z-]+\.md)#([a-z0-9_-]+)$/;
 
 // GitHub-style heading anchor: lowercase, drop everything but word characters, spaces and hyphens, spaces to hyphens.

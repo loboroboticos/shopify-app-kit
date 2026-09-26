@@ -5,6 +5,26 @@ vendored hook carries it on line 2 (`# shopify-app-kit vX.Y.Z`). A version that 
 `### Deprecated`; the next minor deletes it and lists it under `### Removed` (`kit-dev`: "Remove a skill, agent,
 hook, workflow or routine").
 
+## 0.16.0
+
+The pull loop closes (#30): the door lessons enter through, and the routine that proposes what should leave.
+
+- `.github/ISSUE_TEMPLATE/lesson-proposal.md` in the kit repository: the rule, the failure it prevents, where it
+  bit (portfolio ids only, twice in one product or once in two), the proposed home and class, and the artifact
+  that will cite it, without which the row cannot enter. The kit's `work-item.md` and `config.yml` are the
+  templates' copies, held byte-identical by `test/docs-mirror.test.mjs`. Source labels are now a product's
+  `kit.portfolioId` or a founding `app-N` label, read by both tests from the first column of `lessons/README.md`'s
+  Sources table instead of a closed set in code; `lessons/README.md`'s "Adding a lesson" points at the door and at
+  `kit-dev` instead of repeating the procedure. (#27)
+- `kit-tidy` step 8, deprecation candidates, when the portfolio step found a product: a manifest section or
+  guard-read key no discovered manifest declares, a guard no discovered consumer registers in its
+  `.claude/settings.json`, a skill, agent or workflow nothing names; a candidate is one seen in two consecutive
+  runs (the open `kit-tidy: deprecation candidates` issue is the memory). The routine proposes, a maintainer
+  decides through `kit-dev`'s removal procedure. The guard-block log the issue sketched is not built: a log a
+  cross-repo routine could read would have to be committed in the consumer's tree, and a committed log is wrong;
+  registration in `settings.json` is the honest signal the tree already carries. (#29)
+
+
 ## 0.15.0
 
 Phase 2 opens (#30): the kit's first routine on itself, and the portfolio derived from the consumers instead
