@@ -5,6 +5,16 @@ vendored hook carries it on line 2 (`# shopify-app-kit vX.Y.Z`). A version that 
 `### Deprecated`; the next minor deletes it and lists it under `### Removed` (`kit-dev`: "Remove a skill, agent,
 hook, workflow or routine").
 
+## 0.16.3
+
+The release checklist's `app dev clean` line becomes a condition a person can tick, not a chore on every release.
+
+- `workflows/release-readiness.js` ended every checklist with `- [ ] app dev clean run on the dev registration`,
+  whatever the range held, so a consumer's promotion PR carried it as open work after a release with no `app dev`
+  session behind it. It now reads `- [ ] No app dev session left on the dev registration (if one ran since the
+  last clean, run app dev clean)`. The box stays unticked because the workflow cannot see the registration's
+  URLs; a person ticks it at once when no session ran. `test/workflows-run.test.mjs` asserts the new text.
+
 ## 0.16.2
 
 The weekly deep review can run (#61), and the hooks tests make room for what the queue adds next (#46).

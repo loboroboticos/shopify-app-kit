@@ -204,7 +204,7 @@ describe('release-readiness under a stub runtime', () => {
     assert.ok(lines.includes('- [ ] Extension version to release: example-app-<N>; verified in an asset URL after deploy (settings compatibility checked)'));
     assert.ok(lines.includes('- [ ] Server target(s): prod: deploy.yml'));
     assert.ok(lines.includes('- [x] Billing live: no plan or price change in this release / change reviewed'));
-    assert.ok(lines.includes('- [ ] app dev clean run on the dev registration'));
+    assert.ok(lines.includes('- [ ] No app dev session left on the dev registration (if one ran since the last clean, run app dev clean)'));
     assert.ok(rt.calls[0].prompt.includes('`branches.promotion.from`'), 'the range comes from the manifest by default');
   });
 
