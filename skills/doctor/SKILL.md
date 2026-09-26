@@ -26,7 +26,7 @@ Checks the consumer repo you are in, never the kit itself. Report findings as a 
 
 3. **Print the facts.** From the manifest: app name and kind, default and protected branches, promotion, Shopify CLI
    configs and the four policies (`devPolicy`, `deployPolicy`, `configUsePolicy`, `themeDevFromRoot`), package
-   managers by directory, expected API version, deploy targets. Keep it to one paragraph.
+   managers by directory, expected API version, deploy targets, the portfolio id and its routines. One paragraph.
 
 4. **Check vendored hooks.** For every `${CLAUDE_PROJECT_DIR}/.claude/hooks/kit/*.sh`, line 2 must read
    `# shopify-app-kit v<kit.version>` where `kit.version` comes from the manifest. Report each mismatch or missing
@@ -51,8 +51,9 @@ Checks the consumer repo you are in, never the kit itself. Report findings as a 
    findings too. GitHub disables schedules in a repository idle for 60 days, so a stale line means dispatch it
    and check it is enabled. Silent without `gh`.
 
-8. **Report.** One line per problem, each with the fix: repair the manifest key, run `/shopify-app-kit:sync`, add
-   the settings snippet, install a companion, or dispatch a stale workflow. If everything is clean, say so in one line.
+8. **Report.** One line per problem, each with the fix: repair the manifest key, remove a `kit.routines` entry the
+   kit does not ship, run `/shopify-app-kit:sync`, add the settings snippet, install a companion, or dispatch a
+   stale workflow. If everything is clean, say so in one line.
 
 ## References
 

@@ -5,6 +5,19 @@ vendored hook carries it on line 2 (`# shopify-app-kit vX.Y.Z`). A version that 
 `### Deprecated`; the next minor deletes it and lists it under `### Removed` (`kit-dev`: "Remove a skill, agent,
 hook, workflow or routine").
 
+## 0.16.6
+
+The doctor checks the two portfolio keys a consumer declares (#42).
+
+- `hooks/doctor.sh` validates `kit.portfolioId` against the schema's pattern and `kit.routines` as an array of
+  strings, prints `Portfolio: <id>; routines: <list>.` in the facts paragraph when the id is set (an opaque id
+  is safe to print), and reports one `Drift:` line per `kit.routines` entry with no `routines/<name>.md` next
+  to the hook: a typo, or a routine the kit removed, which a cross-repo routine would otherwise find out at run
+  time. Skipped when `routines/` is not beside the hook, like the schema check. The doctor sees only its own
+  kit version, so an entry for a routine a newer kit added reads as not shipped until the plugin is updated,
+  which the message says. `test/hooks.test.mjs` covers the fact, the bad entry and the two problem lines; the
+  doctor skill and the README's doctor-printed keys say the same. (#42)
+
 ## 0.16.5
 
 Without jq, the guards fail closed on the command, not on the checkout path (#38).
