@@ -32,7 +32,8 @@ Ground rules, before anything else:
 3. This routine never closes a `human:*` issue and never relabels a `human:*` issue to `agent:*` or
    `code only` (rule R7 of the kit's issue-filing skill, whose `references/rules.md` you follow when filing).
 4. No PR from this routine. Issues only, and only after searching the open issues for the same title prefix
-   (one open issue per finding family; comment on the match instead of filing again).
+   (one open issue per finding family; comment on the match instead of filing again). A new issue comes from
+   the work-item template, its "Close condition needs" block ticking the one line of the rung a step names (R2).
 5. Secrets never appear in an issue or a comment.
 
 Step 1, doctor. Run `/shopify-app-kit:doctor`. Every drift line it prints (a vendored hook header behind
