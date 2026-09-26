@@ -14,6 +14,6 @@
 | `lessons/INDEX.md`, `lessons/README.md` | the lessons catalogue and its extraction discipline; homes are reference files or agent sections |
 | `templates/` | the repo shell a new app starts from; every file listed in `templates/README.md` with its placeholders; `test/templates.test.mjs` |
 | `labels.json`, `scripts/sync-labels.mjs` | the label set (with the `ladder` array) and the script that applies it with `gh label create --force`; `test/labels.test.mjs` |
-| `routines/<name>.md`, `routines/REGISTRY.md` | the committed prompt texts of the scheduled Routines and the table with the trigger step; `test/routines.test.mjs` |
+| `routines/<name>.md`, `routines/REGISTRY.md` | the committed prompt texts of the scheduled Routines and the table with the maintainer's step; `test/routines.test.mjs` |
 | `.github/workflows/release-tag.yml` | tags `v<version>` and publishes the release when a bump merges to `main` |
 | `test/` | `npm test` (`node --test "test/**/*.test.mjs"`), zero dependencies |

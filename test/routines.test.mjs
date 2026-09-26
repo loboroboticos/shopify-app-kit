@@ -1,9 +1,9 @@
 // routines/ holds the committed prompt texts of the scheduled Routines. Every routine file has the five header
-// fields (Cadence, Environment, Tools, May touch, Never), a `## Prompt` section written for a fresh session,
-// a row in routines/REGISTRY.md, no repository literal (the prompt derives the repo from the git remote), and
-// the phrase "never closes a `human:*` issue" (or the registry's shared preamble carries it). A consumer routine
-// that files issues names the work-item template's "Close condition needs" block; a skill a routine's Tools field
-// names is one the model may invoke. Zero dependencies.
+// fields (Cadence, Environment, Tools, May touch, Never), a `## Prompt` section pasted verbatim into a routine
+// made on the claude.ai routines page (a fresh session per run), a row in routines/REGISTRY.md, no repository
+// literal (the prompt derives the repo from the git remote), and the phrase "never closes a `human:*` issue" (or
+// the registry's shared preamble carries it). A consumer routine that files issues names the work-item template's
+// "Close condition needs" block; a skill a routine's Tools field names is one the model may invoke. Zero dependencies.
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -74,12 +74,13 @@ describe('routines/', () => {
     assert.equal(new Set(minutes).size, minutes.length, minutes.join(','));
   });
 
-  test('the registry lists only routines that exist and explains the trigger step', () => {
+  test('the registry lists only routines that exist and explains the routine step', () => {
     for (const r of tableRows) assert.ok(files.includes(r.file), `${r.file} is in the table but not in routines/`);
     assert.equal(tableRows.length, files.length);
-    assert.ok(registry.includes('create_trigger'));
-    assert.ok(registry.includes('create_new_session_on_fire: true'));
-    assert.ok(registry.includes('cron_expression'));
+    // A routine is made on the claude.ai routines page with one repository; a trigger made from inside a session
+    // fires a session with no checkout (#44), so the old in-session recipe must not come back.
+    for (const s of ['claude.ai/code/routines', 'exactly one repository', '/schedule update', 'Run now', 'no checkout']) assert.ok(registry.includes(s), `the maintainer's step says "${s}"`);
+    assert.doesNotMatch(registry, /create_new_session_on_fire/, 'the in-session create_trigger recipe is gone');
     assert.ok(registry.includes(NEVER_CLOSES));
     for (const s of files.map((f) => `\`${f}\``)) assert.ok(registry.includes(s), s);
     assert.ok(registry.includes('kit.portfolioId'), 'the registry says how the portfolio is discovered');
