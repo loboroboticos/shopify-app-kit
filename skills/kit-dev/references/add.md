@@ -79,6 +79,5 @@ starts by reading `.claude/shopify-app.json` (`branches.default`, `branches.prot
 `deploy.protectedWorkflows`) and `labels.json`, derives the repository from the git remote (never names one),
 says it never closes a `human:*` issue and never relabels `human:*` to `agent:*` except per R7, never dispatches
 a protected workflow, and opens at most one PR per run. Add its row to `routines/REGISTRY.md` (cron minute off
-the hour and distinct from the others), list it under the placeholder product's `routines` in `portfolio.json`
-when every product runs it, and extend `test/routines.test.mjs` (the file list and the boundary phrases).
+the hour and distinct from the others; say in the row which products run it), and extend `test/routines.test.mjs` (the file list and the boundary phrases).
 `routines/` is not plugin-visible, so a routine change alone needs no version bump; the CHANGELOG still gets a line.

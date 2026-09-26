@@ -23,6 +23,16 @@
         "version": {
           "description": "The kit version whose hooks were last vendored into this repo by /shopify-app-kit:sync; null before the first sync.",
           "type": ["string", "null"]
+        },
+        "portfolioId": {
+          "description": "An opaque id for this product in the kit's portfolio, never a business, product or store name: cross-repo routines discover consumers by this key and refer to them by it only.",
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]{1,31}$"
+        },
+        "routines": {
+          "description": "The kit routines this product runs, by file name under the kit's routines/ without .md; the maintainer creates one trigger per entry.",
+          "type": "array",
+          "items": { "type": "string", "pattern": "^[a-z-]+$" }
         }
       }
     },
