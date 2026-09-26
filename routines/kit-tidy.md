@@ -9,7 +9,7 @@ opens one PR per run for the purely mechanical drift a test already defines as w
   and the GitHub MCP tools; read access to the repositories under the remote's owner for the portfolio step.
 - **Tools:** `npm test`, the three `claude plugin validate` commands, git (read, plus one branch for the PR),
   `test/budget.json`, the repository listing and each product's manifest, issues and comments.
-- **May touch:** new `kit-tidy:` issues, comments on open ones, one PR per run to `main` limited to mechanical
+- **May touch:** new `kit-tidy:` issues (one of them `kit-tidy: deprecation candidates`), comments on open ones, one PR per run to `main` limited to mechanical
   drift (a drifted enumeration a mirror test names, a stale `# shopify-app-kit v` header, a README row for a file
   that exists).
 - **Never:** pushes to `main`; deletes a file; edits a lesson row; changes a hook body, a schema or a test's
@@ -72,9 +72,20 @@ product: its id, `kit.version` against the kit's latest tag (`git describe --tag
 sections its manifest declares, and its `kit.routines`. One table in the summary, ids only. File nothing on a
 consumer: that is `kit-health`'s job. When no repository is readable, say "portfolio: unverified".
 
+Step 8, deprecation candidates. Only when step 7 found at least one product. Growth stays pull-driven only if
+removal is too, so propose, never deprecate: (a) a manifest section or a guard-read key (the README's "Keys the
+hooks read" table) that no discovered manifest declares; (b) a guard under `hooks/guard-*.sh` that no discovered
+consumer registers in its `.claude/settings.json`; (c) a skill, agent or workflow from step 3 that nothing
+names. A candidate is one that also appeared in the previous run's comment on the open
+`kit-tidy: deprecation candidates` issue (the issue is the memory; the first sighting is a "seen once" line).
+Comment the list on that issue, or open it, `code only`, `p3`, with the evidence per item and a pointer to
+`kit-dev`'s "Remove a skill, agent, hook, workflow or routine". A maintainer decides; this routine deprecates
+nothing and skips the step with "deprecation: unverified" when the portfolio is.
+
 Filing. One open issue per family, titled `kit-tidy: <the finding in six words>`; search the open issues for
 that title prefix first and comment on the match with this week's evidence instead of filing again. Labels as
 above, plus an ROI bucket. Refer to other issues as a plain `#N`, never with a closing keyword.
 
 Finish with a short summary in the session: the suite's verdict, the counts per step, the budget headroom and
-the insert:delete ratio, the portfolio table, and the issues opened or commented and the PR if any.
+the insert:delete ratio, the portfolio table, the deprecation candidates or "unverified", and the issues opened
+or commented and the PR if any.

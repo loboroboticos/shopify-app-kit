@@ -7,6 +7,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { kitRoot, read } from './lib/fs.mjs';
+import { KIT_VERSION } from './lib/kit.mjs';
 
 const readme = read('README.md');
 const ticks = (text) => [...text.matchAll(/`([^`\n]+)`/g)].map((m) => m[1]);
@@ -102,6 +103,25 @@ describe('docs mirror their sources', () => {
     for (const file of ['README.md', 'skills/kit-dev/SKILL.md', '.claude/rules/kit.md']) {
       const listed = uniq([...read(file).matchAll(/^(claude plugin validate [^\n]+)$/gm)].map((m) => m[1].trim()));
       assert.deepEqual(listed, ci, `${file}: the validate commands`);
+    }
+  });
+
+  test('the kit\'s work-item template and issue config are the templates\' copies, byte for byte', () => {
+    for (const f of ['work-item.md', 'config.yml']) {
+      assert.equal(read('.github', 'ISSUE_TEMPLATE', f), read('templates', '.github', 'ISSUE_TEMPLATE', f), `.github/ISSUE_TEMPLATE/${f} equals templates/.github/ISSUE_TEMPLATE/${f}`);
+    }
+    const proposal = read('.github', 'ISSUE_TEMPLATE', 'lesson-proposal.md');
+    for (const s of ['kit.portfolioId', 'twice in one product, or once in two', '## What will cite it', 'lessons-index']) assert.ok(proposal.includes(s), `lesson-proposal.md: ${s}`);
+  });
+
+  test('the CHANGELOG headings start at the plugin version and chain by consecutive versions', () => {
+    const versions = [...read('CHANGELOG.md').matchAll(/^## (\d+)\.(\d+)\.(\d+)$/gm)].map((m) => m.slice(1, 4).map(Number));
+    assert.ok(versions.length > 1, 'CHANGELOG has version sections');
+    assert.equal(versions[0].join('.'), KIT_VERSION, 'the top CHANGELOG section is the plugin version');
+    for (let i = 1; i < versions.length; i++) {
+      const [a, b] = [versions[i - 1], versions[i]];
+      const consecutive = (a[0] === b[0] && a[1] === b[1] && a[2] === b[2] + 1) || (a[0] === b[0] && a[1] === b[1] + 1 && a[2] === 0) || (a[0] === b[0] + 1 && a[1] === 0 && a[2] === 0);
+      assert.ok(consecutive, `## ${a.join('.')} is followed by ## ${b.join('.')}: a version section is missing or out of order`);
     }
   });
 
