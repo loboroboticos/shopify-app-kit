@@ -59,7 +59,8 @@ line each. An issue only when a directory is within 2% of its ceiling: `kit-tidy
 
 Step 5, docs that restate a test. A sentence in the README, a `SKILL.md` or a reference that enumerates what a
 test already asserts, or that states a number a constant defines, and that `test/docs-mirror.test.mjs` does not
-yet cover: one issue per file, `code only`, `p3`, quoting the sentence and naming the test or constant.
+yet cover: one issue per family across every file, `code only`, `p3`, with a table of one row per sentence (file
+and line, the sentence quoted, the test or constant it restates). Never one issue per file.
 
 Step 6, mechanical drift, the one PR. Anything a mirror or parity test names as wrong on `main` where the fix
 is exactly what the test's message says (a drifted enumeration, a stale `# shopify-app-kit v` header, a README
