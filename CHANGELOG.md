@@ -5,6 +5,25 @@ vendored hook carries it on line 2 (`# shopify-app-kit vX.Y.Z`). A version that 
 `### Deprecated`; the next minor deletes it and lists it under `### Removed` (`kit-dev`: "Remove a skill, agent,
 hook, workflow or routine").
 
+## 0.16.4
+
+The registry's maintainer step says how a routine is really made (#44).
+
+- `routines/REGISTRY.md`: a routine is made on the claude.ai routines page with exactly one repository, an
+  environment (Default unless the routine reaches a host outside the allowlist), a schedule whose exact cron is
+  set with `/schedule update`, and a first run fired by hand and read before the schedule is trusted. The
+  `create_trigger` tool a session holds takes no repository, so the session it fires has no checkout and goes
+  idle having written nothing (found by firing the `kit-tidy` trigger, #40); it wakes a session, it cannot run
+  a routine. `test/routines.test.mjs` pins the new text and refuses the old recipe; `kit-dev`'s `add.md` and
+  `layout.md`, `new-app`'s checklist and the README say the same. (#44)
+
+### Budget
+
+`CHANGELOG.md` raised from 700 to 800. The release procedure extracts each version's notes from this file and
+never removes a section, so the file grows by one section per release (about ten lines) and a ceiling on it is
+a reminder to write short sections, not a limit the file can stay under. #63 and this version landed the same
+day and the second one crossed 700; 800 is about eight more releases.
+
 ## 0.16.3
 
 The release checklist's `app dev clean` line becomes a condition a person can tick, not a chore on every release.

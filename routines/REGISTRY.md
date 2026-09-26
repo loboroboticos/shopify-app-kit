@@ -44,26 +44,33 @@ the session cannot read is not in the portfolio for that run, and the summary sa
 `new-app`'s checklist sets both keys; `dev-parity` is listed only by a product with a dev registration and a
 hosted beta; `kit-tidy` runs in the kit repository and is nobody's roster entry.
 
-## The maintainer's step: creating a trigger
+## The maintainer's step: creating a routine
 
-One trigger per routine per repo, created from a session that runs in that repo's environment, with the
-`create_trigger` tool of the remote-session MCP server (the same tool `send_later` wraps):
+One routine per prompt per repo, made on the claude.ai routines page (`claude.ai/code/routines`, **New
+routine**) and never from inside a session: the `create_trigger` tool a session holds (the one `send_later`
+wraps) takes no repository, so the session it fires has no checkout and goes idle within a minute having
+written nothing. That tool wakes an existing session, a check-in; it cannot run a routine. `/schedule` in a
+local CLI writes the same routine and is refused inside a cloud session.
 
-```
-create_trigger(
-  name: "<repo short name>: <routine>",
-  cron_expression: "<the cron from the table>",
-  create_new_session_on_fire: true,
-  initiation: "human_request",
-  prompt: "<the text under ## Prompt of routines/<routine>.md, pasted verbatim>"
-)
-```
+1. **The environment**, only when **Default** is not enough. Default reaches the package registries and GitHub
+   through the proxies, Node is on PATH and the session is the `claude` CLI, which covers every routine but
+   `dev-parity` (its health GETs need the beta and prod hosts under **Custom** network access). Environments are
+   made from the cloud icon above the message box at `claude.ai/code` (**Add cloud environment**); one holds
+   network access, variables and a setup script, never a repository.
+2. **The form.** Name `<repo short name>: <routine>`; the prompt is the text under `## Prompt` of
+   `routines/<routine>.md`, pasted verbatim (`dev-parity`'s repo preamble above it); exactly one repository, the
+   consumer's (the kit's for `kit-tidy`), because a session with several loads no `.claude/settings.json` and
+   the bootstrap hook that installs the kit does not run; a **Schedule** trigger at the nearest preset, then
+   the cron from the table (UTC) set with `/schedule update` from a local CLI; under **Connectors**, only what
+   the routine's Tools field needs.
+3. **The first run by hand.** **Run now** on the routine's page, then read the run's session before trusting
+   the schedule: a run idle within a minute that wrote nothing has no checkout, and a green row in the run list
+   means only that the session exited without an infrastructure error.
 
-`create_new_session_on_fire: true` is what makes each run a fresh session in the repo's environment; the prompt
-must therefore be complete on its own, which is why every routine file repeats the ground rules instead of
-pointing at this page. The environment the trigger inherits is the session's; check it is the one
-the product's routines fire in. `list_triggers` shows the last run of each; a routine whose last run
-is `FAILED` twice is disabled and its prompt fixed here first, then `update_trigger` carries the new text.
+Each run is a new session with the repository cloned at its default branch, which is why every prompt is
+complete on its own and repeats the ground rules instead of pointing at this page. A routine whose run does
+nothing twice is paused with the switch on its page and its prompt fixed here first, then pasted again with
+**Edit**. Commits, PRs and comments a routine makes carry the maintainer's GitHub identity.
 
 ## Adding a routine
 

@@ -133,7 +133,8 @@ Printed after the commit, in the order the pieces depend on each other:
 9. Sync the labels (`node <plugin>/scripts/sync-labels.mjs --repo <owner>/<repo>`), pin the maintainer's queue
    issue, and set `kit.portfolioId` (an opaque id, never the business name) and `kit.routines` in the manifest so
    the cross-repo routines discover the app (`routines/REGISTRY.md`, "Discovering the portfolio"); then create
-   the routine triggers from the registry. All by hand: the skill touches no other repository.
+   the routines on the claude.ai routines page per the registry's maintainer step. All by hand: the skill touches
+   no other repository.
 
 ## Why the skill never touches an account
 

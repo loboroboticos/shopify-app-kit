@@ -50,7 +50,7 @@ The repo root is the plugin root and its own marketplace.
 | `templates/` | The repo shell a new app starts from: CI with migrate rehearsal and drift check, secret scanning from a checksum-verified binary, a dependency audit that opens issues, dependabot with framework majors ignored, the work-item issue template with the executor ladder, `.env.example` with public/secret/local markers, the docs map and its consistency test, the ADR shape and seed decisions, `.claude/` wiring (settings pin, bootstrap hook, starter manifest, rule seeds, CLAUDE.md). See [Scaffolding](#scaffolding). |
 | `issue-filing` (model-invocable) | Files, triages or relabels a GitHub issue on the operating model: the label set from `labels.json`, one work-type label from the executor ladder, one priority, one ROI bucket, the "Close condition needs" block, bootstraps that name where a value goes and what they unlock, decisions with options, irreversible work routed to a human, CI-filed issues deduped on the title prefix. `references/rules.md` (the ten rules and the queue exemption) and `references/executor-ladder.md` (each rung, readiness, substitution). See [The operating layer](#the-operating-layer). |
 | `labels.json` + `scripts/sync-labels.mjs` | The label set every consumer carries (eight work types, three priorities, five ROI buckets, gating and origin labels) with the `ladder` array, and the zero-dependency script that creates or updates them through `gh label create --force` (`--dry-run`, `--repo <owner>/<repo>`; never deletes). |
-| `routines/` | The committed prompt texts of the scheduled Routines (`triage`, `nuclear-review`, `pr-steward`, `kit-health`, `graphify-refresh`, `dependency-wave`, `dev-parity`, `kit-tidy`), each with its cadence, environment, tools and boundaries, and `REGISTRY.md` with the table and the maintainer's `create_trigger` step. |
+| `routines/` | The committed prompt texts of the scheduled Routines (`triage`, `nuclear-review`, `pr-steward`, `kit-health`, `graphify-refresh`, `dependency-wave`, `dev-parity`, `kit-tidy`), each with its cadence, environment, tools and boundaries, and `REGISTRY.md` with the table and the maintainer's step for creating a routine. |
 | `/shopify-app-kit:kit-dev` | Maintainer guide for this repo, including how to add a routine. |
 | `lessons/INDEX.md` | One row per lesson extracted from the consumer apps, pointing at the reference file or agent section that owns it. See [Lessons](#lessons). |
 | `schemas/shopify-app.v1.schema.json` | The manifest contract (JSON Schema, draft 2020-12). |
@@ -350,7 +350,7 @@ body says what closing it needs. Scheduled Claude Code Routines are the workforc
   versions; one PR of mechanical drift). Every consumer prompt reads `.claude/shopify-app.json` and `labels.json`
   first, derives the repo from the git remote, never closes a `human:*` issue, never dispatches a workflow in
   `deploy.protectedWorkflows`, and opens at most one PR per run. `routines/REGISTRY.md` has the table and the
-  maintainer's step: one `create_trigger` call per routine per repo with `create_new_session_on_fire: true`.
+  maintainer's step: one routine per prompt per repo, made on the claude.ai routines page, never from inside a session.
 - **The portfolio is discovered, never listed.** Each consumer's manifest declares `kit.portfolioId` (an opaque
   id, never a name) and `kit.routines`; a cross-repo routine lists the repositories under the remote's owner it
   can read and keeps the ones carrying the id. Nothing private is written anywhere in the kit.

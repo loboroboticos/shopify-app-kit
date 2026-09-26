@@ -76,11 +76,13 @@ for any new branch of logic. Any addition under `agents/`, `hooks/`, `skills/`, 
 
 A routine is one file `routines/<name>.md`: `# <name>`, one paragraph, then five header fields as a list
 (`- **Cadence:**` with the cron in backticks, `- **Environment:**`, `- **Tools:**`, `- **May touch:**`,
-`- **Never:**`), then `## Prompt` as the last section with the prompt text verbatim. The prompt is pasted into
-a `create_trigger` call with `create_new_session_on_fire: true`, so it is a complete standalone instruction: it
-starts by reading `.claude/shopify-app.json` (`branches.default`, `branches.protected`,
-`deploy.protectedWorkflows`) and `labels.json`, derives the repository from the git remote (never names one),
-says it never closes a `human:*` issue and never relabels `human:*` to `agent:*` except per R7, never dispatches
-a protected workflow, and opens at most one PR per run. Add its row to `routines/REGISTRY.md` (cron minute off
-the hour and distinct from the others; say in the row which products run it), and extend `test/routines.test.mjs` (the file list and the boundary phrases).
+`- **Never:**`), then `## Prompt` as the last section with the prompt text verbatim. The prompt goes unchanged
+into a routine made on the claude.ai routines page, each run a fresh session with the checkout
+(`routines/REGISTRY.md`, the maintainer's step; a trigger made from inside a session has no repository), so it
+is a complete standalone instruction: it starts by reading `.claude/shopify-app.json` (`branches.default`,
+`branches.protected`, `deploy.protectedWorkflows`) and `labels.json`, derives the repository from the git remote
+(never names one), says it never closes a `human:*` issue and never relabels `human:*` to `agent:*` except per
+R7, never dispatches a protected workflow, and opens at most one PR per run. Add its row to
+`routines/REGISTRY.md` (cron minute off the hour and distinct from the others; say in the row which products run
+it), and extend `test/routines.test.mjs` (the file list and the boundary phrases).
 `routines/` is not plugin-visible, so a routine change alone needs no version bump; the CHANGELOG still gets a line.
