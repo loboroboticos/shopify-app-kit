@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shopify-app-kit v0.16.4
+# shopify-app-kit v0.16.5
 # hooks/guard-package-manager.sh: PreToolUse(Bash) guard that keeps each directory on the package manager
 # .claude/shopify-app.json maps it to (packageManagers: { "<dir>": "npm" | "pnpm" }, "." = the consumer root).
 #
@@ -21,7 +21,7 @@ KIT_HOOK_NAME=guard-package-manager
 kit_read_input
 
 if ! kit_has_jq; then
-  case "$input" in *pnpm*) kit_require_jq "a pnpm command cannot be checked against the manifest's package managers" ;; esac
+  case "$(kit_raw_command)" in *pnpm*) kit_require_jq "a pnpm command cannot be checked against the manifest's package managers" ;; esac
   exit 0
 fi
 

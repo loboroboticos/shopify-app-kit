@@ -52,11 +52,12 @@ function noJqPath() {
 const which = (bin) => process.env.PATH.split(path.delimiter).map((d) => path.join(d, bin)).find((p) => { try { fs.accessSync(p, fs.constants.X_OK); return fs.statSync(p).isFile(); } catch { return false; } });
 
 // Without jq every guard fails closed on its guarded verbs and stays silent on everything else; no branch,
-// directory or workflow literal decides it (the manifest is unreadable, so the names are unknown).
-// { hook, reason (on stderr when blocked), blocked: commands, allowed: commands, cwd? (when the checkout path itself would match) }
+// directory or workflow literal decides it (the manifest is unreadable, so the names are unknown), and only the
+// command decides: every case runs from a checkout whose path carries every guard's words (#38).
+// { hook, reason (on stderr when blocked), blocked: commands, allowed: commands }
+const loudCwd = fs.mkdtempSync(path.join(os.tmpdir(), 'shopify deploy pnpm git push gh pr merge migrate reset db execute truncate '));
 const noJqCases = [
-  // The no-jq pre-filter matches the raw hook JSON, cwd included (#38), so this guard runs from a plain path.
-  { hook: 'guard-shopify-cli.sh', reason: /jq is not installed, so a shopify\/deploy command cannot be inspected/, blocked: ['shopify app deploy --config example'], allowed: ['git status'], cwd: fs.mkdtempSync(path.join(os.tmpdir(), 'plain-')) },
+  { hook: 'guard-shopify-cli.sh', reason: /jq is not installed, so a shopify\/deploy command cannot be inspected/, blocked: ['shopify app deploy --config example'], allowed: ['git status'] },
   { hook: 'guard-protected-branch.sh', reason: /jq is not installed, so a push, merge, base change, API write or workflow run cannot be checked/, blocked: ['git push origin feature/x', 'git push origin main', 'gh pr merge 12', 'gh workflow run other.yml'], allowed: ['git status && git log --oneline'] },
   { hook: 'guard-package-manager.sh', reason: /jq is not installed, so a pnpm command cannot be checked/, blocked: ['pnpm install', 'cd web && pnpm install'], allowed: ['npm test'] },
   { hook: 'guard-migrations.sh', reason: /jq is not installed, so a destructive Prisma command cannot be checked/, blocked: ['npx prisma migrate reset', 'npx prisma db push --accept-data-loss', 'npx prisma db execute --stdin <<SQL\nTRUNCATE session;\nSQL'], allowed: ['npx prisma migrate dev', 'npx prisma db execute --stdin <<SQL\nDROP TABLE scratch;\nSQL', 'npx prisma migrate deploy'] },
@@ -65,11 +66,20 @@ const noJqCases = [
 describe('without jq', () => {
   for (const c of noJqCases) {
     test(`${c.hook} fails closed on its guarded verbs and stays silent on the rest`, () => {
-      const run = (command) => runHook(c.hook, { manifest: npmRoot, command, cwd: c.cwd, extraEnv: { PATH: noJqPath() } });
+      const run = (command) => runHook(c.hook, { manifest: npmRoot, command, cwd: loudCwd, extraEnv: { PATH: noJqPath() } });
       for (const cmd of c.blocked) { const r = run(cmd); assert.equal(r.status, 2, `${cmd}: ${r.stderr}`); assert.match(r.stderr, c.reason, cmd); }
       for (const cmd of c.allowed) { const r = run(cmd); assert.equal(r.status, 0, `${cmd}: ${r.stderr}`); assert.equal(r.stderr, '', cmd); }
     });
   }
+
+  test('a payload with no command key still fails closed on the words in it', () => {
+    // kit_raw_command falls back to the whole payload when it cannot isolate the command, so an unknown shape
+    // never fails open; here the words sit in cwd.
+    const payload = JSON.stringify({ hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: {}, cwd: loudCwd });
+    const r = spawnSync('bash', [path.join(hooksDir, 'guard-shopify-cli.sh')], { input: payload, encoding: 'utf8', cwd: loudCwd, env: { ...process.env, PATH: noJqPath(), SHOPIFY_APP_KIT_MANIFEST: npmRoot, CLAUDE_PROJECT_DIR: consumer } });
+    assert.equal(r.status, 2, r.stderr);
+    assert.match(r.stderr, /jq is not installed/);
+  });
 });
 
 // { fixture, cmd, cwd?, exit, stderr? (regex the stderr must match when blocked) }

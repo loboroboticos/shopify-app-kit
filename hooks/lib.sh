@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shopify-app-kit v0.16.4
+# shopify-app-kit v0.16.5
 # hooks/lib.sh: shared helpers for the shopify-app-kit guard hooks. Sourced, never executed.
 # Vendored into consumers at .claude/hooks/kit/lib.sh by /shopify-app-kit:sync, next to the guards.
 #
@@ -7,6 +7,7 @@
 #   KIT_HOOK_NAME=guard-something; . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 #   kit_read_input            -> $input (raw hook JSON from stdin)
 #   kit_parse_input           -> $cmd (tool_input.command), $cwd (absolute)   [needs jq]
+#   kit_raw_command           -> tool_input.command without jq, JSON-escaped (the whole payload when it has none)
 #   kit_resolve_manifest DIR  -> $manifest, $root (the CONSUMER repo root)
 #   kit_manifest_ok           -> 0 when the manifest is readable and kit.schemaVersion == 1
 #   mf JQ_FILTER              -> jq -r over the manifest
@@ -17,7 +18,7 @@
 #   kit_walk_commands CMD CB  -> calls CB "<effective dir>" <prog> <args...> for every simple command in CMD,
 #                                after heredoc stripping, control-operator splitting and cd/pushd/popd tracking.
 
-KIT_VERSION="0.16.4"
+KIT_VERSION="0.16.5"
 KIT_HOOK_NAME="${KIT_HOOK_NAME:-hook}"
 KIT_MANIFEST_RULE="Add or repair .claude/shopify-app.json (the repo manifest the kit's guard hooks read; schema: shopify-app-kit schemas/shopify-app.v1.schema.json)."
 
@@ -46,6 +47,15 @@ kit_parse_input() {
   cwd="$(jq -r '.cwd // empty' <<<"$input" 2>/dev/null || true)"
   [ -n "$cwd" ] || cwd="$PWD"
   case "$cwd" in /*) ;; *) cwd="$PWD/$cwd" ;; esac
+}
+
+# kit_raw_command: tool_input.command without jq, JSON-escaped as it sits in the payload (a substring test on it is
+# as good as one on the parsed command); the whole payload when no command key is found, so an unknown shape still
+# fails closed on the guards' words rather than open. The no-jq pre-filters match this, never $input, whose cwd
+# would otherwise decide (#38).
+kit_raw_command() {
+  local c; c="$(printf '%s' "$input" | sed -E -n 's/.*"command"[[:space:]]*:[[:space:]]*"(([^"\\]|\\.)*)".*/\1/p')"
+  printf '%s' "${c:-$input}"
 }
 
 # ---------------------------------------------------------------- manifest resolution

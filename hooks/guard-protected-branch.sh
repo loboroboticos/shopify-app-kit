@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shopify-app-kit v0.16.4
+# shopify-app-kit v0.16.5
 # hooks/guard-protected-branch.sh: PreToolUse(Bash) guard that keeps a session off the protected branches named in
 # .claude/shopify-app.json (branches.protected, branches.default, branches.promotion, deploy.protectedWorkflows).
 #
@@ -26,7 +26,7 @@ kit_read_input
 
 if ! kit_has_jq; then
   # Without jq the protected names cannot be read, so every guarded verb fails closed, whatever it names.
-  case "$input" in
+  case "$(kit_raw_command)" in
     *"git push"* | *"gh pr merge"* | *"gh pr edit"* | *"gh api"* | *"gh workflow run"* | *mergePullRequest*)
       kit_require_jq "a push, merge, base change, API write or workflow run cannot be checked against the manifest's protected branches" ;;
   esac

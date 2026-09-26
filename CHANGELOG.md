@@ -5,6 +5,19 @@ vendored hook carries it on line 2 (`# shopify-app-kit vX.Y.Z`). A version that 
 `### Deprecated`; the next minor deletes it and lists it under `### Removed` (`kit-dev`: "Remove a skill, agent,
 hook, workflow or routine").
 
+## 0.16.5
+
+Without jq, the guards fail closed on the command, not on the checkout path (#38).
+
+- Each guard's no-jq branch matched the whole hook payload, `cwd` included, so a checkout whose path carried
+  `shopify`, `deploy`, `pnpm`, `git push` or `migrate reset` blocked every command when jq was missing (the kit's
+  own test consumer directory did). `hooks/lib.sh` gains `kit_raw_command`, which isolates `tool_input.command`
+  from the payload with one portable `sed` expression, JSON escapes left in place, and falls back to the whole
+  payload when no command key is there, so an unknown shape still fails closed; the four guards match on it.
+  `test/hooks.test.mjs` runs every no-jq case from a directory named with every guard's words and pins the
+  fallback. A consumer's vendored copies under `.claude/hooks/kit/` keep the old branch until
+  `/shopify-app-kit:sync`; the doctor reports the version drift until then. (#38)
+
 ## 0.16.4
 
 The registry's maintainer step says how a routine is really made (#44).
