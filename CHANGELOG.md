@@ -5,6 +5,18 @@ vendored hook carries it on line 2 (`# shopify-app-kit vX.Y.Z`). A version that 
 `### Deprecated`; the next minor deletes it and lists it under `### Removed` (`kit-dev`: "Remove a skill, agent,
 hook, workflow or routine").
 
+## 0.16.1
+
+Docs held to their sources (#57, the first `kit-tidy` step-5 family): every sentence that restated a test
+constant or a directory listing now either points at the source or is asserted against it.
+
+- `test/docs-mirror.test.mjs` checks the README's label counts, required manifest sections, severity set and lesson
+  classes; `kit-dev`'s skill cap, `disallowedTools`, `meta` keys, routine header fields and consumer reads; the
+  ladder in the issue-filing references; and the doctor's idle threshold, each read from its source.
+- `kit-dev`'s `layout.md` rows name the test that holds each fact instead of restating it; `personas.md` no
+  longer copies the frontmatter allowlist; the `doctor` skill no longer lists the cadence thresholds; the README
+  no longer lists the template placeholders (`templates/README.md` is the list).
+
 ## 0.16.0
 
 The pull loop closes (#30): the door lessons enter through, and the routine that proposes what should leave.

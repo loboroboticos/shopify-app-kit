@@ -1,7 +1,8 @@
 // Prose that enumerates something the tree already defines (the shipped guards, the routines, the review
-// rosters, the release dimensions, the dedupe constants, the label set, the version-bump directories, the graphify
-// pin) is checked here against its source, so a list in the README or a SKILL.md cannot drift from the code it
-// describes. When one of these fails, fix the prose; the source is the source.
+// rosters, the release dimensions, the dedupe constants, the label set and its ladder, the version-bump directories,
+// the graphify pin, the schema's required sections, the lesson classes, the parity tests' constants, the doctor's
+// idle threshold) is checked here against its source, so a list in the README or a SKILL.md cannot drift from the
+// code it describes. When one of these fails, fix the prose; the source is the source.
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -19,6 +20,9 @@ const region = (text, from, to) => {
 };
 const bullet = (text, marker) => region(text, marker, '\n- **');
 const uniq = (a) => [...new Set(a)].sort();
+const after = (text, from, to) => region(text, from, to).slice(from.length);
+// A single-line array constant (`const NAME = [...]` or `new Set([...])`) read from a test or workflow source.
+const constant = (file, name) => JSON.parse(read(file).match(new RegExp(`^const ${name} = (?:new Set\\()?(\\[.*?\\])`, 'm'))[1].replace(/'/g, '"'));
 
 // The sources.
 const guards = fs.readdirSync(path.join(kitRoot, 'hooks')).filter((n) => /^guard-.*\.sh$/.test(n)).sort();
@@ -32,6 +36,9 @@ const dimensions = uniq([...release.matchAll(/dimension: '([a-z-]+)'/g)].map((m)
 const LINE_FUZZ = Number(prePr.match(/^const LINE_FUZZ = (\d+)/m)[1]);
 const VERIFY_CAP = Number(prePr.match(/^const VERIFY_CAP = (\d+)/m)[1]);
 const labels = JSON.parse(read('labels.json')).labels.map((l) => l.name);
+const ladder = JSON.parse(read('labels.json')).ladder;
+const workTypes = labels.filter((l) => /^(code only|agent:|human:)/.test(l));
+const SEVERITIES = constant('workflows/pre-pr-review.js', 'SEVERITIES');
 const bumpDirs = uniq(read('.github', 'workflows', 'ci.yml').match(/--\s+((?:[a-z.-]+\s+)+)\|\| true/)[1].trim().split(/\s+/));
 const GRAPHIFY_VERSION = read('hooks', 'doctor.sh').match(/^GRAPHIFY_VERSION="([^"]+)"$/m)[1];
 const WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve'];
@@ -142,5 +149,43 @@ describe('docs mirror their sources', () => {
 
   test('the release skill does not carry a hand-written copy of the workflow\'s checklist', () => {
     assert.doesNotMatch(read('skills', 'release', 'SKILL.md'), /- \[ \] CI green/, 'the checklist lives in workflows/release-readiness.js only');
+  });
+
+  test('the README states the label counts, the required sections, the severities and the lesson classes as their sources define them', () => {
+    const count = (re) => WORDS[labels.filter((l) => re.test(l)).length];
+    for (const s of [`${count(/^(code only|agent:|human:)/)} work types`, `${count(/^p\d$/)} priorities`, `${count(/^roi:\d$/)} ROI buckets`]) assert.ok(readme.includes(s), `README says "${s}"`);
+    assert.deepEqual(ticks(region(readme, 'Required sections:', '.')), JSON.parse(read('schemas', 'shopify-app.v1.schema.json')).required);
+    assert.ok(readme.includes(`(\`${SEVERITIES.join(' | ')}\`, a one-line claim`), `README lists the severities as \`${SEVERITIES.join(' | ')}\``);
+    const classes = [...region(read('lessons', 'README.md'), '## Classes', '\n## ').matchAll(/^\| `([a-z-]+)` \|/gm)].map((m) => m[1]);
+    assert.deepEqual(uniq(ticks(region(readme, 'its class (', ')'))), uniq(classes));
+  });
+
+  test('kit-dev states the skill cap and the parity constants as the tests define them', () => {
+    const cap = JSON.parse(read('test', 'budget.json')).classes.skill;
+    assert.ok(read('skills', 'kit-dev', 'SKILL.md').includes(`at most ${cap} lines`), `kit-dev/SKILL.md says "at most ${cap} lines"`);
+    const add = read('skills', 'kit-dev', 'references', 'add.md');
+    assert.ok(add.includes(`at or under ${cap} lines`), `add.md says "at or under ${cap} lines"`);
+    assert.deepEqual(uniq(after(add, 'disallowedTools: ', '`').split(', ')), uniq(constant('test/agents-parity.test.mjs', 'MUST_DISALLOW')));
+    assert.deepEqual(uniq(after(add, 'export const meta = { ', ' }').split(', ')), uniq(constant('test/workflows-parity.test.mjs', 'META_KEYS')));
+    const fields = constant('test/routines.test.mjs', 'HEADER_FIELDS');
+    assert.deepEqual([...region(add, `${WORDS[fields.length]} header fields`, '## Prompt').matchAll(/- \*\*([A-Za-z ]+):\*\*/g)].map((m) => m[1]), fields);
+    const reads = region(add, 'starts by reading', 'says it never');
+    for (const r of constant('test/routines.test.mjs', 'CONSUMER_READS')) assert.ok(reads.includes(r), `add.md's routine paragraph names ${r}`);
+  });
+
+  test('the issue-filing references state the ladder as labels.json defines it', () => {
+    const r1 = region(read('skills', 'issue-filing', 'references', 'rules.md'), '## R1', '\n## ');
+    assert.deepEqual(ticks(region(r1, 'The order is', ';')), ladder, 'R1 lists the ladder in order');
+    for (const l of workTypes) assert.ok(ticks(r1).includes(l), `R1 names \`${l}\``);
+    const rows = [...read('skills', 'issue-filing', 'references', 'executor-ladder.md').matchAll(/^\| `([a-z:]+( only)?)` \|/gm)].map((m) => m[1]);
+    assert.deepEqual(rows.filter((r) => ladder.includes(r)), ladder, 'the rung table follows the ladder order');
+    assert.deepEqual(uniq(rows), uniq(workTypes), 'the rung table has one row per work type');
+  });
+
+  test('the doctor skill states GitHub\'s idle threshold as the hook does, and no cadence threshold', () => {
+    const idle = read('hooks', 'doctor.sh').match(/after (\d+) idle days/)[1];
+    const doctor = read('skills', 'doctor', 'SKILL.md');
+    assert.ok(doctor.includes(`idle for ${idle} days`), `doctor/SKILL.md says "idle for ${idle} days"`);
+    assert.doesNotMatch(doctor, /daily \d+ days/, 'the cadence thresholds live in hooks/doctor.sh only');
   });
 });
