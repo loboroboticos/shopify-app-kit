@@ -6,7 +6,7 @@ paths:
   - ".claude/rules/**"
 ---
 
-<!-- .claude/rules/docs.md (shopify-app-kit template). Seeds from the kit's docs-* and adr-* lessons; reads
+<!-- .claude/rules/docs.md (shopify-app-kit template). Seeds from the kit's `docs-owner/references/single-owner.md` and `adr-shape.md`; reads
      docs.mapFile, docs.mapHeading and docs.adrDir from .claude/shopify-app.json. -->
 
 # Docs

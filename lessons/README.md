@@ -14,8 +14,12 @@ The index is the catalogue; the reference files are the text. Nothing here resta
   history. A rule that has bitten twice, or once in two repos, is extracted.
 - **Written generically.** A lesson names manifest keys, CLI flags, platform behaviours and file shapes; never a
   particular app, store, plan name or deployment.
-- **Superseded lessons move to a dated history section** at the bottom of `INDEX.md` (`## History`, one dated
-  subsection per removal, with the id, the old rule and why it no longer holds). Rows are never silently deleted.
+- **A row lives while something reads it.** Every row in the live table is cited by id from an artifact a
+  session reads: a `SKILL.md`, an agent, a template rule seed, a workflow, a routine prompt. A reference file
+  needs no row to exist (its `SKILL.md` links it); a row exists only because something pulls on it.
+- **Rows nothing cites, or that no longer hold, move to the dated history section** at the bottom of `INDEX.md`
+  (`## History`, one dated subsection per removal, the rows with a `reason` column). Rows are never deleted, and
+  a History row returns to the live table when something cites it again.
 
 ## Classes
 
@@ -44,6 +48,8 @@ The only way to cite. Never expand these labels into names.
 3. Add one row to `INDEX.md` with a new id in that file's prefix series, a one-line rule, the class, the home
    as `skills/<skill>/references/<file>.md#<heading-anchor>` (or `agents/<agent>.md#<anchor>` for a lens), and
    the source labels.
-4. Run `node --test test/lessons-index.test.mjs`: every home must exist, every anchor must match a heading, every
-   reference file must be the home of at least one lesson, and ids must be unique.
-5. Bump the kit version (`skills/kit-dev/SKILL.md`); reference files are plugin-visible.
+4. Cite the id from the artifact that needs it (the skill step, agent section, rule seed, workflow or routine
+   prompt that would otherwise restate the rule). A row nothing cites does not enter.
+5. Run `node --test test/lessons-index.test.mjs`: every home must exist, every anchor must match a heading, every
+   live row must be cited, and ids must be unique.
+6. Bump the kit version (`skills/kit-dev/SKILL.md`); reference files are plugin-visible.

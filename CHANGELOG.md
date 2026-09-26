@@ -5,6 +5,24 @@ vendored hook carries it on line 2 (`# shopify-app-kit vX.Y.Z`). A version that 
 `### Deprecated`; the next minor deletes it and lists it under `### Removed` (`kit-dev`: "Remove a skill, agent,
 hook, workflow or routine").
 
+## 0.14.0
+
+The lessons index is read-side (#24, Phase 1c of #30): a row lives only while something a session reads cites it.
+
+- `test/lessons-index.test.mjs`: every live row must be cited by id from a `SKILL.md`, an agent, a template rule
+  seed, a workflow or a routine prompt; the writer-side rule ("every reference file is the home of a lesson") is
+  gone, because a reference's justification is its `SKILL.md` link (which the parity test enforces) and the two
+  rules contradicted each other. History rows carry a `reason` column, sit under a dated subsection, and are never
+  also live. The 35-row floor is gone.
+- `lessons/INDEX.md`: every one of the 123 rows moves to `## History` under `### 2026-09-25 uncited`, because
+  nothing a session reads named any of them (the README named two). The text is untouched: every reference file
+  and agent section stays where it was and linked from its skill. A History row returns to the live table the
+  moment an artifact cites it, and a new lesson enters with its citation (the proposal door, #27).
+- `lessons/README.md`, the README's Lessons section and `kit-dev`'s "Add a lesson" state the reader-side rule and
+  the citation step. The three template rule seeds cite the reference files they seed from instead of lesson
+  prefixes (`mig-*`), which named nothing in particular.
+
+
 ## 0.13.0
 
 Phase 1, second half (#30): the docs are asserted against their sources, the whole tree has a size budget that
