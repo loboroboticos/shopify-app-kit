@@ -29,19 +29,13 @@ jobs:
       - name: Unit tests (node:test, zero dependencies)
         run: node --test "test/**/*.test.mjs"
 
-      - name: Install the Claude Code CLI (non-blocking)
-        id: cli
-        continue-on-error: true
+      - name: Install the Claude Code CLI
         run: |
-          if npm i -g @anthropic-ai/claude-code; then
-            echo "installed=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "::warning::Could not install @anthropic-ai/claude-code; skipping 'claude plugin validate . --strict'. Run it locally before merging."
-            echo "installed=false" >> "$GITHUB_OUTPUT"
-          fi
+          # One retry for a flaky registry; a second failure fails the job, so the validators below always run.
+          npm i -g @anthropic-ai/claude-code || { sleep 15; npm i -g @anthropic-ai/claude-code; }
+          claude --version
 
       - name: claude plugin validate . --strict
-        if: steps.cli.outputs.installed == 'true'
         run: |
           claude plugin validate . --strict
           claude plugin validate .claude-plugin/plugin.json --strict
