@@ -47,9 +47,9 @@ Checks the consumer repo you are in, never the kit itself. Report findings as a 
 
 7. **Check the scheduled workflows.** With `gh` on PATH the hook prints one `Schedule:` line per workflow under
    `.github/workflows/` carrying `schedule:`, with the age of its last successful run and a warning past twice
-   the cadence read from the cron (daily 2 days, weekly 14, monthly 60); "no successful run on record" and "gh
-   could not list workflow runs" are findings too. GitHub disables schedules in a repository idle for 60 days,
-   so a stale line means dispatch it and check it is enabled. Silent without `gh`.
+   the cadence read from the cron; "no successful run on record" and "gh could not list workflow runs" are
+   findings too. GitHub disables schedules in a repository idle for 60 days, so a stale line means dispatch it
+   and check it is enabled. Silent without `gh`.
 
 8. **Report.** One line per problem, each with the fix: repair the manifest key, run `/shopify-app-kit:sync`, add
    the settings snippet, install a companion, or dispatch a stale workflow. If everything is clean, say so in one line.

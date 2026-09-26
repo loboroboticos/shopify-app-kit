@@ -105,9 +105,8 @@ an `.env.example` that says which value is public, a docs map with the test that
 the ADR shape and the seed decisions a new app takes before Phase 1, a `.claudeignore` that keeps `graphify-out/`
 out of context, and the `.claude/` wiring (the marketplace pin, the remote-session bootstrap hook, a starter
 manifest with expiring offline tokens, App Pricing and RLS Postgres, four path-scoped rule seeds, the four
-vendored guards registered, a short CLAUDE.md). `templates/README.md` lists every file and the
-placeholders (`{{APP_NAME}}`, `{{DEFAULT_BRANCH}}`, `{{PROTECTED_BRANCH}}`, `{{PACKAGE_MANAGER}}`,
-`{{SERVER_DIR}}`, plus the gitleaks version and checksum). `test/templates.test.mjs` keeps the directory honest.
+vendored guards registered, a short CLAUDE.md). `templates/README.md` lists every file and every placeholder,
+plus the gitleaks version and checksum; `test/templates.test.mjs` keeps the directory honest.
 
 `/shopify-app-kit:new-app <app-name>` does the whole thing: the preconditions, `shopify app init` (or a clone
 when init would need the maintainer's account), the overlay through `skills/new-app/scripts/apply-overlay.mjs`,

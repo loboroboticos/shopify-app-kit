@@ -15,10 +15,9 @@ how many upstream persona files changed since that commit, and a maintainer port
    Compare the four headings (Mandate / How you work / What you produce / Boundaries) and the standing clause
    one section at a time; the CHANGELOG 0.5.0 port rules are the mapping.
 3. Port the substantive deltas (a new check, a sharpened mandate, a removed boundary) in the persona's own voice;
-   leave wording-only churn. Keep the frontmatter to the allowlist in `test/agents-parity.test.mjs`
-   (`name, description, model, effort, maxTurns, tools, disallowedTools, skills, memory, background, omitClaudeMd,
-   isolation`), `tools: Read, Grep, Glob, Bash`, `disallowedTools: Edit, Write, NotebookEdit`, and the findings
-   shape every persona reports on (`blocker | major | minor | note`, claim, evidence, fix).
+   leave wording-only churn. Keep the frontmatter to the allowlist and the `disallowedTools` that
+   `test/agents-parity.test.mjs` requires, `tools: Read, Grep, Glob, Bash`, and the findings shape every persona
+   reports on (the workflows' severity set, claim, evidence, fix).
 4. `node --test test/agents-parity.test.mjs` (headings, standing clause, "you report; the operator decides", no
    Engine machinery string), then the whole suite: `workflows/pre-pr-review.js`, `plan-review.js` and
    `release-readiness.js` launch these agents by name.
