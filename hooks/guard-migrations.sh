@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shopify-app-kit v0.16.4
+# shopify-app-kit v0.16.5
 # hooks/guard-migrations.sh: PreToolUse(Bash) guard that keeps destructive Prisma database commands out of an agent
 # session, driven by .claude/shopify-app.json (paths.prisma, deploy.scaleToZeroBeforeMigrate, database.*).
 #
@@ -25,14 +25,14 @@ KIT_HOOK_NAME=guard-migrations
 
 kit_read_input
 
-lower_input="$(printf '%s' "$input" | tr '[:upper:]' '[:lower:]')"
+lower_raw_cmd="$(kit_raw_command | tr '[:upper:]' '[:lower:]')"
 
 if ! kit_has_jq; then
-  case "$lower_input" in
+  case "$lower_raw_cmd" in
     *"migrate reset"* | *"--force-reset"* | *"--accept-data-loss"*)
       kit_require_jq "a destructive Prisma command cannot be checked against the manifest" ;;
     *"db execute"*)
-      case "$lower_input" in
+      case "$lower_raw_cmd" in
         *"drop database"* | *"drop schema"* | *truncate*) kit_require_jq "a destructive Prisma command cannot be checked against the manifest" ;;
       esac ;;
   esac

@@ -7,7 +7,8 @@
 2. Set `KIT_HOOK_NAME=guard-<thing>` and source `lib.sh` from `$(dirname "${BASH_SOURCE[0]}")`, so the same file
    works from the plugin and from a consumer's `.claude/hooks/kit/`.
 3. Exit 0 early for commands that cannot be relevant; resolve the manifest; fail closed (`block`) when it is missing,
-   when jq is missing, or when a path cannot be read literally. Read policies from the manifest, never hardcode.
+   when jq is missing (pre-filter on `kit_raw_command`, never on the whole payload: #38), or when a path cannot be
+   read literally. Read policies from the manifest, never hardcode.
 4. Use `kit_walk_commands "$cmd" callback` for anything that depends on the effective directory.
 5. Add cases to `test/hooks.test.mjs` (both fixtures, blocked and allowed, prose false positives) and document the
    manifest keys it reads in the README's manifest contract. New manifest keys go into the schema additively.
