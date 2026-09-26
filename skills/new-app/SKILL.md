@@ -49,7 +49,7 @@ skill never touches an account (step 6 prints the maintainer's checklist). Depth
    Print scaffold.md's checklist: remote and push; registration and `shopify app config link` (then the manifest's
    config and toml names); hosting app; database with the two roles (`DIRECT_DATABASE_URL` owner, `DATABASE_URL`
    runtime, per `tenancy`) and the first migration; secrets; gitleaks pin; branch protection; first `/shopify-app-kit:doctor`;
-   labels synced, the queue issue pinned, the app appended to the kit's `portfolio.json` and its routines created (by hand).
+   labels synced, the queue issue pinned, `kit.portfolioId` (opaque, never the business name) and `kit.routines` set, triggers created (by hand).
 7. **`--dry-run <dir>`.** Steps 2 to 5 into `<dir>` (a scratch directory), no `git init`, no commit; finish with
    the overlay's `--print-tree` output and its TODO list, so the shell can be read before a real run.
 

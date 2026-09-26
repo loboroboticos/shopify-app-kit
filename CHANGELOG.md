@@ -5,6 +5,31 @@ vendored hook carries it on line 2 (`# shopify-app-kit vX.Y.Z`). A version that 
 `### Deprecated`; the next minor deletes it and lists it under `### Removed` (`kit-dev`: "Remove a skill, agent,
 hook, workflow or routine").
 
+## 0.15.0
+
+Phase 2 opens (#30): the kit's first routine on itself, and the portfolio derived from the consumers instead
+of listed in a public file.
+
+- `routines/kit-tidy.md` (weekly, `37 5 * * 5`, in the kit repository only): runs the suite and the validate
+  commands, then reports what the tests cannot express as `kit-tidy:` issues (duplicated prose across files,
+  things nothing reads, the size trend from `test/budget.json` and the insert:delete ratio since the last tag,
+  docs that restate a test), opens one PR per run limited to the mechanical drift a mirror or parity test names,
+  and tabulates the discovered portfolio (id, `kit.version` against the latest tag, declared sections,
+  routines). Never a deletion, a lesson row, a hook body, a schema or a test assertion. `test/routines.test.mjs`
+  knows one kit-scoped routine (no manifest to read). (#28)
+- `portfolio.json` is gone: a public file that could hold only private facts (names, repositories) or opaque ids
+  was a second copy of what every manifest knows about itself. The schema gains `kit.portfolioId` (an opaque id,
+  pattern-checked so a name cannot pass) and `kit.routines`; a cross-repo routine lists the repositories under the
+  remote's owner it can read, fetches each manifest and keeps those carrying the id. `kit-health` step 4 discovers
+  instead of reading a file; `new-app`'s checklist sets the two keys; `routines/REGISTRY.md` carries the one
+  description ("Discovering the portfolio"); every manifest fixture that declares `kit.routines` names routines
+  that exist. (#26)
+
+### Budget
+
+`routines` raised from 610 to 700 for `kit-tidy.md`, the routine #28 decided and #30 sequenced: the first one
+that runs on the kit itself, so nothing already in `routines/` could give way for it.
+
 ## 0.14.0
 
 The lessons index is read-side (#24, Phase 1c of #30): a row lives only while something a session reads cites it.

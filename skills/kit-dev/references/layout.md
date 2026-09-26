@@ -15,6 +15,5 @@
 | `templates/` | the repo shell a new app starts from; every file listed in `templates/README.md` with its placeholders; `test/templates.test.mjs` |
 | `labels.json`, `scripts/sync-labels.mjs` | the label set (with the `ladder` array) and the script that applies it with `gh label create --force`; `test/labels.test.mjs` |
 | `routines/<name>.md`, `routines/REGISTRY.md` | the committed prompt texts of the scheduled Routines and the table with the trigger step; `test/routines.test.mjs` |
-| `portfolio.json` | the products the cross-repo routines span; one placeholder entry, appended by hand from `new-app`'s checklist |
 | `.github/workflows/release-tag.yml` | tags `v<version>` and publishes the release when a bump merges to `main` |
 | `test/` | `npm test` (`node --test "test/**/*.test.mjs"`), zero dependencies |

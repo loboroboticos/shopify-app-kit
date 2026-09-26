@@ -20,7 +20,7 @@ procedure, not an accident. `test/budget.json` caps every directory and file cla
 
 `hooks/` (lib.sh, the vendored guards, the doctor), `schemas/`, `skills/<name>/` (a SKILL.md of at most 60 lines,
 depth in `references/`, mechanics in `scripts/`), `agents/`, `workflows/`, `lessons/`, `templates/`, `routines/`,
-`labels.json` + `scripts/`, `portfolio.json`, `test/`. Each path's purpose and its test: `references/layout.md`.
+`labels.json` + `scripts/`, `test/`. Each path's purpose and its test: `references/layout.md`.
 
 ## Procedures
 

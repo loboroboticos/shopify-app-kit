@@ -2,7 +2,14 @@
   "$comment": "Example manifest for a public multi-tenant app: RLS Postgres, expiring offline tokens, App Pricing, a docs map and an ADR directory.",
   "kit": {
     "schemaVersion": 1,
-    "version": "0.1.0"
+    "version": "0.1.0",
+    "portfolioId": "example-p1",
+    "routines": [
+      "triage",
+      "pr-steward",
+      "kit-health",
+      "dependency-wave"
+    ]
   },
   "app": {
     "name": "Example Tenant App",

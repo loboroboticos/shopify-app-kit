@@ -35,6 +35,8 @@ describe('schema v1', () => {
     ['bad apiVersion', (m) => { m.apiVersion.expected = '2026-05'; }, /apiVersion\.expected: must match/],
     ['bad schemaVersion', (m) => { m.kit.schemaVersion = 2; }, /kit\.schemaVersion: must equal 1/],
     ['kit.version number', (m) => { m.kit.version = 1; }, /kit\.version: expected type string\|null/],
+    ['kit.portfolioId with a space (a name, not an id)', (m) => { m.kit.portfolioId = 'Example App'; }, /kit\.portfolioId: must match/],
+    ['kit.routines not an array', (m) => { m.kit.routines = 'triage'; }, /kit\.routines: expected type array/],
     ['unknown top-level key', (m) => { m.extra = {}; }, /\$: unexpected property extra/],
     ['bad package manager', (m) => { m.packageManagers.web = 'yarn'; }, /packageManagers\.web: must be one of npm \| pnpm/],
     ['promotion missing to', (m) => { m.branches.promotion = { from: 'beta' }; }, /branches\.promotion: missing required to/],
