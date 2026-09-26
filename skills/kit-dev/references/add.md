@@ -27,8 +27,8 @@ invoke. Reference consumer files as `${CLAUDE_PROJECT_DIR}/...` and kit files as
 Every SKILL.md stays at or under 60 lines (the parity test enforces it); numbered steps that read the manifest first,
 with the depth in `skills/<name>/references/<topic>.md`: plain markdown, no frontmatter, one `#`
 title, `##` sections whose headings become the anchors `lessons/INDEX.md` points at, and a final
-`Sources: app-1 (...); app-2 (...).` line. Every reference file must be linked from its SKILL.md and be the home of
-at least one lesson; the parity and lessons tests enforce both.
+`Sources: app-1 (...); app-2 (...).` line. Every reference file must be linked from its SKILL.md (the parity test enforces it); a lesson row is added only
+when something a session reads cites it by id.
 
 A skill that must do the same thing every time (copy, substitute, validate) puts the mechanics in
 `skills/<name>/scripts/` as `.mjs` (node: builtins only) or `.sh` files, each starting with a comment that names
@@ -45,8 +45,11 @@ Lessons are facts a session needs more than once, written generically and cited 
    in the present tense with the mechanism and the failure it prevents. Update the file's `Sources:` line.
 2. Add one row to `lessons/INDEX.md`: `id | rule | class | home#anchor | source`, using the file's id prefix and
    the next number; class is `rule`, `recipe`, `lens` or `adr-seed`.
-3. `node --test test/lessons-index.test.mjs`, then bump the version (`lessons/` is plugin-visible).
-4. To retire a lesson, move its row to the `## History` section with the date and the reason; never delete it.
+3. Cite the id from the artifact that needs it (the skill step, agent section, template rule seed, workflow or
+   routine prompt that would otherwise restate the rule); `test/lessons-index.test.mjs` fails on an uncited row.
+4. `node --test test/lessons-index.test.mjs`, then bump the version (`lessons/` is plugin-visible).
+5. To retire a lesson, or when nothing cites it any more, move its row to `## History` under a dated subsection
+   with a `reason` column; never delete it.
 
 ## Add an agent or workflow
 

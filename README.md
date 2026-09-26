@@ -314,10 +314,10 @@ plan should record as ADRs (findings tagged `adr: true`) are listed separately.
 `lessons/INDEX.md` is a table with one row per lesson the consumer apps taught the kit: an id, a one-line rule,
 its class (`rule`, `recipe`, `lens` or `adr-seed`), its home (the section of a skill reference file or review
 agent that owns the text) and its source (`app-1`, `app-2`, `app-3`, the neutral labels defined in
-`lessons/README.md`). The index never carries the text; the home does. A consumer seeds its `.claude/rules/*.md`
-from the `rule` rows and points back; `recipe` rows run through the owning skill; `lens` rows are already in the
-review agents; `adr-seed` rows are decisions a new app writes one ADR each for. `lessons/README.md` has the
-extraction discipline and how to add a lesson; `test/lessons-index.test.mjs` keeps the index honest.
+`lessons/README.md`). The index never carries the text; the home does. A row stays in the live table only while
+something a session reads cites its id (a skill step, an agent, a template rule seed, a workflow, a routine
+prompt); rows nothing cites sit in the index's History section with the reason, and a new lesson enters with
+its citation. `lessons/README.md` has the extraction discipline; `test/lessons-index.test.mjs` keeps it honest.
 
 ## The operating layer
 

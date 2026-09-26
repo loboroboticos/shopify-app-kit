@@ -5,7 +5,7 @@ paths:
   - "shopify.app.*.toml"
 ---
 
-<!-- .claude/rules/billing.md (shopify-app-kit template). Seeds from the kit's bill-* and dist-* lessons;
+<!-- .claude/rules/billing.md (shopify-app-kit template). Seeds from the kit's `release/references/billing-live-posture.md` and `admin-api/references/distribution-is-one-way.md`;
      reads billing.method, billing.live and billing.testFlag from .claude/shopify-app.json. -->
 
 # Billing

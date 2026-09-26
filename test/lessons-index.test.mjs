@@ -1,6 +1,7 @@
-// lessons/INDEX.md is a catalogue, never a second owner: every row's home must be a real file with a matching
-// heading anchor, classes and sources come from lessons/README.md's closed sets, ids are unique, and every
-// skill reference file is the home of at least one row (a reference nobody indexed is a lesson nobody finds).
+// lessons/INDEX.md is a catalogue, never a second owner: every live row's home must be a real file with a matching
+// heading anchor, classes and sources come from lessons/README.md's closed sets, ids are unique, and every live
+// row is cited by id from something a session reads (a SKILL.md, an agent, a template rule seed, a workflow, a
+// routine prompt): a row nothing pulls on is a catalogue entry nobody finds, and belongs in the History section.
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -24,15 +25,42 @@ function headings(file) {
   return new Set(text.split(/\r?\n/).filter((l) => /^#{1,6} /.test(l)).map((l) => anchor(l.replace(/^#+ /, ''))));
 }
 
-function rows() {
-  const lines = fs.readFileSync(indexPath, 'utf8').split(/\r?\n/);
+// Live rows have five cells and sit above ## History; History rows carry a sixth cell, the reason.
+function parse() {
+  const text = fs.readFileSync(indexPath, 'utf8');
+  const at = text.indexOf('\n## History');
+  const table = (chunk, width) => {
+    const out = [];
+    for (const line of chunk.split(/\r?\n/)) {
+      if (!line.startsWith('|')) continue;
+      const cells = line.split('|').slice(1, -1).map((c) => c.trim());
+      if (cells.length !== width || cells[0] === 'id' || /^-+$/.test(cells[0])) continue;
+      const [id, rule, cls, home, source, reason] = cells;
+      out.push({ id, rule, cls, home, source, reason });
+    }
+    return out;
+  };
+  return { live: table(at < 0 ? text : text.slice(0, at), 5), history: at < 0 ? [] : table(text.slice(at), 6) };
+}
+const rows = () => parse().live;
+
+// Where a citation counts: what a session reads. References are homes, not citers; README and CHANGELOG are prose.
+const CITING = ['skills/*/SKILL.md', 'agents/*.md', 'templates/.claude/rules/*.md', 'workflows/*.js', 'routines/*.md'];
+function citingTexts() {
   const out = [];
-  for (const line of lines) {
-    if (!line.startsWith('|')) continue;
-    const cells = line.split('|').slice(1, -1).map((c) => c.trim());
-    if (cells.length !== 5 || cells[0] === 'id' || /^-+$/.test(cells[0])) continue;
-    const [id, rule, cls, home, source] = cells;
-    out.push({ id, rule, cls, home, source });
+  for (const pattern of CITING) {
+    const [dir, ...rest] = pattern.split('/*');
+    const walk = (d, parts) => {
+      if (!fs.existsSync(d)) return;
+      for (const e of fs.readdirSync(d)) {
+        const p = path.join(d, e);
+        if (parts.length === 0) { if (fs.statSync(p).isFile()) out.push({ file: path.relative(kitRoot, p), text: fs.readFileSync(p, 'utf8') }); continue; }
+        const [head, ...tail] = parts;
+        if (fs.statSync(p).isDirectory()) { if (tail.length) walk(p, tail); else if (fs.existsSync(path.join(p, head))) out.push({ file: path.relative(kitRoot, path.join(p, head)), text: fs.readFileSync(path.join(p, head), 'utf8') }); }
+        else if (parts.length === 1 && e.endsWith(head)) out.push({ file: path.relative(kitRoot, p), text: fs.readFileSync(p, 'utf8') });
+      }
+    };
+    walk(path.join(kitRoot, dir), rest.map((r) => r.replace(/^\//, '')));
   }
   return out;
 }
@@ -44,7 +72,7 @@ describe('lessons index', () => {
   });
 
   const all = rows();
-  test('the table has a sensible number of rows', () => assert.ok(all.length >= 35 && all.length <= 200, `${all.length} rows`));
+  test('the live table is bounded', () => assert.ok(all.length <= 200, `${all.length} rows`));
 
   test('ids are unique and prefixed', () => {
     const seen = new Set();
@@ -74,20 +102,26 @@ describe('lessons index', () => {
     });
   }
 
-  test('every skill reference file is the home of at least one lesson', () => {
-    const homes = new Set(all.map((r) => r.home.split('#')[0]));
-    const skillsDir = path.join(kitRoot, 'skills');
-    const missing = [];
-    // kit-dev's references are maintainer procedures, not lessons (test/skills-parity.test.mjs exempts them too).
-    for (const skill of fs.readdirSync(skillsDir).filter((s) => s !== 'kit-dev')) {
-      const refs = path.join(skillsDir, skill, 'references');
-      if (!fs.existsSync(refs)) continue;
-      for (const f of fs.readdirSync(refs)) {
-        const rel = `skills/${skill}/references/${f}`;
-        if (!homes.has(rel)) missing.push(rel);
-      }
+  test('every live row is cited by id from something a session reads', () => {
+    const texts = citingTexts();
+    assert.ok(texts.length > 0, 'citing artifacts exist');
+    const uncited = [];
+    for (const r of all) {
+      const re = new RegExp(`(?<![A-Za-z0-9-])${r.id}(?![A-Za-z0-9-])`);
+      if (!texts.some((t) => re.test(t.text))) uncited.push(r.id);
     }
-    assert.deepEqual(missing, [], `add a row to lessons/INDEX.md for each of:\n${missing.join('\n')}`);
+    assert.deepEqual(uncited, [], `move each of these to ## History with the reason "uncited", or cite it by id from a SKILL.md, agent, rule seed, workflow or routine:\n${uncited.join('\n')}`);
+  });
+
+  test('history rows are dated, carry a reason, and are never also live', () => {
+    const { history } = parse();
+    const live = new Set(all.map((r) => r.id));
+    const text = fs.readFileSync(indexPath, 'utf8');
+    for (const h of history) {
+      assert.ok(h.reason && h.reason.length > 0, `${h.id}: history row has a reason`);
+      assert.ok(!live.has(h.id), `${h.id} is both live and in History`);
+    }
+    if (history.length) assert.match(text.slice(text.indexOf('\n## History')), /^### \d{4}-\d{2}-\d{2} /m, 'History rows sit under a dated subsection');
   });
 
   test('the history section exists', () => {

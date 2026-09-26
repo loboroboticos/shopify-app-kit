@@ -5,7 +5,7 @@ paths:
   - "**/*.server.ts"
 ---
 
-<!-- .claude/rules/prisma.md (shopify-app-kit template). Seeds from the kit's mig-* and ten-* lessons; reads
+<!-- .claude/rules/prisma.md (shopify-app-kit template). Seeds from the kit's `release/references/migrations-and-zero-downtime.md` and `tenancy/references/`; reads
      database.provider, database.rls and paths.prisma from .claude/shopify-app.json. -->
 
 # Prisma and the database
