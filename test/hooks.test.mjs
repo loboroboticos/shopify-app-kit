@@ -29,6 +29,14 @@ function runHook(hook, { manifest, command, cwd = consumer, event = 'PreToolUse'
   return { status: res.status, stdout: res.stdout ?? '', stderr: res.stderr ?? '' };
 }
 
+// checkout(fixture, ...dirs): a throwaway consumer root with the fixture as its manifest and the given subdirectories.
+function checkout(fixture, ...dirs) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'shopify-app-kit-'));
+  for (const d of ['.claude', ...dirs]) fs.mkdirSync(path.join(dir, d), { recursive: true });
+  fs.copyFileSync(fixture, path.join(dir, '.claude', 'shopify-app.json'));
+  return dir;
+}
+
 const npmRoot = path.join(fixtures, 'npm-root-app.json');
 const pnpmRoot = path.join(fixtures, 'pnpm-root-app.json');
 
@@ -45,32 +53,23 @@ const which = (bin) => process.env.PATH.split(path.delimiter).map((d) => path.jo
 
 // Without jq every guard fails closed on its guarded verbs and stays silent on everything else; no branch,
 // directory or workflow literal decides it (the manifest is unreadable, so the names are unknown).
+// { hook, reason (on stderr when blocked), blocked: commands, allowed: commands, cwd? (when the checkout path itself would match) }
+const noJqCases = [
+  // The no-jq pre-filter matches the raw hook JSON, cwd included (#38), so this guard runs from a plain path.
+  { hook: 'guard-shopify-cli.sh', reason: /jq is not installed, so a shopify\/deploy command cannot be inspected/, blocked: ['shopify app deploy --config example'], allowed: ['git status'], cwd: fs.mkdtempSync(path.join(os.tmpdir(), 'plain-')) },
+  { hook: 'guard-protected-branch.sh', reason: /jq is not installed, so a push, merge, base change, API write or workflow run cannot be checked/, blocked: ['git push origin feature/x', 'git push origin main', 'gh pr merge 12', 'gh workflow run other.yml'], allowed: ['git status && git log --oneline'] },
+  { hook: 'guard-package-manager.sh', reason: /jq is not installed, so a pnpm command cannot be checked/, blocked: ['pnpm install', 'cd web && pnpm install'], allowed: ['npm test'] },
+  { hook: 'guard-migrations.sh', reason: /jq is not installed, so a destructive Prisma command cannot be checked/, blocked: ['npx prisma migrate reset', 'npx prisma db push --accept-data-loss', 'npx prisma db execute --stdin <<SQL\nTRUNCATE session;\nSQL'], allowed: ['npx prisma migrate dev', 'npx prisma db execute --stdin <<SQL\nDROP TABLE scratch;\nSQL', 'npx prisma migrate deploy'] },
+];
+
 describe('without jq', () => {
-  const run = (hook, command) => runHook(hook, { manifest: npmRoot, command, extraEnv: { PATH: noJqPath() } });
-  test('guard-shopify-cli blocks a shopify command and ignores the rest', () => {
-    const r = run('guard-shopify-cli.sh', 'shopify app deploy --config example');
-    assert.equal(r.status, 2, r.stderr);
-    assert.match(r.stderr, /jq is not installed, so a shopify\/deploy command cannot be inspected/);
-    // The no-jq pre-filter matches the raw hook JSON, cwd included, so the allow case runs from a plain path.
-    const plain = fs.mkdtempSync(path.join(os.tmpdir(), 'plain-'));
-    assert.equal(runHook('guard-shopify-cli.sh', { manifest: npmRoot, command: 'git status', cwd: plain, extraEnv: { PATH: noJqPath() } }).status, 0);
-  });
-  test('guard-protected-branch blocks every guarded verb, whatever branch it names', () => {
-    for (const c of ['git push origin feature/x', 'git push origin main', 'gh pr merge 12', 'gh workflow run other.yml']) {
-      const r = run('guard-protected-branch.sh', c);
-      assert.equal(r.status, 2, `${c}: ${r.stderr}`);
-      assert.match(r.stderr, /jq is not installed, so a push, merge, base change, API write or workflow run cannot be checked/);
-    }
-    assert.equal(run('guard-protected-branch.sh', 'git status && git log --oneline').status, 0);
-  });
-  test('guard-package-manager blocks pnpm in every directory', () => {
-    for (const c of ['pnpm install', 'cd web && pnpm install']) {
-      const r = run('guard-package-manager.sh', c);
-      assert.equal(r.status, 2, `${c}: ${r.stderr}`);
-      assert.match(r.stderr, /jq is not installed, so a pnpm command cannot be checked/);
-    }
-    assert.equal(run('guard-package-manager.sh', 'npm test').status, 0);
-  });
+  for (const c of noJqCases) {
+    test(`${c.hook} fails closed on its guarded verbs and stays silent on the rest`, () => {
+      const run = (command) => runHook(c.hook, { manifest: npmRoot, command, cwd: c.cwd, extraEnv: { PATH: noJqPath() } });
+      for (const cmd of c.blocked) { const r = run(cmd); assert.equal(r.status, 2, `${cmd}: ${r.stderr}`); assert.match(r.stderr, c.reason, cmd); }
+      for (const cmd of c.allowed) { const r = run(cmd); assert.equal(r.status, 0, `${cmd}: ${r.stderr}`); assert.equal(r.stderr, '', cmd); }
+    });
+  }
 });
 
 // { fixture, cmd, cwd?, exit, stderr? (regex the stderr must match when blocked) }
@@ -126,39 +125,20 @@ const cases = [
 ];
 
 describe('guard-shopify-cli.sh', () => {
-  for (const c of cases) {
-    const label = `${path.basename(c.fixture, '.json')} :: ${JSON.stringify(c.cmd)} -> ${c.exit}`;
-    test(label, () => {
-      const r = runHook('guard-shopify-cli.sh', { manifest: c.fixture, command: c.cmd, cwd: c.cwd });
-      assert.equal(r.status, c.exit, `exit code; stderr: ${r.stderr}`);
-      if (c.exit === 2) {
-        assert.match(r.stderr, /^Blocked by shopify-app-kit\/guard-shopify-cli: /, 'block prefix');
-        assert.match(r.stderr, new RegExp(`Cases: shopify-app-kit test/hooks\\.test\\.mjs \\(v${KIT_VERSION.replace(/\./g, '\\.')}\\)\\.`), 'cases line');
-        if (c.stderr) assert.match(r.stderr, c.stderr, 'reason');
-      } else {
-        assert.equal(r.stderr, '', 'no stderr when allowed');
-      }
-    });
-  }
+  guardCases('guard-shopify-cli.sh', cases);
 
   test('manifest resolves via CLAUDE_PROJECT_DIR when SHOPIFY_APP_KIT_MANIFEST is unset', () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'shopify-app-kit-proj-'));
-    fs.mkdirSync(path.join(dir, '.claude'), { recursive: true });
-    fs.copyFileSync(npmRoot, path.join(dir, '.claude', 'shopify-app.json'));
+    const dir = checkout(npmRoot, 'tmp-theme');
     const r = runHook('guard-shopify-cli.sh', { manifest: undefined, command: 'shopify app deploy', cwd: dir, extraEnv: { CLAUDE_PROJECT_DIR: dir } });
     assert.equal(r.status, 2, r.stderr);
     assert.match(r.stderr, /app deploy without --config/);
     // theme dev from that root is blocked, from a subdirectory it is allowed
-    fs.mkdirSync(path.join(dir, 'tmp-theme'), { recursive: true });
     assert.equal(runHook('guard-shopify-cli.sh', { manifest: undefined, command: 'shopify theme dev', cwd: dir, extraEnv: { CLAUDE_PROJECT_DIR: dir } }).status, 2);
     assert.equal(runHook('guard-shopify-cli.sh', { manifest: undefined, command: 'shopify theme dev', cwd: path.join(dir, 'tmp-theme'), extraEnv: { CLAUDE_PROJECT_DIR: dir } }).status, 0);
   });
 
   test('manifest resolves by walking up from cwd when no env is set', () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'shopify-app-kit-walk-'));
-    fs.mkdirSync(path.join(dir, '.claude'), { recursive: true });
-    fs.mkdirSync(path.join(dir, 'web', 'app'), { recursive: true });
-    fs.copyFileSync(pnpmRoot, path.join(dir, '.claude', 'shopify-app.json'));
+    const dir = checkout(pnpmRoot, 'web/app');
     const env = { ...process.env };
     delete env.SHOPIFY_APP_KIT_MANIFEST; delete env.CLAUDE_PROJECT_DIR; delete env.SHOPIFY_APP_KIT_ROOT;
     const payload = JSON.stringify({ tool_name: 'Bash', tool_input: { command: 'npx shopify app deploy' }, cwd: path.join(dir, 'web', 'app') });
@@ -209,15 +189,23 @@ function runGuard(hook, c) {
   return runHook(hook, { manifest: c.fixture, command: c.cmd, cwd: c.cwd, extraEnv });
 }
 
-function assertCase(hook, name, c) {
-  const r = runGuard(hook, c);
-  assert.equal(r.status, c.exit, `exit code; stderr: ${r.stderr}`);
-  if (c.exit === 2) {
-    assert.match(r.stderr, new RegExp(`^Blocked by shopify-app-kit\\/${name}: `), 'block prefix');
-    assert.match(r.stderr, new RegExp(`Cases: shopify-app-kit test/hooks\\.test\\.mjs \\(v${KIT_VERSION.replace(/\./g, '\\.')}\\)\\.`), 'cases line');
-    if (c.stderr) assert.match(r.stderr, c.stderr, 'reason');
-  } else {
-    assert.equal(r.stderr, '', 'no stderr when allowed');
+// guardCases(hook, cases): one test per case (hoisted, so a guard's block may sit above this). A blocked case
+// carries the block prefix, the Cases line and its reason on stderr; an allowed case writes nothing there.
+// stdout matches c.stdout when the case expects a line (the migrations reminder) and is empty otherwise.
+function guardCases(hook, cases) {
+  const name = path.basename(hook, '.sh');
+  for (const c of cases) {
+    const where = `${c.cwd ? ` @${path.relative(consumer, c.cwd) || '.'}` : ''}${c.base !== undefined ? ` [base=${c.base || '<none>'}]` : ''}`;
+    test(`${path.basename(c.fixture, '.json')} :: ${JSON.stringify(c.cmd)}${where} -> ${c.exit}${c.stdout ? ' +reminder' : ''}`, () => {
+      const r = runGuard(hook, c);
+      assert.equal(r.status, c.exit, `exit code; stderr: ${r.stderr}`);
+      if (c.exit === 2) {
+        assert.match(r.stderr, new RegExp(`^Blocked by shopify-app-kit\\/${name}: `), 'block prefix');
+        assert.match(r.stderr, new RegExp(`Cases: shopify-app-kit test/hooks\\.test\\.mjs \\(v${KIT_VERSION.replace(/\./g, '\\.')}\\)\\.`), 'cases line');
+        if (c.stderr) assert.match(r.stderr, c.stderr, 'reason');
+      } else assert.equal(r.stderr, '', 'no stderr when allowed');
+      if (c.stdout) assert.match(r.stdout, c.stdout, 'the reminder line on stdout'); else assert.equal(r.stdout, '', 'nothing on stdout');
+    });
   }
 }
 
@@ -294,10 +282,7 @@ const protectedCases = [
 ];
 
 describe('guard-protected-branch.sh', () => {
-  for (const c of protectedCases) {
-    const label = `${path.basename(c.fixture, '.json')} :: ${JSON.stringify(c.cmd)}${c.base !== undefined ? ` [base=${c.base || '<none>'}]` : ''} -> ${c.exit}`;
-    test(label, () => assertCase('guard-protected-branch.sh', 'guard-protected-branch', c));
-  }
+  guardCases('guard-protected-branch.sh', protectedCases);
 
   test('the throwaway checkouts really are on main and beta', () => {
     assert.equal(spawnSync('git', ['-C', onMain, 'symbolic-ref', '--short', 'HEAD'], { encoding: 'utf8' }).stdout.trim(), 'main');
@@ -369,12 +354,7 @@ const pmCases = [
   { fixture: pnpmRoot, cmd: 'npm install', cwd: path.join(consumer, 'web'), exit: 0 },
 ];
 
-describe('guard-package-manager.sh', () => {
-  for (const c of pmCases) {
-    const label = `${path.basename(c.fixture, '.json')} :: ${JSON.stringify(c.cmd)}${c.cwd ? ` @${path.relative(consumer, c.cwd) || '.'}` : ''} -> ${c.exit}`;
-    test(label, () => assertCase('guard-package-manager.sh', 'guard-package-manager', c));
-  }
-});
+describe('guard-package-manager.sh', () => guardCases('guard-package-manager.sh', pmCases));
 
 // ---------------------------------------------------------------------------------------------- guard-migrations
 // npm-root: scaleToZeroBeforeMigrate true, prisma-postgres shared with beta; pnpm-root: false, sqlite.
@@ -450,31 +430,7 @@ const migrationCases = [
   { fixture: MISSING, cmd: 'ls', exit: 0 },
 ];
 
-describe('guard-migrations.sh', () => {
-  for (const c of migrationCases) {
-    const label = `${path.basename(c.fixture, '.json')} :: ${JSON.stringify(c.cmd)} -> ${c.exit}${c.stdout ? ' +reminder' : ''}`;
-    test(label, () => {
-      const r = runGuard('guard-migrations.sh', c);
-      assertCase('guard-migrations.sh', 'guard-migrations', c);
-      if (c.stdout) assert.match(r.stdout, c.stdout, 'the reminder line on stdout');
-      else assert.equal(r.stdout, '', 'nothing on stdout');
-    });
-  }
-
-  test('fails closed without jq for the guarded forms only', () => {
-    const run = (command) => runHook('guard-migrations.sh', { manifest: npmRoot, command, extraEnv: { PATH: noJqPath() } });
-    const blocked = run('npx prisma migrate reset');
-    assert.equal(blocked.status, 2, blocked.stderr);
-    assert.match(blocked.stderr, /jq is not installed, so a destructive Prisma command cannot be checked/);
-    assert.equal(run('npx prisma db push --accept-data-loss').status, 2);
-    assert.equal(run('npx prisma db execute --stdin <<SQL\nTRUNCATE session;\nSQL').status, 2);
-    const allowed = run('npx prisma migrate dev');
-    assert.equal(allowed.status, 0, allowed.stderr);
-    assert.equal(allowed.stderr, '');
-    assert.equal(run('npx prisma db execute --stdin <<SQL\nDROP TABLE scratch;\nSQL').status, 0);
-    assert.equal(run('npx prisma migrate deploy').status, 0);
-  });
-});
+describe('guard-migrations.sh', () => guardCases('guard-migrations.sh', migrationCases));
 
 // ---------------------------------------------------------------------------------------------- doctor
 // A fake claude on PATH answers `claude plugin list` with $FAKE_CLAUDE_PLUGINS (same idiom as the fake gh), and HOME
@@ -600,9 +556,7 @@ describe('doctor.sh', () => {
   });
 
   test('reports vendored hook drift against kit.version', () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'shopify-app-kit-drift-'));
-    fs.mkdirSync(path.join(dir, '.claude', 'hooks', 'kit'), { recursive: true });
-    fs.copyFileSync(npmRoot, path.join(dir, '.claude', 'shopify-app.json'));
+    const dir = checkout(npmRoot, '.claude/hooks/kit');
     fs.writeFileSync(path.join(dir, '.claude', 'hooks', 'kit', 'guard-shopify-cli.sh'), '#!/usr/bin/env bash\n# shopify-app-kit v0.0.9\nexit 0\n');
     fs.writeFileSync(path.join(dir, '.claude', 'settings.json'), '{}');
     const r = runDoctor({ manifest: undefined, cwd: dir, extraEnv: { CLAUDE_PROJECT_DIR: dir } });
@@ -612,9 +566,7 @@ describe('doctor.sh', () => {
   });
 
   test('reports a vendored guard the kit no longer ships, and one the plugin marks deprecated', () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'shopify-app-kit-stale-'));
-    fs.mkdirSync(path.join(dir, '.claude', 'hooks', 'kit'), { recursive: true });
-    fs.copyFileSync(npmRoot, path.join(dir, '.claude', 'shopify-app.json'));
+    const dir = checkout(npmRoot, '.claude/hooks/kit');
     for (const g of ['guard-shopify-cli.sh', 'guard-old-thing.sh']) fs.writeFileSync(path.join(dir, '.claude', 'hooks', 'kit', g), `#!/usr/bin/env bash\n# shopify-app-kit v${KIT_VERSION}\nexit 0\n`);
     // A stale copy: the kit ships no guard-old-thing.sh.
     let r = runDoctor({ manifest: undefined, cwd: dir, extraEnv: { CLAUDE_PROJECT_DIR: dir } });
@@ -704,9 +656,7 @@ describe('doctor.sh', () => {
       fs.mkdirSync(path.join(cfg, 'skills', 'graphify'), { recursive: true });
       fs.writeFileSync(path.join(cfg, 'skills', 'graphify', 'SKILL.md'), '');
       assert.doesNotMatch(runDoctor({ manifest: npmRoot, graphify: false, extraEnv: { CLAUDE_CONFIG_DIR: cfg } }).stdout, /graphify/);
-      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'shopify-app-kit-projskill-'));
-      fs.mkdirSync(path.join(dir, '.claude', 'skills', 'graphify'), { recursive: true });
-      fs.copyFileSync(npmRoot, path.join(dir, '.claude', 'shopify-app.json'));
+      const dir = checkout(npmRoot, '.claude/skills/graphify');
       fs.writeFileSync(path.join(dir, '.claude', 'skills', 'graphify', 'SKILL.md'), '');
       assert.doesNotMatch(runDoctor({ manifest: undefined, graphify: false, cwd: dir, extraEnv: { CLAUDE_PROJECT_DIR: dir } }).stdout, /graphify/);
     });
@@ -721,10 +671,7 @@ describe('doctor.sh', () => {
   describe('scheduled workflows', () => {
     const iso = (daysAgo) => new Date(Date.now() - daysAgo * 86400e3).toISOString().replace(/\.\d{3}Z$/, 'Z');
     function scheduledRepo() {
-      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'shopify-app-kit-sched-'));
-      fs.mkdirSync(path.join(dir, '.claude'), { recursive: true });
-      fs.mkdirSync(path.join(dir, '.github', 'workflows'), { recursive: true });
-      fs.copyFileSync(npmRoot, path.join(dir, '.claude', 'shopify-app.json'));
+      const dir = checkout(npmRoot, '.github/workflows');
       fs.writeFileSync(path.join(dir, '.github', 'workflows', 'audit.yml'), "name: audit\non:\n  schedule:\n    # weekly\n    - cron: '41 6 * * 1'\n  workflow_dispatch:\n");
       fs.writeFileSync(path.join(dir, '.github', 'workflows', 'nightly.yml'), 'name: nightly\non:\n  schedule:\n    - cron: "17 3 * * *"\n');
       fs.writeFileSync(path.join(dir, '.github', 'workflows', 'monthly.yaml'), 'on:\n  schedule:\n    - cron: 23 6 3 * *\n');

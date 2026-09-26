@@ -5,6 +5,23 @@ vendored hook carries it on line 2 (`# shopify-app-kit vX.Y.Z`). A version that 
 `### Deprecated`; the next minor deletes it and lists it under `### Removed` (`kit-dev`: "Remove a skill, agent,
 hook, workflow or routine").
 
+## 0.16.2
+
+The weekly deep review can run (#61), and the hooks tests make room for what the queue adds next (#46).
+
+- `skills/review/SKILL.md` no longer sets `disable-model-invocation: true`. `routines/nuclear-review.md` step 2
+  runs the skill from a scheduled session, whose Skill tool refuses a user-only skill, so every scheduled run
+  stopped there and the routine had never produced a review. The trade-off is that a session may now start the
+  deep review on its own when a request matches the skill's description (a harsh, thorough or full review of a
+  branch or PR). `test/routines.test.mjs` fails when a skill a routine's Tools field names is user-only, so a
+  routine cannot depend on one again; kit-health's `doctor` passes, and the `sync` its prompt names only as text
+  to write into an issue is not in its Tools field. Consumers pick this up with the plugin version; their
+  trigger prompts need no edit. (#61)
+- `test/hooks.test.mjs`: one `guardCases` runner for the four guards (the shopify-cli block had its own copy of
+  the assertions, and every migrations case ran the guard twice), the four no-jq tests as one table, and a
+  `checkout` helper for the six tests that built a consumer root by hand. 53 lines out, the same 239 cases;
+  `test/` is back to 57 lines under its ceiling, which stays at 3420. (#46)
+
 ## 0.16.1
 
 Docs held to their sources (#57, the first `kit-tidy` step-5 family): every sentence that restated a test

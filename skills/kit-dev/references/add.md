@@ -21,7 +21,8 @@
 
 Create `skills/<name>/SKILL.md` with frontmatter `name` (= directory), `description` (≤ 1024 chars, includes
 "Use when"), optional `allowed-tools`, and `disable-model-invocation: true` for skills that only a person should
-invoke. Reference consumer files as `${CLAUDE_PROJECT_DIR}/...` and kit files as `${CLAUDE_PLUGIN_ROOT}/...`.
+invoke, never one a routine's Tools field names (`test/routines.test.mjs` fails on it). Reference consumer files
+as `${CLAUDE_PROJECT_DIR}/...` and kit files as `${CLAUDE_PLUGIN_ROOT}/...`.
 `test/skills-parity.test.mjs` checks the frontmatter.
 
 Every SKILL.md stays at or under 60 lines (the parity test enforces it); numbered steps that read the manifest first,

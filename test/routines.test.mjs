@@ -2,12 +2,14 @@
 // fields (Cadence, Environment, Tools, May touch, Never), a `## Prompt` section written for a fresh session,
 // a row in routines/REGISTRY.md, no repository literal (the prompt derives the repo from the git remote), and
 // the phrase "never closes a `human:*` issue" (or the registry's shared preamble carries it). A consumer routine
-// that files issues names the work-item template's "Close condition needs" block. Zero dependencies.
+// that files issues names the work-item template's "Close condition needs" block; a skill a routine's Tools field
+// names is one the model may invoke. Zero dependencies.
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { kitRoot } from './lib/fs.mjs';
+import { frontmatter } from './lib/frontmatter.mjs';
 
 const dir = path.join(kitRoot, 'routines');
 const registry = fs.readFileSync(path.join(dir, 'REGISTRY.md'), 'utf8');
@@ -116,6 +118,23 @@ describe('routines/', () => {
       const m = JSON.parse(fs.readFileSync(p, 'utf8'));
       for (const r of m.kit?.routines ?? []) assert.ok(files.includes(`${r}.md`), `${path.relative(kitRoot, p)}: routine ${r} does not exist`);
     }
+  });
+
+  test('every skill a routine runs can be invoked by the model (a trigger prompt is not a person)', () => {
+    // The header's Tools field declares what a routine runs; a skill the prompt only names as text to write into
+    // an issue (kit-health's `sync`) stays out of it. A user-only skill makes the scheduled session's Skill tool
+    // refuse the call and the routine stops there (#61).
+    const skills = fs.readdirSync(path.join(kitRoot, 'skills'));
+    const ran = new Set();
+    for (const f of files) {
+      const tools = read(f).match(/^- \*\*Tools:\*\*([\s\S]*?)(?=\n- \*\*|\n\n)/m)?.[1] ?? '';
+      for (const s of [...tools.matchAll(/`([a-z-]+)`/g)].map((m) => m[1]).filter((t) => skills.includes(t))) {
+        ran.add(s);
+        const fm = frontmatter(fs.readFileSync(path.join(kitRoot, 'skills', s, 'SKILL.md'), 'utf8'));
+        assert.notEqual(fm['disable-model-invocation'], 'true', `${f} runs the ${s} skill, which sets disable-model-invocation: true; drop the flag or run a workflow instead`);
+      }
+    }
+    assert.ok(ran.has('review') && ran.has('doctor'), `the Tools fields name review and doctor (found: ${[...ran].join(', ') || 'none'})`);
   });
 
 });
