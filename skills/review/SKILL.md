@@ -1,7 +1,6 @@
 ---
 name: review
 description: Deep pre-merge review of a Shopify app branch. Runs the kit's correctness/security and code-quality review agents in parallel, each checking the diff against this repo's .claude/shopify-app.json, then synthesizes one verdict. Use when a branch or PR needs a harsh, thorough audit before merge or promotion, or when asked for a deep, thermonuclear or full review.
-disable-model-invocation: true
 allowed-tools: Read, Grep, Glob, Agent, Bash(git *), Bash(jq *), Bash(gh pr *)
 argument-hint: "[base-branch | PR number]"
 ---
