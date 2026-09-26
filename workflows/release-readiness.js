@@ -372,7 +372,7 @@ const checklist = [
   ran('billing')
     ? `${box('billing')} Billing live: no plan or price change in this release / change reviewed`
     : `- [x] Billing live: no (billing.live ${scope.billingLive})`,
-  '- [ ] app dev clean run on the dev registration',
+  '- [ ] No app dev session left on the dev registration (if one ran since the last clean, run app dev clean)',
 ].join('\n')
 
 return {
