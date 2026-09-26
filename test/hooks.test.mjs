@@ -502,20 +502,35 @@ describe('doctor.sh', () => {
     assert.doesNotMatch(r.stdout, /does not satisfy schema v1/);
   });
 
-  test('prints expiring-token and billing-method facts when the manifest carries them', () => {
+  test('prints expiring-token, billing-method and portfolio facts when the manifest carries them', () => {
     const r = runDoctor({ manifest: path.join(fixtures, 'multi-tenant-app.json') });
     assert.equal(r.status, 0, r.stderr);
     assert.match(r.stdout, /OK \(schema v1, kit\.version 0\.1\.0\)/);
     assert.doesNotMatch(r.stdout, /unknown top-level key/);
     assert.match(r.stdout, /Expiring offline tokens: yes\./);
     assert.match(r.stdout, /Billing method: app-pricing\./);
+    assert.match(r.stdout, /Portfolio: example-p1; routines: triage, pr-steward, kit-health, dependency-wave\./);
+    assert.doesNotMatch(r.stdout, /Drift: kit\.routines/, 'every declared routine ships');
   });
 
-  test('omits the expiring-token and billing-method facts when the manifest lacks them', () => {
+  test('reports a kit.routines entry the kit does not ship, and only that one', () => {
+    const m = JSON.parse(fs.readFileSync(path.join(fixtures, 'multi-tenant-app.json'), 'utf8'));
+    m.kit.routines.push('no-such-routine');
+    const p = path.join(consumer, 'bad-routine-manifest.json');
+    fs.writeFileSync(p, JSON.stringify(m));
+    const r = runDoctor({ manifest: p });
+    assert.equal(r.status, 0, r.stderr);
+    assert.match(r.stdout, /Drift: kit\.routines names `no-such-routine`, which this kit version does not ship; remove it or update the kit\./);
+    assert.doesNotMatch(r.stdout, /Drift: kit\.routines names `(triage|pr-steward|kit-health|dependency-wave)`/);
+    assert.match(r.stdout, /Portfolio: example-p1; routines: triage, pr-steward, kit-health, dependency-wave, no-such-routine\./);
+  });
+
+  test('omits the expiring-token, billing-method and portfolio facts when the manifest lacks them', () => {
     const r = runDoctor({ manifest: npmRoot });
     assert.equal(r.status, 0, r.stderr);
     assert.doesNotMatch(r.stdout, /Expiring offline tokens/);
     assert.doesNotMatch(r.stdout, /Billing method/);
+    assert.doesNotMatch(r.stdout, /Portfolio:/);
   });
 
   test('knows every top-level key the schema allows (the list is derived, not kept by hand)', () => {
@@ -555,6 +570,7 @@ describe('doctor.sh', () => {
     bad.shopifyCli.deployPolicy = 'yolo';
     delete bad.branches.protected;
     bad.apiVersion.expected = '2026-05';
+    bad.kit.routines = 'triage'; bad.kit.portfolioId = 'Bad Name';
     const p = path.join(consumer, 'bad-manifest.json');
     fs.writeFileSync(p, JSON.stringify(bad));
     const r = runDoctor({ manifest: p });
@@ -563,6 +579,8 @@ describe('doctor.sh', () => {
     assert.match(r.stdout, /- shopifyCli\.deployPolicy must be one of/);
     assert.match(r.stdout, /- branches\.protected must be a non-empty array/);
     assert.match(r.stdout, /- apiVersion\.expected must look like/);
+    assert.match(r.stdout, /- kit\.portfolioId must match \^\[a-z0-9\]\[a-z0-9-\]\{1,31\}\$/);
+    assert.match(r.stdout, /- kit\.routines must be an array of strings/);
   });
 
   test('reports vendored hook drift against kit.version', () => {

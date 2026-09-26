@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
-# shopify-app-kit v0.16.5
+# shopify-app-kit v0.16.6
 # hooks/doctor.sh: SessionStart briefing for a consumer repo. Validates .claude/shopify-app.json structurally
 # (required keys, enums, patterns of schema v1), prints one paragraph of facts to stdout, reports vendored-hook
-# drift, checks the two companions (the Shopify plugin and the graphify skill), and, when gh is on PATH, prints
-# the last successful run of every scheduled workflow. Never exits non-zero. Silent when the repo has no
-# manifest (it is not a consumer). Registered by the plugin's hooks/hooks.json; not vendored.
+# drift and a kit.routines entry this kit does not ship, checks the two companions (the Shopify plugin and the
+# graphify skill), and, when gh is on PATH, prints the last successful run of every scheduled workflow. Never
+# exits non-zero. Silent when the repo has no manifest (it is not a consumer). Registered by the plugin's
+# hooks/hooks.json; not vendored.
 set -uo pipefail
 
 # The graphify release the templates' kit-bootstrap.sh installs; both pins are compared by test/templates.test.mjs.
@@ -45,6 +46,8 @@ problems="$(jq -r --argjson known "$known" '
   prob(isobj; "manifest must be a JSON object")
   + prob(.kit.schemaVersion == 1; "kit.schemaVersion must be 1")
   + prob((.kit.version == null) or (.kit.version | isstr); "kit.version must be a string or null")
+  + prob((.kit.portfolioId == null) or (.kit.portfolioId | isstr and test("^[a-z0-9][a-z0-9-]{1,31}$")); "kit.portfolioId must match ^[a-z0-9][a-z0-9-]{1,31}$ (an opaque id, never a name)")
+  + prob((.kit.routines == null) or (.kit.routines | strarr); "kit.routines must be an array of strings")
   + prob(.app.name | isstr; "app.name must be a string")
   + prob(.shopifyCli | isobj; "shopifyCli must be an object")
   + prob((.shopifyCli.devPolicy // "") as $p | policies | index($p) != null; "shopifyCli.devPolicy must be one of config-required | operator-only | allowed")
@@ -86,6 +89,7 @@ mf '
   + "API version \(.apiVersion.expected | s). "
   + (if .auth.expiringOfflineTokens == null then "" else "Expiring offline tokens: \(if .auth.expiringOfflineTokens then "yes" else "no" end). " end)
   + (if .billing.method == null then "" else "Billing method: \(.billing.method). " end)
+  + (if .kit.portfolioId == null then "" else "Portfolio: \(.kit.portfolioId); routines: \(((.kit.routines // []) | if type == "array" then map(tostring) | join(", ") else "" end) as $r | if $r == "" then "none" else $r end). " end)
   + "Guard hooks read this manifest and fail closed when it is missing."
 '
 
@@ -119,6 +123,16 @@ if [ -d "$hookdir" ]; then
   fi
 elif [ -n "$kv" ]; then
   echo "Drift: the manifest says kit.version $kv but $root/.claude/hooks/kit/ does not exist; run /shopify-app-kit:sync."
+fi
+
+# kit.routines names the routines this product runs (the registry's maintainer step makes one per entry); an entry
+# with no routines/<name>.md next to this hook is a typo or a routine the kit removed, which a cross-repo routine
+# would otherwise find out at run time. Skipped when routines/ is not next to this hook, like the schema.
+routines_dir="$(dirname "${BASH_SOURCE[0]}")/../routines"
+if [ -d "$routines_dir" ]; then
+  mf '(.kit.routines // []) | if type == "array" then .[] | tostring else empty end' | while IFS= read -r r; do
+    [ -f "$routines_dir/$r.md" ] || echo "Drift: kit.routines names \`$r\`, which this kit version does not ship; remove it or update the kit."
+  done
 fi
 
 # Companion plugins. Shopify: the admin-api, dev-loop and release skills use shopify-ai-toolkit (docs and schema search,
