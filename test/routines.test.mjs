@@ -97,7 +97,7 @@ describe('routines/', () => {
     const steward = read('pr-steward.md');
     for (const s of ['never merge', 'Merge conflict', 'Red CI', 'Never skip, disable or quarantine', 'force-push']) assert.ok(steward.includes(s), `pr-steward: ${s}`);
     const health = read('kit-health.md');
-    for (const s of ['/shopify-app-kit:doctor', 'git ls-remote --tags', 'shopify-dev', '3 months', 'kit.portfolioId']) assert.ok(health.includes(s), `kit-health: ${s}`);
+    for (const s of ['/shopify-app-kit:doctor', 'git ls-remote --tags', 'shopify-dev', '3 months', 'kit.portfolioId', "latest failed job's log", 'not only the title prefix']) assert.ok(health.includes(s), `kit-health: ${s}`);
     const graph = read('graphify-refresh.md');
     for (const s of ['graph/', '--force-with-lease', 'graphify-out/', '.claudeignore', 'nothing merged since']) assert.ok(graph.includes(s), `graphify-refresh: ${s}`);
     assert.doesNotMatch(graph, /force-with-lease origin (main|master)\b/);
