@@ -85,7 +85,7 @@ describe('docs mirror their sources', () => {
   });
 
   test('every version-bump sentence lists exactly the directories CI watches', () => {
-    for (const [file, from, to] of [['README.md', 'Any change under', 'version bump'], ['.claude/rules/kit.md', 'Every change under', 'bumps the version'], ['skills/kit-dev/SKILL.md', 'Any change under', 'bumps the version']]) {
+    for (const [file, from, to] of [['README.md', 'Any change under', 'version bump'], ['.claude/rules/kit.md', 'Every change under', 'bumps the version'], ['skills/kit-dev/SKILL.md', 'Any change under', 'bumps the version'], ['skills/kit-dev/references/add.md', 'Any addition under', 'requires a version bump']]) {
       const dirs = uniq(ticks(region(read(file), from, to)).filter((t) => t.endsWith('/')).map((t) => t.slice(0, -1)));
       assert.deepEqual(dirs, bumpDirs, `${file}: the version-bump directories`);
     }
