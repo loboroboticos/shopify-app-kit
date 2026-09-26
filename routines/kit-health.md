@@ -42,6 +42,9 @@ missing companion, a scheduled workflow without a recent successful run) becomes
 `kit-health: <the drift in six words>` with the doctor's line in "What", the fix it names, the `code only`
 rung (or `agent:ci` for a workflow, `human:bootstrap` for a missing install on the maintainer's machine),
 `p2`, an ROI bucket. One issue per drift family, deduped on the title prefix.
+Before filing a scheduled workflow without a recent successful run, read its latest failed job's log: the issue
+names the failing step and the error message, never a cause guessed from timing. When an open issue already
+tracks that error (search the open issues for its text, not only the title prefix), comment the run link there.
 
 Step 2, kit version. Read `kit.version` from the manifest and the plugin's own version from the loaded kit's
 `.claude-plugin/plugin.json`. List the kit repository's tags (`git ls-remote --tags` against the `repository`
