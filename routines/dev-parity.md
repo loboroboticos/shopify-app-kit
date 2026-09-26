@@ -92,13 +92,14 @@ nothing else on that issue: no label, no edit, no close.
 
 Filing (R9 of the kit's issue-filing skill). One open issue per drift family, titled
 `dev-parity: <the drift in six words>`. Search the open issues for that title prefix first and comment on the
-match with this week's evidence instead of filing again. A new issue says what drifted (the pair and the
-keys, the workflow and the run link, or the host and the failing field), the rung that closes it and the
-check that will pass once it is fixed. Labels: `bug`; the rung that can close it, `code only` for a repo change,
-`agent:ci` for a workflow, `human:account` for a dashboard setting or a token; `p1` when the billing mode or
-data is involved, else `p2`; and an ROI bucket. Refer to other issues as a plain `#N`, never with a closing
-keyword. When a drift from an earlier run is gone, comment "clean this week" on its issue and leave it open
-for the maintainer: this routine never closes one.
+match with this week's evidence instead of filing again. Open a new issue from the work-item template: "What"
+says what drifted (the pair and the keys, the workflow and the run link, or the host and the failing field) and
+the check that will pass once it is fixed; the "Close condition needs" block ticks the one line of the rung that
+can close it (R2). Labels: `bug`; that rung, `code only` for a repo change, `agent:ci` for a workflow,
+`human:account` for a dashboard setting or a token; `p1` when the billing mode or data is involved, else `p2`;
+and an ROI bucket. Refer to other issues as a plain `#N`, never with a closing keyword. When a drift from an
+earlier run is gone, comment "clean this week" on its issue and leave it open for the maintainer: this routine
+never closes one.
 
 Finish with a short summary in the session: the pairs checked and their verdicts, the beta deploy runs (and
 prod's, for information), the readiness results per host (ok, commit, billing mode, or "unverified"), whether
