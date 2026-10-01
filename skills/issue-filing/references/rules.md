@@ -50,13 +50,17 @@ platform choice (distribution type, app handle, registration, pricing model), un
 or legal text, any 2FA or payout step: these are `human:decision` or `human:account` whatever a CLI could do.
 A CLI that can do it is the reason for the rule, not an exception to it.
 
-## R7: agents never close a human issue
+## R7: a human issue closes once its human work is done
 
-An agent never closes a `human:*` issue and never relabels a `human:*` issue to `agent:*` or `code only`,
-except in two cases: a comment beginning `decision:` on a `human:decision` issue (relabel per the decision,
-remove `blocked` from its children, comment "unblocked by the decision on #N"), and a closed `Bootstrap:` issue
-that lists the issue under Unlocks (remove `blocked`, comment "unblocked by #B"). Everything else waits for the
-human, however obvious it looks.
+A `human:*` label says who does the work, not who closes the issue. An agent never does the work behind a
+`human:*` issue, but once the human has done it and the issue's close condition is met, a session may close the
+issue and say in its closing comment what met the condition. A routine never closes a `human:*` issue: it runs
+unattended and cannot see that the human work is done, so it recommends instead.
+
+An agent never relabels a `human:*` issue to `agent:*` or `code only`, except in two cases: a comment beginning
+`decision:` on a `human:decision` issue (relabel per the decision, remove `blocked` from its children, comment
+"unblocked by the decision on #N"), and a closed `Bootstrap:` issue that lists the issue under Unlocks (remove
+`blocked`, comment "unblocked by #B"). Everything else waits for the human, however obvious it looks.
 
 ## R8: same pass, same PR
 

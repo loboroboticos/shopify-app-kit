@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shopify-app-kit v0.16.6
+# shopify-app-kit v0.16.7
 # hooks/guard-package-manager.sh: PreToolUse(Bash) guard that keeps each directory on the package manager
 # .claude/shopify-app.json maps it to (packageManagers: { "<dir>": "npm" | "pnpm" }, "." = the consumer root).
 #

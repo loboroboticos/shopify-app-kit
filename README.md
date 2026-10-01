@@ -334,10 +334,11 @@ body says what closing it needs. Scheduled Claude Code Routines are the workforc
 - **`issue-filing`** (model-invocable) applies the ten rules in `skills/issue-filing/references/rules.md`: the
   least-privileged executor that can close it (R1), a "Close condition needs" line or no label (R2), decompose
   at filing (R3), bootstraps titled `Bootstrap: <what> → <where>` that name where a value goes and what they
-  unlock (R4), decisions with options and a reversible default (R5), irreversibility beats the ladder (R6),
-  agents never close a `human:*` issue (R7), score in the same pass (R8), CI-filed issues deduped on the title
-  prefix with no traces attached (R9), no secret in an issue (R10). One pinned "maintainer's queue" issue is
-  the tracking surface the triage routine rewrites; it carries no work type, priority or ROI.
+  unlock (R4), decisions with options and a reversible default (R5), irreversibility beats the ladder (R6), a
+  `human:*` issue closes once its human work is done, never by a routine (R7), score in the same pass (R8),
+  CI-filed issues deduped on the title prefix with no traces attached (R9), no secret in an issue (R10). One
+  pinned "maintainer's queue" issue is the tracking surface the triage routine rewrites; it carries no work
+  type, priority or ROI.
 - **`routines/`** holds the prompt texts, one file each with cadence, environment, tools, what it may touch and
   what it never does, then the prompt verbatim: `triage` (weekly: lint, decisions, closed bootstraps, stale
   scheduled workflows, re-score, rewrite the queue issue), `nuclear-review` (weekly: the `review` skill over
