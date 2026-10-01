@@ -34,9 +34,10 @@ live, is in `references/executor-ladder.md`.
    unblocked and planned; `p3` deploy, blocked or nice-to-have), one ROI bucket (`roi:5` … `roi:1`, value ÷
    effort; a bootstrap's value is the max of its Unlocks, its effort the maintainer's minutes), plus
    `launch-gate`, `blocked` or `deploy` when they apply, and a row in the ranking doc when the repo keeps one.
-7. **Relabelling a `human:*` issue** (R7): an agent never closes it and never moves it to `agent:*` or
-   `code only`, except on a comment beginning `decision:` or when a closed `Bootstrap:` lists it under Unlocks;
-   then remove `blocked` from its children and comment "unblocked by #N".
+7. **Closing or relabelling a `human:*` issue** (R7): a session closes it once the human work is done and its
+   close condition is met, saying what met it; a routine never closes it. An agent never moves it to `agent:*`
+   or `code only`, except on a comment beginning `decision:` or when a closed `Bootstrap:` lists it under
+   Unlocks; then remove `blocked` from its children and comment "unblocked by #N".
 8. **Filing from CI or a routine** (R9): search open issues for the same title prefix first and comment on the
    match; a new one carries `bug` + `p1` + the executor label and never attaches traces or test results.
 9. **The one exemption:** the pinned "maintainer's queue" issue is a tracking surface the triage routine

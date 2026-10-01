@@ -5,6 +5,18 @@ vendored hook carries it on line 2 (`# shopify-app-kit vX.Y.Z`). A version that 
 `### Deprecated`; the next minor deletes it and lists it under `### Removed` (`kit-dev`: "Remove a skill, agent,
 hook, workflow or routine").
 
+## 0.16.7
+
+A `human:*` label says who does the work, not who closes the issue.
+
+- R7 in `skills/issue-filing/references/rules.md` now lets a session close a `human:*` issue once the human has
+  done the work and the issue's close condition is met, saying in its closing comment what met it. An agent
+  still never does that work, a routine still never closes a `human:*` issue (it runs unattended and cannot see
+  that the work is done), and the two relabelling exceptions are unchanged. The skill's step 7, the README's
+  rule list, lesson ops-5 (its link follows the renamed heading), the `CLAUDE.md` and
+  `.claude/rules/pr-and-issues.md` templates and both copies of the work-item template say the same. The
+  routines keep their "never closes a `human:*` issue" line, which R7 now states for routines itself.
+
 ## 0.16.6
 
 The doctor checks the two portfolio keys a consumer declares (#42).

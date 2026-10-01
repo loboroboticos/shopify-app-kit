@@ -11,9 +11,10 @@ paths:
 - Every issue ticks one line of "Close condition needs". A session works only the rungs it can close: a PR
   (code only), `agent:ci` (an Actions run with an existing secret), `agent:cloud` (reaches the store, no login),
   `agent:local` (the maintainer's logged-in machine). A missing bootstrap links `Bootstrap: #__` and waits.
-- A session never closes a `human:decision`, `human:account` or `human:legal` issue, and never does the work
-  behind one (real charges, production data outside a guarded script, one-way Shopify choices, brand or legal
-  text). It may prepare the PR and say what the human must do.
+- A session never does the work behind a `human:decision`, `human:account` or `human:legal` issue (real
+  charges, production data outside a guarded script, one-way Shopify choices, brand or legal text). It may
+  prepare the PR and say what the human must do; once the human has done it and the issue's close condition is
+  met, the session closes the issue (the kit's R7).
 - Ticked lines from more than one group mean the issue is split before work starts. Filing, scoring (one
   priority, one ROI bucket) and relabelling follow the kit's `issue-filing` skill; the pinned maintainer's
   queue issue is rewritten by the triage routine and carries no work type, priority or ROI.
