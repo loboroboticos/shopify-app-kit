@@ -1,21 +1,16 @@
 # Routines
 
 Scheduled Claude Code Routines are the workforce of the operating model: each one is a fresh cloud session
-fired on a cron with one of the prompts in this directory. The prompt texts are committed here and
-parameterised by the consumer's `.claude/shopify-app.json` and `labels.json`; the triggers themselves are
-created per repo by the maintainer (the step at the end). `test/routines.test.mjs` keeps every file in the
-shape below and every routine in this table.
+fired on a cron with one of the prompts in this directory, parameterised by the consumer's
+`.claude/shopify-app.json` and `labels.json`. The maintainer creates them per repo (the step at the end); adding
+a routine is `kit-dev`'s "Add a routine", and `test/routines.test.mjs` keeps every file and this table in shape.
 
 ## The shared preamble
 
-Every prompt starts the same way, and the header of every routine file repeats it: read
-`.claude/shopify-app.json` (`branches.default`, `branches.protected`, `deploy.protectedWorkflows`) and
-`labels.json` (the consumer's `.github/labels.json`, else the kit's); derive the repository from the git
-remote, so no prompt names one; a routine never closes a `human:*` issue and never relabels `human:*` to
-`agent:*` except per R7 of the `issue-filing` skill; never dispatches a workflow named in
-`deploy.protectedWorkflows`; opens at most one PR per run, to `branches.default`; and never lets a secret into
-an issue, a comment or a PR. `kit-tidy`, the one routine that runs on the kit itself, has no manifest to read; its
-ground rules are the same minus the manifest keys, and its one PR goes to `main`.
+Every prompt opens with the same ground rules, repeated in each file because each is pasted standalone: it reads
+the manifest and `labels.json` and derives the repository from the git remote, and a routine
+never closes a `human:*` issue, never dispatches a protected workflow, opens at most one PR per run and lets no
+secret into any text. The prompts are the source; `kit-tidy` keeps the same rules minus the manifest keys.
 
 ## The routines
 
@@ -58,7 +53,7 @@ local CLI writes the same routine and is refused inside a cloud session.
    made from the cloud icon above the message box at `claude.ai/code` (**Add cloud environment**); one holds
    network access, variables and a setup script, never a repository.
 2. **The form.** Name `<repo short name>: <routine>`; the prompt is the text under `## Prompt` of
-   `routines/<routine>.md`, pasted verbatim (`dev-parity`'s repo preamble above it); exactly one repository, the
+   `routines/<routine>.md`, pasted whole (`dev-parity`'s repo preamble above it); exactly one repository, the
    consumer's (the kit's for `kit-tidy`), because a session with several loads no `.claude/settings.json` and
    the bootstrap hook that installs the kit does not run; a **Schedule** trigger at the nearest preset, then
    the cron from the table (UTC) set with `/schedule update` from a local CLI; under **Connectors**, only what
@@ -67,12 +62,7 @@ local CLI writes the same routine and is refused inside a cloud session.
    the schedule: a run idle within a minute that wrote nothing has no checkout, and a green row in the run list
    means only that the session exited without an infrastructure error.
 
-Each run is a new session with the repository cloned at its default branch, which is why every prompt is
-complete on its own and repeats the ground rules instead of pointing at this page. A routine whose run does
-nothing twice is paused with the switch on its page and its prompt fixed here first, then pasted again with
-**Edit**. Commits, PRs and comments a routine makes carry the maintainer's GitHub identity.
-
-## Adding a routine
-
-`skills/kit-dev/SKILL.md`, "Add a routine": one file per routine with the five header fields, a `## Prompt`
-section written for a fresh session, a row here, and the test.
+Each run clones the repository at its default branch. The page stores the words and drops the markdown (backticks,
+list numbers, line breaks), so check a stored prompt against its file word for word, not byte for byte. A routine
+whose run does nothing twice is paused with the switch on its page and its prompt fixed here first, then pasted
+again with **Edit**. Its commits, PRs and comments carry the maintainer's GitHub identity.
