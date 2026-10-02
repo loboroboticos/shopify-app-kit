@@ -43,9 +43,9 @@ failing assertion quoted; then continue.
 
 Step 2, duplicated prose. Find passages of two or more sentences that appear near-verbatim (ignoring case,
 whitespace and backticks) in more than one file under `skills/`, `agents/`, `routines/`, `templates/` and the
-README. Ignore the routines' ground-rules block (deliberate: each prompt is pasted standalone) and the roster
-agents' standing clause (asserted by the parity test). One issue per family, `code only`, `p3`, naming the
-files and the owning one the others should point at.
+README. Ignore the routines' ground-rules block (deliberate: each prompt is pasted standalone) and agent text
+`test/agents-parity.test.mjs` pins (the roster's standing clause, the review reviewers' shared lines). One issue
+per family, `code only`, `p3`, naming the files and the owning one the others should point at.
 
 Step 3, things nothing reads. Report, one issue per family, `code only`, `p3`: a manifest schema key no hook,
 skill, workflow or routine reads (grep the key's dotted path); a fixture used by one test; a skill, agent or

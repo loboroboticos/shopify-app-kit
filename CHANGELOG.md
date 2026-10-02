@@ -5,6 +5,19 @@ vendored hook carries it on line 2 (`# shopify-app-kit vX.Y.Z`). A version that 
 `### Deprecated`; the next minor deletes it and lists it under `### Removed` (`kit-dev`: "Remove a skill, agent,
 hook, workflow or routine").
 
+## 0.16.8
+
+The review agents' shared lines are true for every launcher and held identical (#45, #69).
+
+- `review-correctness` and `classifier-reviewer` said the parent put their context "under `### Manifest`,
+  `### Diff`, `### Changed files` and (optionally) `### PR`". The `review` skill never names those headings, and
+  `release-readiness` launches `review-correctness` with the range and file paths instead; `review-quality`'s copy
+  had already dropped the PR slot. All three now open with one input contract that is true for both launchers.
+- A subagent reads only its own file, so the verdict line, the input contract and (for the two reviewers that grade
+  `[P0]`-`[P2]`) the severity legend stay in each agent as copies. `test/agents-parity.test.mjs` holds them
+  identical, as it holds the roster's standing clause. `kit-tidy` step 2 ignores any agent text that test pins, so
+  its next run does not re-file them; the stored routine prompt needs re-pasting for that to apply. (#45, #69)
+
 ## 0.16.7
 
 A `human:*` label says who does the work, not who closes the issue.
