@@ -1,8 +1,8 @@
 // Prose that enumerates something the tree already defines (the shipped guards, the routines, the review
 // rosters, the release dimensions, the dedupe constants, the label set and its ladder, the version-bump directories,
 // the graphify pin, the schema's required sections, the lesson classes, the parity tests' constants, the doctor's
-// idle threshold) is checked here against its source, so a list in the README or a SKILL.md cannot drift from the
-// code it describes. When one of these fails, fix the prose; the source is the source.
+// idle threshold, the rule and step counts) is checked here against its source, so a list in the README or a
+// SKILL.md cannot drift from the code it describes. When one of these fails, fix the prose; the source is the source.
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -173,19 +173,32 @@ describe('docs mirror their sources', () => {
     for (const r of constant('test/routines.test.mjs', 'CONSUMER_READS')) assert.ok(reads.includes(r), `add.md's routine paragraph names ${r}`);
   });
 
-  test('the issue-filing references state the ladder as labels.json defines it', () => {
+  test('the issue-filing references state the ladder as labels.json defines it, and the prose counts its rules', () => {
     const r1 = region(read('skills', 'issue-filing', 'references', 'rules.md'), '## R1', '\n## ');
     assert.deepEqual(ticks(region(r1, 'The order is', ';')), ladder, 'R1 lists the ladder in order');
     for (const l of workTypes) assert.ok(ticks(r1).includes(l), `R1 names \`${l}\``);
     const rows = [...read('skills', 'issue-filing', 'references', 'executor-ladder.md').matchAll(/^\| `([a-z:]+( only)?)` \|/gm)].map((m) => m[1]);
     assert.deepEqual(rows.filter((r) => ladder.includes(r)), ladder, 'the rung table follows the ladder order');
     assert.deepEqual(uniq(rows), uniq(workTypes), 'the rung table has one row per work type');
+    // Every "the <n> (filing) rules" in the README and the skill counts rules.md's ## R<n> headings (#76).
+    const n = WORDS[(read('skills', 'issue-filing', 'references', 'rules.md').match(/^## R\d+:/gm) ?? []).length];
+    for (const file of ['README.md', 'skills/issue-filing/SKILL.md']) {
+      const said = [...read(file).matchAll(new RegExp(`\\bthe (${WORDS.join('|')})(?: filing)? rules\\b`, 'gi'))].map((m) => m[1].toLowerCase());
+      assert.ok(said.length > 0 && said.every((w) => w === n), `${file} says "the ${n} rules" (rules.md's ## R<n> headings), not ${said.join(', ') || 'nothing'}`);
+    }
   });
 
-  test('the doctor skill states GitHub\'s idle threshold as the hook does, and no cadence threshold', () => {
+  test('the doctor skill and the CI-posture reference state GitHub\'s idle threshold as the hook does, and no cadence threshold', () => {
     const idle = read('hooks', 'doctor.sh').match(/after (\d+) idle days/)[1];
     const doctor = read('skills', 'doctor', 'SKILL.md');
     assert.ok(doctor.includes(`idle for ${idle} days`), `doctor/SKILL.md says "idle for ${idle} days"`);
     assert.doesNotMatch(doctor, /daily \d+ days/, 'the cadence thresholds live in hooks/doctor.sh only');
+    const posture = read('skills', 'release', 'references', 'ci-posture.md');
+    for (const s of [`after ${idle} days of inactivity`, `no commits for ${idle} days`]) assert.ok(posture.includes(s), `ci-posture.md says "${s}" (#77)`);
+  });
+
+  test('the scaffold reference counts the new-app skill\'s numbered steps (#78)', () => {
+    const steps = (read('skills', 'new-app', 'SKILL.md').match(/^\d+\. \*\*/gm) ?? []).length;
+    assert.ok(read('skills', 'new-app', 'references', 'scaffold.md').includes(`its ${WORDS[steps]} steps`), `scaffold.md says "its ${WORDS[steps]} steps"`);
   });
 });
