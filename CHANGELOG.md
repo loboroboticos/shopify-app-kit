@@ -5,6 +5,15 @@ vendored hook carries it on line 2 (`# shopify-app-kit vX.Y.Z`). A version that 
 `### Deprecated`; the next minor deletes it and lists it under `### Removed` (`kit-dev`: "Remove a skill, agent,
 hook, workflow or routine").
 
+## 0.16.11
+
+Without jq, the guards catch every spelling of the commands they refuse (#88, #97).
+
+- `lib.sh` gains `kit_raw_words` (the raw command as words; JSON escapes, quotes, slashes and shell operators split
+  them), and the protected-branch and migrations pre-filters match program and verb in order: `git -C . push`,
+  `git<TAB>push`, `/usr/bin/git push` and `migrate  reset` fail closed too, and so, on purpose, does a mention like
+  `git commit -m "push later"`. guard-migrations builds the words only without jq. Consumers: `/shopify-app-kit:sync`.
+
 ## 0.16.10
 
 The guards fail closed under macOS's stock bash 3.2 (#87).

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shopify-app-kit v0.16.10
+# shopify-app-kit v0.16.11
 # hooks/lib.sh: shared helpers for the shopify-app-kit guard hooks. Sourced, never executed.
 # Vendored into consumers at .claude/hooks/kit/lib.sh by /shopify-app-kit:sync, next to the guards.
 #
@@ -8,6 +8,7 @@
 #   kit_read_input            -> $input (raw hook JSON from stdin)
 #   kit_parse_input           -> $cmd (tool_input.command), $cwd (absolute)   [needs jq]
 #   kit_raw_command           -> tool_input.command without jq, JSON-escaped (the whole payload when it has none)
+#   kit_raw_words             -> kit_raw_command as words two spaces apart, for a no-jq pre-filter (over-matches)
 #   kit_resolve_manifest DIR  -> $manifest, $root (the CONSUMER repo root)
 #   kit_manifest_ok           -> 0 when the manifest is readable and kit.schemaVersion == 1
 #   mf JQ_FILTER              -> jq -r over the manifest
@@ -19,7 +20,7 @@
 #   kit_walk_commands CMD CB  -> calls CB "<effective dir>" <prog> <args...> for every simple command in CMD,
 #                                after heredoc stripping, control-operator splitting and cd/pushd/popd tracking.
 
-KIT_VERSION="0.16.10"
+KIT_VERSION="0.16.11"
 KIT_HOOK_NAME="${KIT_HOOK_NAME:-hook}"
 KIT_MANIFEST_RULE="Add or repair .claude/shopify-app.json (the repo manifest the kit's guard hooks read; schema: shopify-app-kit schemas/shopify-app.v1.schema.json)."
 
@@ -57,6 +58,15 @@ kit_parse_input() {
 kit_raw_command() {
   local c; c="$(printf '%s' "$input" | sed -E -n 's/.*"command"[[:space:]]*:[[:space:]]*"(([^"\\]|\\.)*)".*/\1/p')"
   printf '%s' "${c:-$input}"
+}
+
+# kit_raw_words: kit_raw_command as words two spaces apart (JSON escapes, quotes, slashes and shell operators split
+# them), so *" git "*" push "* matches `git -C . push`, `git<TAB>push`, `/usr/bin/git push` and `x;git push` alike.
+# Over-matches on purpose (no jq: refuse a mention, never miss a command); LC_ALL=C keeps BSD sed off non-UTF-8 bytes.
+kit_raw_words() {
+  local w; w="$(kit_raw_command | tr '\n' ' ' | LC_ALL=C sed -E 's/\\[tnr"]/ /g; s/[^A-Za-z0-9._:@+=-]+/ /g; s/ /  /g')"
+  [ -n "$w" ] || { w="$(kit_raw_command)"; w="${w// /  }"; }
+  printf '  %s  ' "$w"
 }
 
 # ---------------------------------------------------------------- manifest resolution
