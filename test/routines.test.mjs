@@ -1,5 +1,5 @@
 // routines/ holds the committed prompt texts of the scheduled Routines. Every routine file has the five header
-// fields (Cadence, Environment, Tools, May touch, Never), a `## Prompt` section pasted verbatim into a routine
+// fields (Cadence, Environment, Tools, May touch, Never), a `## Prompt` section pasted whole into a routine
 // made on the claude.ai routines page (a fresh session per run), a row in routines/REGISTRY.md, no repository
 // literal (the prompt derives the repo from the git remote), and the phrase "never closes a `human:*` issue" (or
 // the registry's shared preamble carries it). A consumer routine that files issues names the work-item template's
@@ -52,7 +52,7 @@ describe('routines/', () => {
         assert.ok(prompt.includes(s), `the prompt reads ${s}`);
       }
       assert.ok(text.includes(NEVER_CLOSES) || registry.includes(NEVER_CLOSES), `says "${NEVER_CLOSES}"`);
-      assert.ok(prompt.includes('never closes a `human:*` issue'), 'the prompt itself carries the rule (it is pasted verbatim into the trigger)');
+      assert.ok(prompt.includes('never closes a `human:*` issue'), 'the prompt itself carries the rule (it is pasted whole into the routine)');
       // Filing is deduped on a title prefix; the block (R2) is named in the prompt's own text, not left to rules.md.
       if (!KIT_SCOPED.has(f) && prompt.includes('title prefix')) {
         assert.ok(prompt.includes('"Close condition needs"'), 'a routine that files issues ticks the "Close condition needs" block (R2)');
