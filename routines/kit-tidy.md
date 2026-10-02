@@ -48,9 +48,10 @@ README. Ignore the routines' ground-rules block (deliberate: each prompt is past
 per family, `code only`, `p3`, naming the files and the owning one the others should point at.
 
 Step 3, things nothing reads. Report, one issue per family, `code only`, `p3`: a manifest schema key no hook,
-skill, workflow or routine reads (grep the key's dotted path); a fixture used by one test; a skill, agent or
-workflow no workflow, routine, rule seed or README row names; a reference file linked only from its own skill's
-index line with no step pointing at it.
+skill, workflow or routine reads (grep the key's dotted path; `$schema` and `$comment` are for editors and
+people); a fixture no test reads, by name or by listing its directory; a skill, agent or workflow no workflow,
+routine, rule seed or README row names; a reference file linked only from its own skill's index line with no
+step pointing at it.
 
 Step 4, the size trend. Run `node --test test/budget.test.mjs` and read the headroom diagnostics; compute the
 insert:delete ratio since the last tag (`git log <last tag>..HEAD --shortstat`). Both go into the summary as one

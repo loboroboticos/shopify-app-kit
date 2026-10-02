@@ -5,6 +5,18 @@ vendored hook carries it on line 2 (`# shopify-app-kit vX.Y.Z`). A version that 
 `### Deprecated`; the next minor deletes it and lists it under `### Removed` (`kit-dev`: "Remove a skill, agent,
 hook, workflow or routine").
 
+## 0.16.9
+
+The "things nothing reads" family from the first scheduled `kit-tidy` run (#71, #72, #73).
+
+- `skills/release/SKILL.md` step 5 points at `references/ci-posture.md`, the one reference no step named: a deploy
+  workflow GitHub has disabled for inactivity never fires. The day count stays in the doctor hook and its two
+  pinned docs. (#73)
+- `kit-tidy` step 3 no longer reports the `$schema` and `$comment` metadata keys (notes for editors and people,
+  which the starter manifest uses) or a fixture one test reads; it reports a fixture no test reads, by name or by
+  listing its directory. The release-train fixture it flagged is schema-checked by `test/schema.test.mjs`'s
+  directory listing. The stored routine prompt needs re-pasting. (#71, #72)
+
 ## 0.16.8
 
 The review agents' shared lines are true for every launcher and held identical (#45, #69).
