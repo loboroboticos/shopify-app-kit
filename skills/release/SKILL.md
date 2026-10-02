@@ -36,6 +36,7 @@ performs on push. Never merge, never run a protected workflow by hand, never tou
    which PR to merge. When the release carries a migration and `deploy.scaleToZeroBeforeMigrate` is true, scale
    the app to zero before the migration step (`fly scale count 0 -a <target.fly>` or the platform's equivalent): a
    running app swallows webhooks mid-migration (`references/migrations-and-zero-downtime.md`; `guard-migrations` says so too).
+   A deploy workflow GitHub has disabled for inactivity never fires; the workflow posture is in `references/ci-posture.md`.
 
 6. **Billing.** When `billing.live` is true, say before any billing-related step that a subscribe, upgrade or
    plan change against the production registration is a real charge to a real merchant. The only agent-safe
