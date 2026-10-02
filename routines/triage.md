@@ -33,8 +33,8 @@ Ground rules, before anything else:
 4. At most one PR per run, to `branches.default`. Never merge anything.
 5. Secrets never appear in an issue, a comment or a PR. A bootstrap names where a value goes, never the value.
 
-The pinned issue whose title is "Maintainer's queue" is the queue issue. It carries no work-type, priority or
-ROI label and the lint skips it. Create it (pinned, that exact title) if it does not exist.
+The pinned issue whose title is "Maintainer's queue" is the queue issue, exempt from the labels ("The queue
+exemption" in `references/rules.md`). Create it (pinned, that exact title) if it does not exist.
 
 Step 1, lint. For every open issue except the queue issue check: exactly one work-type label (`code only`,
 `agent:ci`, `agent:cloud`, `agent:local`, `human:bootstrap`, `human:decision`, `human:account`, `human:legal`);

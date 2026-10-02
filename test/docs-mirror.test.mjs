@@ -197,6 +197,14 @@ describe('docs mirror their sources', () => {
     for (const s of [`after ${idle} days of inactivity`, `no commits for ${idle} days`]) assert.ok(posture.includes(s), `ci-posture.md says "${s}" (#77)`);
   });
 
+  test('every site that lists the compliance webhook topics lists the ones the webhooks reference does (#79)', () => {
+    // [file, where the list starts, where it ends]: the reference owns the list; a workflow and an agent cannot point at it.
+    const topics = ([file, from, to]) => uniq(region(read(file), from, to).match(/\b(?:customers|shop)\/[a-z_]+/g) ?? []);
+    const owner = topics(['skills/admin-api/references/webhooks.md', 'The three compliance topics', ' Each']);
+    assert.equal(WORDS[owner.length], 'three', `webhooks.md lists three compliance topics: ${owner.join(', ')}`);
+    for (const site of [['skills/tenancy/references/webhook-intake.md', 'The three compliance topics (', ')'], ['agents/review-correctness.md', 'the three privacy topics (', ')'], ['workflows/release-readiness.js', 'the three compliance topics (', ')']]) assert.deepEqual(topics(site), owner, site[0]);
+  });
+
   test('the scaffold reference counts the new-app skill\'s numbered steps (#78)', () => {
     const steps = (read('skills', 'new-app', 'SKILL.md').match(/^\d+\. \*\*/gm) ?? []).length;
     assert.ok(read('skills', 'new-app', 'references', 'scaffold.md').includes(`its ${WORDS[steps]} steps`), `scaffold.md says "its ${WORDS[steps]} steps"`);

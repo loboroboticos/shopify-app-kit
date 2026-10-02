@@ -125,46 +125,22 @@ kit tag by hand (see [Developing the kit](#developing-the-kit)).
 
 ## Companion plugins
 
-The kit has two companions. The first is Shopify's official `shopify-ai-toolkit` plugin:
+The kit has two companions and never overlaps them. Shopify's official `shopify-ai-toolkit` plugin answers what
+the platform does (Admin API docs and schema search, the CLI reference, the pre-submission compliance check);
+the kit answers what this repo's manifest requires, and a kit skill calls the companion for platform facts and
+says "unverified" without it. [graphify](https://github.com/Graphify-Labs/graphify) (MIT) is a pip package and
+skill that turns the checkout into a queryable graph; the `graphify-refresh` routine keeps it current on the
+`graph/` branch.
 
 ```bash
 claude plugin install shopify-ai-toolkit@claude-plugins-official
-```
-
-It covers what the platform does: Admin API docs and schema search with GraphQL validation (`shopify-dev`),
-the Admin API and custom data (`shopify-admin`, `shopify-custom-data`), pricing (`shopify-app-pricing`), the
-pre-submission compliance check (`shopify-app-store-review`), the CLI reference (`shopify-use-shopify-cli`),
-Polaris for the app home (`shopify-polaris-app-home`) and a score of other skills. Its hooks are telemetry
-only; the opt-out is the file `~/.config/shopify-ai-toolkit/opt-out`.
-
-The kit covers what the companion cannot know: this repo's manifest facts and the guard hooks that enforce
-them, the doctor, the review roster and the `pre-pr-review`, `release-readiness` and `plan-review` workflows,
-the lessons, the scaffold and its templates, and the app-layered Shopify data (app-owned metafields and
-metaobjects, the `$app:` accessors, the entitlement write path and its cache contract). A kit skill calls the companion for platform facts and says
-"unverified" without it: `admin-api` step 4 uses `shopify-dev` for schema verification, `dev-loop` points at
-`shopify-use-shopify-cli` for the CLI reference, `release` runs `shopify-app-store-review` before the promotion
-PR of a public app. The doctor warns once when the companion is not installed and notes once while telemetry is
-on; it never blocks. In a consumer scaffolded from `templates/`, `.claude/hooks/kit-bootstrap.sh` installs both
-plugins in a remote session and writes the opt-out. `skills/doctor/references/companion.md` is the home of the
-split (lesson `kit-1`).
-
-The second is [graphify](https://github.com/Graphify-Labs/graphify) (MIT), a Claude Code skill that turns a
-codebase into a queryable knowledge graph and writes `graphify-out/` (`graph.html`, `GRAPH_REPORT.md`,
-`graph.json`, a content-hash cache). It is not a plugin: its README installs the PyPI package `graphifyy` (the
-CLI and the skill command are `graphify`) and `graphify install` then registers the skill under
-`~/.claude/skills/graphify/`:
-
-```bash
 pip install graphifyy==0.9.65 && graphify install     # or: uv tool install graphifyy==0.9.65 / pipx install graphifyy==0.9.65
 ```
 
-It covers the map: what connects to what, the god nodes, `/graphify query` over a repo in far fewer tokens than
-reading it. The kit covers the convention around it: the `graphify-refresh` routine rebuilds the graph weekly
-and commits `graphify-out/` on the `graph/` branch only (force-with-lease on that branch, never the default
-branch), so every session can start from a current map; `graphify-out/` is listed in the templates'
-`.claudeignore` and belongs in the consumer's `.gitignore`, so a local rebuild neither lands on the default
-branch nor invalidates the prompt cache. The bootstrap hook installs it pinned to the release above (the same
-pin the doctor names); the doctor warns once when it is absent; the routine skips without it (lesson `kit-2`).
+In a consumer scaffolded from `templates/`, `.claude/hooks/kit-bootstrap.sh` installs both in a remote session
+and writes the Shopify companion's telemetry opt-out; the doctor notes a missing companion and never blocks. The
+split, where the kit's skills call each companion, the `graph/` branch convention and the opt-out are in
+`skills/doctor/references/companion.md`.
 
 ## The manifest contract
 
@@ -312,7 +288,7 @@ plan should record as ADRs (findings tagged `adr: true`) are listed separately.
 
 `lessons/INDEX.md` is a table with one row per lesson the consumer apps taught the kit: an id, a one-line rule,
 its class (`rule`, `recipe`, `lens` or `adr-seed`), its home (the section of a skill reference file or review
-agent that owns the text) and its source (`app-1`, `app-2`, `app-3`, the neutral labels defined in
+agent that owns the text) and its source (a product's `kit.portfolioId` or a founding `app-N` label, from the Sources table in
 `lessons/README.md`). The index never carries the text; the home does. A row stays in the live table only while
 something a session reads cites its id (a skill step, an agent, a template rule seed, a workflow, a routine
 prompt); rows nothing cites sit in the index's History section with the reason, and a new lesson enters with
@@ -336,9 +312,9 @@ body says what closing it needs. Scheduled Claude Code Routines are the workforc
   at filing (R3), bootstraps titled `Bootstrap: <what> → <where>` that name where a value goes and what they
   unlock (R4), decisions with options and a reversible default (R5), irreversibility beats the ladder (R6), a
   `human:*` issue closes once its human work is done, never by a routine (R7), score in the same pass (R8),
-  CI-filed issues deduped on the title prefix with no traces attached (R9), no secret in an issue (R10). One
-  pinned "maintainer's queue" issue is the tracking surface the triage routine rewrites; it carries no work
-  type, priority or ROI.
+  CI-filed issues deduped on the title prefix with no traces attached (R9), no secret in an issue (R10). The
+  pinned "maintainer's queue" issue the triage routine rewrites is exempt from the labels (rules.md, "The queue
+  exemption").
 - **`routines/`** holds the prompt texts, one file each with cadence, environment, tools, what it may touch and
   what it never does, then the prompt verbatim: `triage` (weekly: lint, decisions, closed bootstraps, stale
   scheduled workflows, re-score, rewrite the queue issue), `nuclear-review` (weekly: the `review` skill over
