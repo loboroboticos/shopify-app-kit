@@ -5,6 +5,19 @@ vendored hook carries it on line 2 (`# shopify-app-kit vX.Y.Z`). A version that 
 `### Deprecated`; the next minor deletes it and lists it under `### Removed` (`kit-dev`: "Remove a skill, agent,
 hook, workflow or routine").
 
+## 0.16.10
+
+The guards fail closed under macOS's stock bash 3.2 (#87).
+
+- `hooks/guard-protected-branch.sh` read its lists with `mapfile`, which bash 3.2 (macOS's `/bin/bash`) lacks: it
+  exited 1 on an unbound variable, and Claude Code, which blocks only on exit 2, ran `git push origin main`. It now
+  reads them line by line, and a manifest without `deploy.protectedWorkflows` no longer trips `set -u`.
+- `hooks/lib.sh` gains `kit_fail_closed_on_exit`, which every guard calls right after sourcing it: a guard that fails
+  on its own (any exit but 0 or 2) blocks the command. `doctor.sh` does not call it and still never exits non-zero.
+- CI runs `test/hooks.test.mjs` on `macos-latest` with `/bin/bash` 3.2 and BSD sed; the tests pin the net in every
+  guard and cover a manifest without `deploy.protectedWorkflows`, and `kit-dev`'s add-a-guard step says the same.
+  Consumers pick up the guards with `/shopify-app-kit:sync`; the doctor reports the version drift until then.
+
 ## 0.16.9
 
 The "things nothing reads" family from the first scheduled `kit-tidy` run (#71, #72, #73).

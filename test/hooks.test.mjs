@@ -168,6 +168,12 @@ describe('guard-shopify-cli.sh', () => {
       assert.equal(lines[1], `# shopify-app-kit v${KIT_VERSION}`, `${f} header`);
     }
   });
+
+  test('every guard installs the fail-closed net: its own failure (any exit but 0 or 2) blocks instead of passing', () => {
+    for (const g of fs.readdirSync(hooksDir).filter((n) => /^guard-.*\.sh$/.test(n))) assert.match(fs.readFileSync(path.join(hooksDir, g), 'utf8'), /^\. "\$\(dirname "\$\{BASH_SOURCE\[0\]\}"\)\/lib\.sh"\nkit_fail_closed_on_exit$/m, `${g} calls kit_fail_closed_on_exit right after sourcing lib.sh`);
+    const r = spawnSync('bash', ['-c', `set -u; KIT_HOOK_NAME=guard-x; . "${path.join(hooksDir, 'lib.sh')}"; kit_fail_closed_on_exit; : "$kit_unset_variable"`], { encoding: 'utf8' });
+    assert.equal(r.status, 2, r.stderr); assert.match(r.stderr, /^Blocked by shopify-app-kit\/guard-x: the guard itself failed \(exit \d+\), so the command is refused \(fail closed\)\./m);
+  });
 });
 
 // ---------------------------------------------------------------------------------------------- guard-protected-branch
@@ -289,6 +295,7 @@ const protectedCases = [
   { fixture: releaseTrain, cmd: 'gh workflow run fly-deploy.yml', exit: 2, stderr: /production deploy \(fly-deploy\.yml\)/ },
   { fixture: releaseTrain, cmd: 'git push origin develop', exit: 0 },
   { fixture: releaseTrain, cmd: 'gh workflow run deploy.yml', exit: 0 },
+  { fixture: path.join(fixtures, 'multi-tenant-app.json'), cmd: 'gh workflow run deploy.yml', exit: 0 }, // no deploy.protectedWorkflows: an empty list must not trip set -u on bash 3.2
 
   // ---- pnpm-root fixture: promotion null
   { fixture: pnpmRoot, cmd: 'git push origin main', exit: 2, stderr: /Only the maintainer ships to main\./ },

@@ -45,9 +45,7 @@ describe('skills parity', () => {
       assert.ok(fm.description, 'description present');
       assert.ok(fm.description.length <= 1024, `description ≤ 1024 chars (${fm.description.length})`);
       assert.match(fm.description, /Use when/, 'description contains "Use when"');
-      for (const k of ['disable-model-invocation', 'user-invocable']) {
-        if (k in fm) assert.match(fm[k], /^(true|false)$/, `${k} is a boolean`);
-      }
+      for (const k of ['disable-model-invocation', 'user-invocable']) if (k in fm) assert.match(fm[k], /^(true|false)$/, `${k} is a boolean`);
     });
     const scriptsDir = path.join(skillDir, 'scripts');
     if (fs.existsSync(scriptsDir)) {

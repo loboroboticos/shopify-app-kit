@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shopify-app-kit v0.16.9
+# shopify-app-kit v0.16.10
 # hooks/guard-protected-branch.sh: PreToolUse(Bash) guard that keeps a session off the protected branches named in
 # .claude/shopify-app.json (branches.protected, branches.default, branches.promotion, deploy.protectedWorkflows).
 #
@@ -21,6 +21,7 @@ set -uo pipefail
 KIT_HOOK_NAME=guard-protected-branch
 # shellcheck source=lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+kit_fail_closed_on_exit
 
 kit_read_input
 
@@ -40,8 +41,9 @@ kit_require_manifest "$cwd"
 jq -e '(.branches.protected | type == "array") and (.branches.protected | length) > 0' "$manifest" >/dev/null 2>&1 \
   || block "the repo manifest is missing or unreadable ($manifest): branches.protected must be a non-empty array, so the command cannot be checked (fail closed)" "$KIT_MANIFEST_RULE"
 
-mapfile -t PROTECTED < <(mf '.branches.protected[]')
-mapfile -t WORKFLOWS < <(mf '.deploy.protectedWorkflows[]?')
+# Line by line, not mapfile: bash 3.2 (macOS's /bin/bash) has no mapfile.
+PROTECTED=(); while IFS= read -r l; do PROTECTED+=("$l"); done < <(mf '.branches.protected[]')
+WORKFLOWS=(); while IFS= read -r l; do WORKFLOWS+=("$l"); done < <(mf '.deploy.protectedWorkflows[]?')
 default_branch="$(mf '.branches.default // empty')"
 promotion="$(mf 'if .branches.promotion then "\(.branches.promotion.from) -> \(.branches.promotion.to)" else empty end')"
 protected_list="$(IFS=,; printf '%s' "${PROTECTED[*]}")"
@@ -64,7 +66,7 @@ workflow_display_name() {
 is_protected_workflow() {
   local f
   [ -n "$1" ] || return 1
-  for f in "${WORKFLOWS[@]}"; do
+  for f in ${WORKFLOWS[@]+"${WORKFLOWS[@]}"}; do
     [ "$1" = "$f" ] && return 0
     [ "$1" = ".github/workflows/$f" ] && return 0
     [ "$1" = "$(workflow_display_name "$f")" ] && return 0

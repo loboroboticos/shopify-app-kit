@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shopify-app-kit v0.16.9
+# shopify-app-kit v0.16.10
 # hooks/lib.sh: shared helpers for the shopify-app-kit guard hooks. Sourced, never executed.
 # Vendored into consumers at .claude/hooks/kit/lib.sh by /shopify-app-kit:sync, next to the guards.
 #
@@ -15,10 +15,11 @@
 #   kit_require_jq WHAT       -> block when jq is missing ("jq is not installed, so WHAT (fail closed)")
 #   kit_require_manifest [DIR]-> resolve the manifest and block when it is missing or unreadable
 #   kit_ensure_manifest       -> the lazy form: 0 the first time (read your keys now), 1 once loaded
+#   kit_fail_closed_on_exit   -> a guard's net: any exit other than 0 or 2 (the guard itself failed) becomes a block
 #   kit_walk_commands CMD CB  -> calls CB "<effective dir>" <prog> <args...> for every simple command in CMD,
 #                                after heredoc stripping, control-operator splitting and cd/pushd/popd tracking.
 
-KIT_VERSION="0.16.9"
+KIT_VERSION="0.16.10"
 KIT_HOOK_NAME="${KIT_HOOK_NAME:-hook}"
 KIT_MANIFEST_RULE="Add or repair .claude/shopify-app.json (the repo manifest the kit's guard hooks read; schema: shopify-app-kit schemas/shopify-app.v1.schema.json)."
 
@@ -107,6 +108,7 @@ mf() { jq -r "$1" "$manifest"; }
 # ---------------------------------------------------------------- fail-closed prologue
 
 KIT_JQ_RULE="Install jq (brew install jq / apt-get install jq)."
+KIT_GUARD_RULE="The error above is the guard's, not the command's: check bash, jq, sed and git on PATH, then re-run /shopify-app-kit:sync."
 manifest_loaded=0
 
 # kit_require_jq WHAT: block when jq is missing, naming what could not be inspected without it.
@@ -125,6 +127,13 @@ kit_ensure_manifest() {
   [ "$manifest_loaded" -eq 1 ] && return 1
   kit_require_manifest "$cwd"
   manifest_loaded=1
+}
+
+# kit_fail_closed_on_exit: every guard calls it right after sourcing this file. Claude Code blocks only on exit 2, so
+# a guard that dies on its own (a builtin an old bash lacks, an unbound variable under set -u) would let the command
+# run; this turns every exit other than 0 (allow) and 2 (block) into a block. doctor.sh never calls it: it exits 0.
+kit_fail_closed_on_exit() {
+  trap 'kit__rc=$?; [ "$kit__rc" -eq 0 ] || [ "$kit__rc" -eq 2 ] || block "the guard itself failed (exit $kit__rc), so the command is refused (fail closed)" "$KIT_GUARD_RULE"' EXIT
 }
 
 # ---------------------------------------------------------------- paths
