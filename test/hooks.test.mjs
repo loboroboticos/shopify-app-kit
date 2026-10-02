@@ -37,6 +37,10 @@ function checkout(fixture, ...dirs) {
   return dir;
 }
 
+// variant(fixture, edit): a copy of a fixture manifest changed by edit(m), written into the fake consumer; its path.
+let variants = 0;
+const variant = (fixture, edit) => { const m = JSON.parse(fs.readFileSync(fixture, 'utf8')); edit(m); const p = path.join(consumer, `variant-${++variants}.json`); fs.writeFileSync(p, JSON.stringify(m)); return p; };
+
 const npmRoot = path.join(fixtures, 'npm-root-app.json');
 const pnpmRoot = path.join(fixtures, 'pnpm-root-app.json');
 
@@ -300,10 +304,7 @@ describe('guard-protected-branch.sh', () => {
   });
 
   test('a manifest with an empty branches.protected fails closed', () => {
-    const m = JSON.parse(fs.readFileSync(npmRoot, 'utf8'));
-    m.branches.protected = [];
-    const p = path.join(consumer, 'unprotected-manifest.json');
-    fs.writeFileSync(p, JSON.stringify(m));
+    const p = variant(npmRoot, (m) => { m.branches.protected = []; });
     const r = runGuard('guard-protected-branch.sh', { fixture: p, cmd: 'git push origin beta' });
     assert.equal(r.status, 2, r.stderr);
     assert.match(r.stderr, /manifest is missing or unreadable/);
@@ -514,10 +515,7 @@ describe('doctor.sh', () => {
   });
 
   test('reports a kit.routines entry the kit does not ship, and only that one', () => {
-    const m = JSON.parse(fs.readFileSync(path.join(fixtures, 'multi-tenant-app.json'), 'utf8'));
-    m.kit.routines.push('no-such-routine');
-    const p = path.join(consumer, 'bad-routine-manifest.json');
-    fs.writeFileSync(p, JSON.stringify(m));
+    const p = variant(path.join(fixtures, 'multi-tenant-app.json'), (m) => { m.kit.routines.push('no-such-routine'); });
     const r = runDoctor({ manifest: p });
     assert.equal(r.status, 0, r.stderr);
     assert.match(r.stdout, /Drift: kit\.routines names `no-such-routine`, which this kit version does not ship; remove it or update the kit\./);
@@ -535,22 +533,16 @@ describe('doctor.sh', () => {
 
   test('knows every top-level key the schema allows (the list is derived, not kept by hand)', () => {
     const schema = JSON.parse(fs.readFileSync(path.join(hooksDir, '..', 'schemas', 'shopify-app.v1.schema.json'), 'utf8'));
-    const m = JSON.parse(fs.readFileSync(path.join(fixtures, 'multi-tenant-app.json'), 'utf8'));
     // Fill every section the fixture lacks with a minimal valid value, so the manifest declares all of them.
     const minimal = { classify: { provider: 'jev', labelSets: { intent: { labels: ['a', 'b'] } } }, webhooks: { topics: [] }, scopes: { required: [] }, checks: {}, deploy: {}, apiVersion: { expected: '2026-07' }, paths: {}, docs: {}, auth: {}, billing: {}, database: { provider: 'postgres' } };
-    for (const k of Object.keys(schema.properties)) if (!(k in m)) m[k] = k.startsWith('$') ? 'x' : (minimal[k] ?? {});
-    const p = path.join(consumer, 'every-section-manifest.json');
-    fs.writeFileSync(p, JSON.stringify(m));
+    const p = variant(path.join(fixtures, 'multi-tenant-app.json'), (m) => { for (const k of Object.keys(schema.properties)) if (!(k in m)) m[k] = k.startsWith('$') ? 'x' : (minimal[k] ?? {}); });
     const r = runDoctor({ manifest: p });
     assert.equal(r.status, 0, r.stderr);
     assert.doesNotMatch(r.stdout, /unknown top-level key/, r.stdout);
   });
 
   test('still reports an unrelated unknown top-level key', () => {
-    const m = JSON.parse(fs.readFileSync(path.join(fixtures, 'annotated-app.json'), 'utf8'));
-    m.$notes = 'x';
-    const p = path.join(consumer, 'unknown-key-manifest.json');
-    fs.writeFileSync(p, JSON.stringify(m));
+    const p = variant(path.join(fixtures, 'annotated-app.json'), (m) => { m.$notes = 'x'; });
     const r = runDoctor({ manifest: p });
     assert.equal(r.status, 0, r.stderr);
     assert.match(r.stdout, /does not satisfy schema v1/);
@@ -566,13 +558,12 @@ describe('doctor.sh', () => {
   });
 
   test('reports structural problems and still exits 0', () => {
-    const bad = JSON.parse(fs.readFileSync(npmRoot, 'utf8'));
-    bad.shopifyCli.deployPolicy = 'yolo';
-    delete bad.branches.protected;
-    bad.apiVersion.expected = '2026-05';
-    bad.kit.routines = 'triage'; bad.kit.portfolioId = 'Bad Name';
-    const p = path.join(consumer, 'bad-manifest.json');
-    fs.writeFileSync(p, JSON.stringify(bad));
+    const p = variant(npmRoot, (bad) => {
+      bad.shopifyCli.deployPolicy = 'yolo';
+      delete bad.branches.protected;
+      bad.apiVersion.expected = '2026-05';
+      bad.kit.routines = 'triage'; bad.kit.portfolioId = 'Bad Name';
+    });
     const r = runDoctor({ manifest: p });
     assert.equal(r.status, 0, r.stderr);
     assert.match(r.stdout, /does not satisfy schema v1/);
@@ -617,49 +608,28 @@ describe('doctor.sh', () => {
     assert.match(res.stdout, /Deprecated: guard-shopify-cli\.sh: use guard-new-thing\.sh\. It leaves the kit in the next minor; remove it from \.claude\/settings\.json and \.claude\/hooks\/kit\/ now\./);
   });
 
+  // The Shopify companion: one install warning when `claude plugin list` lacks it, one info line while the telemetry
+  // opt-out file is absent, each independent of the other. { plugins, optedOut, install?, telemetry? }
+  const companionCases = [
+    { plugins: 'shopify-app-kit@shopify-app-kit', optedOut: true, install: true },
+    { plugins: 'No plugins installed. Use `claude plugin install` to install a plugin.', optedOut: true, install: true },
+    { plugins: BOTH_PLUGINS, optedOut: true },
+    { plugins: BOTH_PLUGINS, optedOut: false, telemetry: true },
+    { plugins: 'shopify-app-kit@shopify-app-kit', optedOut: false, install: true, telemetry: true },
+  ];
   describe('companion plugin', () => {
-    test('warns once, naming the install command, when claude plugin list does not list shopify-ai-toolkit', () => {
-      const r = runDoctor({ manifest: npmRoot, plugins: 'shopify-app-kit@shopify-app-kit' });
-      assert.equal(r.status, 0, r.stderr);
-      const lines = r.stdout.split('\n').filter((l) => l.startsWith('Companion:'));
-      assert.equal(lines.length, 1, r.stdout);
-      assert.match(lines[0], /^Companion: shopify-ai-toolkit is not installed; run: claude plugin install shopify-ai-toolkit@claude-plugins-official/);
-      assert.equal(r.stderr, '');
-    });
-
-    test('warns when no plugin is installed at all', () => {
-      const r = runDoctor({ manifest: npmRoot, plugins: 'No plugins installed. Use `claude plugin install` to install a plugin.' });
-      assert.match(r.stdout, /Companion: shopify-ai-toolkit is not installed/);
-    });
-
-    test('says nothing about installation when the companion is listed', () => {
-      const r = runDoctor({ manifest: npmRoot });
-      assert.doesNotMatch(r.stdout, /not installed/);
-      assert.doesNotMatch(r.stdout, /Companion:/);
-    });
-
-    test('prints one info line with the opt-out path while the telemetry opt-out file is absent', () => {
-      const r = runDoctor({ manifest: npmRoot, optedOut: false });
-      const lines = r.stdout.split('\n').filter((l) => l.startsWith('Companion:'));
-      assert.equal(lines.length, 1, r.stdout);
-      assert.match(lines[0], /^Companion: shopify-ai-toolkit telemetry is on .*touch ~\/\.config\/shopify-ai-toolkit\/opt-out/);
-    });
-
-    test('prints both lines when the companion is missing and telemetry is on, and still exits 0', () => {
-      const r = runDoctor({ manifest: npmRoot, plugins: 'shopify-app-kit@shopify-app-kit', optedOut: false });
-      assert.equal(r.status, 0);
-      assert.match(r.stdout, /Companion: shopify-ai-toolkit is not installed/);
-      assert.match(r.stdout, /Companion: shopify-ai-toolkit telemetry is on/);
-      assert.match(r.stdout, /OK \(schema v1/);
-    });
-
-    test('is silent about the companion when the claude binary is absent', () => {
-      const r = runDoctor({ manifest: npmRoot, claude: false, optedOut: false });
-      assert.equal(r.status, 0, r.stderr);
-      assert.match(r.stdout, /OK \(schema v1/);
-      assert.doesNotMatch(r.stdout, /Companion:/);
-      assert.equal(r.stderr, '');
-    });
+    for (const c of companionCases) {
+      test(`plugins ${JSON.stringify(c.plugins)}, opted out ${c.optedOut} -> install ${!!c.install}, telemetry ${!!c.telemetry}`, () => {
+        const r = runDoctor({ manifest: npmRoot, plugins: c.plugins, optedOut: c.optedOut });
+        assert.equal(r.status, 0, r.stderr);
+        assert.equal(r.stderr, '');
+        assert.match(r.stdout, /OK \(schema v1/);
+        const lines = r.stdout.split('\n').filter((l) => l.startsWith('Companion: shopify-ai-toolkit'));
+        assert.equal(lines.length, !!c.install + !!c.telemetry, r.stdout);
+        if (c.install) assert.match(r.stdout, /^Companion: shopify-ai-toolkit is not installed; run: claude plugin install shopify-ai-toolkit@claude-plugins-official/m);
+        if (c.telemetry) assert.match(r.stdout, /^Companion: shopify-ai-toolkit telemetry is on .*touch ~\/\.config\/shopify-ai-toolkit\/opt-out/m);
+      });
+    }
 
     test('the fake claude answers plugin list and nothing else', () => {
       const env = { ...process.env, PATH: `${fakeBin}${path.delimiter}${process.env.PATH}`, FAKE_CLAUDE_PLUGINS: 'x@y' };
@@ -688,12 +658,14 @@ describe('doctor.sh', () => {
       fs.writeFileSync(path.join(dir, '.claude', 'skills', 'graphify', 'SKILL.md'), '');
       assert.doesNotMatch(runDoctor({ manifest: undefined, graphify: false, cwd: dir, extraEnv: { CLAUDE_PROJECT_DIR: dir } }).stdout, /graphify/);
     });
+  });
 
-    test('is silent about graphify when the claude binary is absent', () => {
-      const r = runDoctor({ manifest: npmRoot, claude: false, graphify: false });
-      assert.equal(r.status, 0, r.stderr);
-      assert.doesNotMatch(r.stdout, /Companion:/);
-    });
+  test('is silent about both companions when the claude binary is absent', () => {
+    const r = runDoctor({ manifest: npmRoot, claude: false, optedOut: false, graphify: false });
+    assert.equal(r.status, 0, r.stderr);
+    assert.match(r.stdout, /OK \(schema v1/);
+    assert.doesNotMatch(r.stdout, /Companion:/);
+    assert.equal(r.stderr, '');
   });
 
   describe('scheduled workflows', () => {
