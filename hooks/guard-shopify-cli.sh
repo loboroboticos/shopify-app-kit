@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shopify-app-kit v0.16.9
+# shopify-app-kit v0.16.10
 # hooks/guard-shopify-cli.sh: PreToolUse(Bash) guard for Shopify CLI commands, driven by .claude/shopify-app.json.
 #
 #   shopify app dev [clean]     per shopifyCli.devPolicy      (config-required: --config must equal configs.dev)
@@ -16,6 +16,7 @@ set -uo pipefail
 KIT_HOOK_NAME=guard-shopify-cli
 # shellcheck source=lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+kit_fail_closed_on_exit
 
 kit_read_input
 

@@ -5,7 +5,10 @@
 1. Create `hooks/guard-<thing>.sh` starting with `#!/usr/bin/env bash` and, on line 2, `# shopify-app-kit v<version>`
    (the header test enforces this; consumers' tripwires compare it with `kit.version`).
 2. Set `KIT_HOOK_NAME=guard-<thing>` and source `lib.sh` from `$(dirname "${BASH_SOURCE[0]}")`, so the same file
-   works from the plugin and from a consumer's `.claude/hooks/kit/`.
+   works from the plugin and from a consumer's `.claude/hooks/kit/`, then call `kit_fail_closed_on_exit` on the next
+   line (`test/hooks.test.mjs` checks it), so a failure of the guard itself blocks. Write for bash 3.2, macOS's
+   `/bin/bash` (CI runs the hook tests with it): no `mapfile` or associative arrays, and `${a[@]+"${a[@]}"}` for an
+   array that may be empty under `set -u`.
 3. Exit 0 early for commands that cannot be relevant; resolve the manifest; fail closed (`block`) when it is missing,
    when jq is missing (pre-filter on `kit_raw_command`, never on the whole payload: #38), or when a path cannot be
    read literally. Read policies from the manifest, never hardcode.

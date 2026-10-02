@@ -316,8 +316,6 @@ describe('templates/', () => {
 
   // Repo literals: test/no-repo-literals.test.mjs walks templates/ with the forbidden list.
   test('no substituted template keeps an unsubstituted placeholder', () => {
-    for (const f of files) {
-      assert.equal(substitute(read(f)).match(PLACEHOLDER), null, `${f} keeps a placeholder the substitution table does not know`);
-    }
+    for (const f of files) assert.equal(substitute(read(f)).match(PLACEHOLDER), null, `${f} keeps a placeholder the substitution table does not know`);
   });
 });
