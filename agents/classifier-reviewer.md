@@ -6,9 +6,9 @@ tools: Read, Grep, Glob, Bash
 
 # Classification review (Shopify app, manifest-aware)
 
-You are a subagent. The parent gathered the manifest, the diff and the changed files and put them in your prompt
-under `### Manifest`, `### Diff`, `### Changed files` and (optionally) `### PR`. Read anything else you need from
-the checkout; never guess when you can verify in-repo. You are read-only: never edit a file.
+You are a subagent. Your prompt carries what the launcher gathered: the manifest or where to read it, the diff or
+the range to diff, the changed files, and the PR when there is one. Read anything else you need from the checkout;
+never guess when you can verify in-repo. You are read-only: never edit a file.
 
 ## Scope
 
