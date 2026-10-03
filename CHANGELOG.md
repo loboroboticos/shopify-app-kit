@@ -5,6 +5,19 @@ vendored hook carries it on line 2 (`# shopify-app-kit vX.Y.Z`). A version that 
 `### Deprecated`; the next minor deletes it and lists it under `### Removed` (`kit-dev`: "Remove a skill, agent,
 hook, workflow or routine").
 
+## 0.17.1
+
+`dev-loop` gains `references/storefront-qa.md`: how to test a theme app extension on a live, password-protected
+storefront. It is knowledge, not code, per the decision on #101 (vendor a harness once a second product needs one).
+
+- The password bypass (a 302 from `POST /password`, the two cookie names, the per-IP 429, a one-cookie
+  `storageState`), pinning an unpublished theme, the placement probe's checks and exit codes, a Lighthouse budget,
+  and the CI shape (one worker, no retries, one concurrency group, never upload traces).
+- The three cloud-session browser facts: no Google Chrome; launch the preinstalled Chromium by path through
+  `CHROME_PATH`; Chromium trusts the egress proxy only through its NSS store.
+- Consumers: the reference arrives with the plugin update; `/shopify-app-kit:sync` moves the vendored hook headers
+  to 0.17.1 (no hook body changed). Nothing to configure.
+
 ## 0.17.0
 
 `guard-protected-branch` also guards the GitHub MCP tools: a session that reaches GitHub through MCP rather than
