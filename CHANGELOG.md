@@ -5,6 +5,30 @@ vendored hook carries it on line 2 (`# shopify-app-kit vX.Y.Z`). A version that 
 `### Deprecated`; the next minor deletes it and lists it under `### Removed` (`kit-dev`: "Remove a skill, agent,
 hook, workflow or routine").
 
+## 0.17.0
+
+`guard-protected-branch` also guards the GitHub MCP tools: a session that reaches GitHub through MCP rather than
+`git` or `gh` can no longer push to, merge into or retarget a PR at a protected branch, or run a protected workflow.
+
+- The guard reads `tool_name` and, for an `mcp__*github*__` tool, applies the Bash rules to its `tool_input`:
+  `push_files`, `create_or_update_file`, `delete_file` and `create_branch` on a protected `branch` (none named:
+  blocked); `update_pull_request` with a protected `base`; `merge_pull_request` and `enable_pr_auto_merge` into a
+  protected base; `actions_run_trigger` `run_workflow` of a `deploy.protectedWorkflows` entry, and its rerun or
+  cancel methods on a run of one. It applies on any repo the call names. Every other MCP tool passes.
+- A merge names only a PR number and a rerun only a run id, so the guard resolves the base and the run's workflow
+  (and a numeric workflow id) with `gh`; when it cannot, the call is refused, as `gh pr merge` already is. A
+  session without `gh` merges and reruns from the GitHub UI.
+- Registration is a second `PreToolUse` entry, matcher `mcp__.*github.*` (any MCP server name containing
+  `github`), for `guard-protected-branch.sh` only: `templates/.claude/settings.json`, the `sync` snippet, the
+  doctor skill and README. `hooks/doctor.sh` reports a consumer that vendors the guard without the MCP entry.
+- `lib.sh`: `kit_parse_input` also sets `$tool`; new `kit_tool_arg KEY` and `kit_raw_tool` (no jq).
+- Consumers: `/shopify-app-kit:sync`, then add the MCP entry from its snippet to `.claude/settings.json`; a
+  tripwire that asserts every guard sits under the `Bash` matcher still holds.
+
+### Budget
+
+`hooks` raised from 1070 to 1150 for the MCP branch of the guard and its `lib.sh` helpers (about 70 lines).
+
 ## 0.16.12
 
 The doctor's `kit.*` checks follow the schema, and a routine reaches installs in a new version (#89, #90, #91, #96).
