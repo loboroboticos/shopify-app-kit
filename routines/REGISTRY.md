@@ -32,12 +32,12 @@ so the fired sessions never queue behind each other.
 
 The kit keeps no register of products: a public file could hold only private facts. Each consumer's manifest
 declares `kit.portfolioId` (an opaque id, never a business, product or store name) and `kit.routines` (the
-routines it runs, by file name). A routine's session reads only the one repository it was made with, so a
-cross-repo routine discovers the portfolio at run time: it lists the repositories the account can read
-(`list_repos`), whatever the owner, attaches each read-only (`add_repo` with read access), fetches
-`.claude/shopify-app.json` from each one's default branch, keeps those carrying `kit.portfolioId`, and refers to a
-product by that id only. A consumer it cannot attach is not in the portfolio for that run, and the summary says
-how many were found.
+routines it runs, by file name). A routine's session reads only the repositories attached to the routine, whatever
+their owner, and has no tool to attach more, so the portfolio is what the routine carries: `kit-tidy` is made with
+the kit and every consumer repository; a consumer routine carries only its own. A cross-repo routine reads
+`.claude/shopify-app.json` from each attached repository's default branch, read only, keeps those carrying
+`kit.portfolioId`, and refers to a product by that id only. A consumer not attached is not in the portfolio, and the
+summary says how many were found.
 `new-app`'s checklist sets both keys; `dev-parity` is listed only by a product with a dev registration and a
 hosted beta; `kit-tidy` runs in the kit repository and is nobody's roster entry.
 
@@ -56,8 +56,9 @@ local CLI writes the same routine and is refused inside a cloud session.
    network access, variables and a setup script, never a repository.
 2. **The form.** Name `<repo short name>: <routine>`; the prompt is the text under `## Prompt` of
    `routines/<routine>.md`, pasted whole (`dev-parity`'s repo preamble above it); exactly one repository, the
-   consumer's (the kit's for `kit-tidy`), because a session with several loads no `.claude/settings.json` and
-   the bootstrap hook that installs the kit does not run; a **Schedule** trigger at the nearest preset, then
+   consumer's, because a session with several loads no `.claude/settings.json` and the bootstrap hook that
+   installs the kit does not run. `kit-tidy` is the exception: the kit first, then every consumer repository,
+   since it loads no plugin and reads the consumers for its portfolio step; a **Schedule** trigger at the nearest preset, then
    the cron from the table (UTC) set with `/schedule update` from a local CLI; under **Connectors**, only what
    the routine's Tools field needs.
 3. **The first run by hand.** **Run now** on the routine's page, then read the run's session before trusting
