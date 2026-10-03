@@ -35,7 +35,7 @@ Each is enforced by the named hook or test; the sentence here is the pointer, no
 - A schema change ships with its migration; CI migrates from empty and runs `migrate diff --exit-code`.
 - No secret in git; `secret-scan.yml` scans the full history on every PR.
 - A `human:*` label says who does the work, not who closes the issue: a session closes it once that work is
-  done and its close condition is met (`.claude/rules/pr-and-issues.md`).
+  done and its close condition is met, a routine never does (`.claude/rules/pr-and-issues.md`).
 
 ## Pointers
 

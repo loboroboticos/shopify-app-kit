@@ -139,6 +139,10 @@ describe('docs mirror their sources', () => {
     for (const s of ['kit.portfolioId', 'twice in one product, or once in two', '## What will cite it', 'lessons-index']) assert.ok(proposal.includes(s), `lesson-proposal.md: ${s}`);
   });
 
+  test('every template that says who closes a human:* issue carries R7\'s "a routine never" (#92)', () => {
+    for (const [f, n] of [['.github/ISSUE_TEMPLATE/work-item.md', 2], ['CLAUDE.md', 1], ['.claude/rules/pr-and-issues.md', 1]]) assert.ok((read('templates', f).replace(/\s+/g, ' ').match(/a routine never/g) ?? []).length >= n, `templates/${f} says ${n} time(s) that a routine never closes a human:* issue (R7)`);
+  });
+
   test('the CHANGELOG headings start at the plugin version and chain by consecutive versions', () => {
     const versions = [...read('CHANGELOG.md').matchAll(/^## (\d+)\.(\d+)\.(\d+)$/gm)].map((m) => m.slice(1, 4).map(Number));
     assert.ok(versions.length > 1, 'CHANGELOG has version sections');
