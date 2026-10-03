@@ -5,6 +5,22 @@ vendored hook carries it on line 2 (`# shopify-app-kit vX.Y.Z`). A version that 
 `### Deprecated`; the next minor deletes it and lists it under `### Removed` (`kit-dev`: "Remove a skill, agent,
 hook, workflow or routine").
 
+## 0.17.3
+
+The review workflows no longer return a clean verdict that their own evidence contradicts (#117).
+
+- Dedupe: two blockers or majors merge only when they make the same claim, so a skeptic refuting one entry's lead
+  claim never demotes a different serious finding merged under it; the skeptic is also shown every merged claim.
+- `release-readiness`: a dimension `args.dimensions` leaves out stays an open `- [ ]` line marked "not checked",
+  never ticked as not applicable. A ref that does not resolve is `no-go` (it was `go` on an empty range);
+  `pre-pr-review` returns `changes-needed` for an unresolved base instead of approving an empty diff.
+- The seven diff-stage agents review the range their prompt names, not always `origin/<default>...HEAD`.
+- Consumers: the fixes arrive with the plugin update; `/shopify-app-kit:sync` moves the vendored hook headers.
+
+### Budget
+
+`test/` 3325 → 3360 for the regression test of each verdict bug (#117).
+
 ## 0.17.2
 
 The guard hooks close the bypasses and the fail-open a review of 0.17.1 reproduced (#116). Each case below exited 0

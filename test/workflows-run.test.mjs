@@ -41,7 +41,7 @@ function runtime({ scope, reviews, verdicts, reviewPhase = 'Review', byLabel = f
 const run = (name, rt, args) => load(name)(rt.agent, rt.parallel, rt.pipeline, rt.phase, rt.log, args, rt.budget);
 
 const baseScope = {
-  manifestFound: true, base: 'beta', baseRef: 'origin/beta', head: 'feature/x', pr: '12',
+  manifestFound: true, refsResolved: true, base: 'beta', baseRef: 'origin/beta', head: 'feature/x', pr: '12',
   changedFiles: ['web/app/routes/app.tsx', 'web/prisma/schema.prisma', 'web/prisma/migrations/1_x/migration.sql'],
   diffStat: ' 3 files changed', intentSource: 'PR #12 body', intent: 'Add a widget.',
   touchesPrisma: true, extensionsDeclared: false, touchesExtensions: false, notes: '',
@@ -135,13 +135,40 @@ describe('pre-pr-review under a stub runtime', () => {
     assert.equal(result.verdict, 'approve');
     assert.equal(rt.calls.length, 1);
   });
+
+  test('two serious findings a few lines apart stay apart, so refuting one never drops the other; the skeptic sees every merged claim (#117)', async () => {
+    const rt = runtime({
+      scope: { ...baseScope, touchesPrisma: false },
+      reviews: {
+        'qa-review-security-governance': { headline: 'x', checked: 'read', findings: [finding('blocker', 'loader has no authenticator', 'web/app/routes/app.tsx', 12), finding('minor', 'loader logs the shop', 'web/app/routes/app.tsx', 13)] },
+        'qa-review-technical-integrity': { headline: 'y', checked: 'read', findings: [finding('major', 'action writes without a transaction', 'web/app/routes/app.tsx', 14)] },
+      },
+      verdicts: { 'loader has no authenticator': { refuted: true, reason: 'authenticate.admin runs on line 11', severity: 'note' } },
+    });
+    const result = await run('pre-pr-review', rt, 'beta');
+    assert.equal(result.findings.length, 2, 'the minor merges into the blocker; the major keeps its own entry');
+    const tx = result.findings.find((f) => f.claim === 'action writes without a transaction');
+    assert.equal(tx.severity, 'major');
+    assert.match(tx.verification, /^confirmed/);
+    assert.equal(result.verdict, 'changes-needed', 'a refuted blocker must not carry a different major down with it');
+    const auth = rt.calls.find((c) => c.opts.label?.startsWith('verify:') && c.prompt.includes('loader has no authenticator'));
+    assert.ok(auth.prompt.includes('- loader logs the shop'), 'the skeptic is shown every claim merged into the entry');
+  });
+
+  test('a base ref that does not resolve is changes-needed without launching a reviewer (#117)', async () => {
+    const rt = runtime({ scope: { ...baseScope, refsResolved: false, changedFiles: [] }, reviews: {}, verdicts: {} });
+    const result = await run('pre-pr-review', rt, 'beta');
+    assert.equal(result.verdict, 'changes-needed');
+    assert.match(result.notes, /base ref did not resolve/);
+    assert.equal(rt.calls.length, 1);
+  });
 });
 
 // ---------------------------------------------------------------------------------------------- release-readiness
 // The scope of a promotion range on a manifest like the npm-root fixture: pins, tomls, webhooks, live billing,
 // one extension, a migration in the range, scale-to-zero on. Dimensions are keyed by their launch label.
 const releaseScope = {
-  manifestFound: true, from: 'beta', to: 'main', headRef: 'origin/beta', baseRef: 'origin/main', pr: '30',
+  manifestFound: true, refsResolved: true, from: 'beta', to: 'main', headRef: 'origin/beta', baseRef: 'origin/main', pr: '30',
   prBody: 'Promote beta. Drops the legacy column (acknowledged).',
   changedFiles: ['web/app/routes/app.tsx', 'web/prisma/schema.prisma', 'web/prisma/migrations/2_drop/migration.sql', 'shopify.app.example.toml', 'extensions/example/blocks/widget.liquid'],
   migrations: ['web/prisma/migrations/2_drop/migration.sql'], prismaPath: 'web/prisma', touchesPrisma: true,
@@ -274,6 +301,28 @@ describe('release-readiness under a stub runtime', () => {
     assert.equal(r2.verdict, 'go');
     assert.equal(quiet.calls.length, 1);
   });
+
+  test('a dimension left out by args.dimensions stays open as not checked, never ticked as not applicable (#117)', async () => {
+    const rt = runtime({ scope: releaseScope, reviewPhase: 'Dimensions', byLabel: true, reviews: {}, verdicts: {} });
+    const result = await run('release-readiness', rt, { dimensions: ['branch-model'] });
+    assert.deepEqual(launchedLabels(rt), ['branch-model=qa-review-security-governance']);
+    const lines = result.checklist.split('\n');
+    assert.ok(lines.includes('- [x] Branch model: range is beta -> main; protected workflows untouched or reviewed'));
+    assert.ok(lines.includes('- [ ] Migration in this release: 1 file(s); scale to zero first (scaleToZeroBeforeMigrate): yes (not checked: not in args.dimensions)'));
+    assert.ok(lines.includes('- [ ] Billing live: no plan or price change in this release / change reviewed (not checked: not in args.dimensions)'));
+    assert.ok(lines.includes('- [ ] API version pins agree on 2026-07 (not checked: not in args.dimensions)'));
+    assert.ok(lines.includes('- [ ] Webhook topics subscribed and handled; compliance handlers present (not checked: not in args.dimensions)'));
+    assert.ok(lines.some((l) => l.startsWith('- [ ] Extension version to release:') && l.endsWith('(not checked: not in args.dimensions)')));
+    assert.ok(lines.some((l) => l.startsWith('- [ ] App Store review check') && l.endsWith('(not checked: not in args.dimensions)')));
+  });
+
+  test('a ref that does not resolve is no-go without launching a dimension (#117)', async () => {
+    const rt = runtime({ scope: { ...releaseScope, refsResolved: false, changedFiles: [] }, reviewPhase: 'Dimensions', byLabel: true, reviews: {}, verdicts: {} });
+    const result = await run('release-readiness', rt, undefined);
+    assert.equal(result.verdict, 'no-go');
+    assert.match(result.checklist, /a ref did not resolve/);
+    assert.equal(rt.calls.length, 1);
+  });
 });
 
 // ---------------------------------------------------------------------------------------------- plan-review
@@ -286,7 +335,7 @@ const planFinding = (severity, claim, section, extra = {}) => ({ severity, claim
 const launchedAgents = (rt) => rt.calls.filter((c) => c.opts.agentType).map((c) => c.opts.agentType.replace('shopify-app-kit:', '')).sort();
 
 describe('plan-review under a stub runtime', () => {
-  test('runs the four design reviewers, merges two reviewers on one section, verifies, collects ADR decisions, and returns rethink on a confirmed blocker', async () => {
+  test('runs the four design reviewers, merges a minor into a major on one section, keeps two serious claims apart, verifies, collects ADR decisions, and returns rethink on a confirmed blocker', async () => {
     const rt = runtime({
       scope: planScope,
       reviews: {
@@ -308,23 +357,25 @@ describe('plan-review under a stub runtime', () => {
     assert.ok(rt.calls[1].prompt.includes('## Data model'), 'the reviewers get the plan text');
     assert.deepEqual(result.failed, []);
 
-    // 4 raw findings → 2 after dedupe: findings on one plan section merge (the higher severity wins, every
-    // reviewer and claim is kept, an adr tag from either survives), so §Data model and §Rollout are one each.
-    assert.equal(result.findings.length, 2);
-    const data = result.findings.find((f) => f.section === 'Data model');
-    assert.equal(data.severity, 'blocker');
-    assert.deepEqual(data.reviewers.sort(), ['design-review-architecture', 'design-review-risk-governance']);
-    assert.equal(data.claims.length, 2);
+    // 4 raw findings → 3 after dedupe: a minor merges into the serious finding on its section (the higher severity
+    // wins, every reviewer and claim is kept, an adr tag from either survives), but two serious findings with
+    // different claims stay apart even on one section, so a refutation of one never drops the other (#117).
+    assert.equal(result.findings.length, 3);
+    const data = result.findings.find((f) => f.section === 'Data model' && f.severity === 'blocker');
+    assert.deepEqual(data.reviewers, ['design-review-architecture']);
+    assert.equal(data.claims.length, 1);
     assert.equal(data.adr, false);
+    const rls = result.findings.find((f) => f.section === 'Data model' && f.severity === 'major');
+    assert.equal(rls.claim, 'no RLS policy named for the Widget table');
     const rollout = result.findings.find((f) => f.section === 'Rollout');
     assert.equal(rollout.severity, 'major');
     assert.equal(rollout.adr, true);
     assert.deepEqual(rollout.reviewers.sort(), ['design-review-feasibility', 'design-review-risk-governance']);
-    assert.equal(rt.calls.filter((c) => c.opts.label?.startsWith('verify:')).length, 2, 'one skeptic per blocker/major after dedupe');
+    assert.equal(rt.calls.filter((c) => c.opts.label?.startsWith('verify:')).length, 3, 'one skeptic per blocker/major after dedupe');
     assert.match(data.verification, /^confirmed/);
     assert.match(rollout.verification, /^confirmed/);
     assert.equal(result.verdict, 'rethink');
-    assert.deepEqual(result.counts, { blocker: 1, major: 1, minor: 0, note: 0 });
+    assert.deepEqual(result.counts, { blocker: 1, major: 2, minor: 0, note: 0 });
     assert.deepEqual(result.adrs.map((a) => a.section), ['Rollout']);
     assert.equal(result.adrs[0].decision, 'fix the backfill runs before the column exists');
   });

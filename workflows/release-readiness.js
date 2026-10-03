@@ -75,12 +75,13 @@ const SCOPE_SCHEMA = {
     billingTestFlag: { type: 'string' },
     appPublic: { type: 'boolean' },
     prodHandle: { type: 'string' },
+    refsResolved: { type: 'boolean' },
     notes: { type: 'string' },
   },
   required: ['manifestFound', 'from', 'to', 'headRef', 'baseRef', 'pr', 'prBody', 'changedFiles', 'migrations', 'prismaPath',
     'touchesPrisma', 'apiVersionExpected', 'pinFiles', 'tomls', 'webhookTopics', 'webhooksCompliance', 'webhookHandlers',
     'extensions', 'extensionFiles', 'workflowFiles', 'protectedWorkflows', 'deployTargets', 'scaleToZeroBeforeMigrate',
-    'billingLive', 'billingMethod', 'billingTestFlag', 'appPublic', 'prodHandle', 'notes'],
+    'billingLive', 'billingMethod', 'billingTestFlag', 'appPublic', 'prodHandle', 'refsResolved', 'notes'],
 }
 
 // The same finding shape as pre-pr-review, so the two workflows' outputs look alike.
@@ -150,7 +151,9 @@ and return them in the structured shape requested.
    prBody: that PR's body when one exists, else "" (truncate to about 6000 characters and say so in notes).
 5. appPublic: true when \`billing.method\` is app-pricing, or the app's toml or README says it is listed on the
    App Store or distributed publicly; false otherwise.
-6. notes: anything a dimension should know (no manifest, gh missing, a ref that would not fetch, an empty range).`,
+6. refsResolved: true only when \`git rev-parse --verify\` succeeded on both headRef and baseRef and the diff ran;
+   false when either ref is missing or the diff failed (an empty changedFiles then means "unknown", not "nothing").
+7. notes: anything a dimension should know (no manifest, gh missing, a ref that would not fetch, an empty range).`,
   { label: 'scope', phase: 'Scope', effort: 'low', schema: SCOPE_SCHEMA })
 
 if (!scope) throw new Error('scoping pass returned nothing; cannot choose a range or the dimensions')
@@ -158,6 +161,11 @@ if (!scope.manifestFound) {
   log('no .claude/shopify-app.json in the checkout; release readiness is manifest-driven, so the answer is no-go')
   return { verdict: 'no-go', from: scope.from, to: scope.to, pr: scope.pr, findings: [], refuted: [], dimensions: [], skipped: [], failed: [],
     checklist: '- [ ] no manifest: add .claude/shopify-app.json (the README\'s manifest contract) and re-run the release-readiness workflow', notes: scope.notes }
+}
+if (!scope.refsResolved) {
+  log(`${scope.headRef || scope.from || '(head)'} or ${scope.baseRef || scope.to || '(base)'} did not resolve, so the range is unknown; the answer is no-go`)
+  return { verdict: 'no-go', from: scope.from, to: scope.to, pr: scope.pr, findings: [], refuted: [], dimensions: [], skipped: [], failed: [],
+    checklist: `- [ ] ${scope.from} -> ${scope.to}: a ref did not resolve, so nothing was checked; fetch both branches and re-run the release-readiness workflow`, notes: scope.notes }
 }
 if (scope.changedFiles.length === 0) {
   log(`no changes between ${scope.baseRef} and ${scope.headRef}; nothing to promote`)
@@ -279,8 +287,12 @@ const sorted = raw.slice().sort((a, b) => (a.file || '~').localeCompare(b.file |
 const merged = []
 for (const f of sorted) {
   const prev = merged[merged.length - 1]
-  const sameSpot = prev && f.file && prev.file === f.file && Math.abs((f.line || 0) - (prev.line || 0)) <= LINE_FUZZ
-  const sameTopic = prev && !f.file && !prev.file && norm(f.section || f.claim) === norm(prev.section || prev.claim) && (!TOPIC_NEEDS_SAME_CLAIM || norm(f.claim) === norm(prev.claim))
+  // Two blockers or majors merge only when they make the same claim: the skeptic judges the entry's lead claim, and a
+  // refutation must never carry a different serious defect down with it (#117). A serious finding still absorbs a
+  // nearby minor or note, which only leads when nothing serious is there.
+  const mergeable = prev && (norm(f.claim) === norm(prev.claim) || RANK[f.severity] > RANK.major || RANK[prev.severity] > RANK.major)
+  const sameSpot = mergeable && f.file && prev.file === f.file && Math.abs((f.line || 0) - (prev.line || 0)) <= LINE_FUZZ
+  const sameTopic = mergeable && !f.file && !prev.file && norm(f.section || f.claim) === norm(prev.section || prev.claim) && (!TOPIC_NEEDS_SAME_CLAIM || norm(f.claim) === norm(prev.claim))
   if (sameSpot || sameTopic) {
     if (RANK[f.severity] < RANK[prev.severity]) { prev.severity = f.severity; prev.claim = f.claim; prev.fix = f.fix }
     mergeExtra(prev, f)
@@ -307,15 +319,17 @@ const verdicts = await parallel(toVerify.map((f, i) => () =>
 You are read-only: read the cited files and their surroundings, run only tooling that writes nothing, never modify
 a file, never create a branch, stash or worktree.
 
-Finding [${f.severity}] ${f.file ? `${f.file}:${f.line}` : f.section} — ${f.claim}
+Finding [${f.severity}] ${f.file ? `${f.file}:${f.line}` : f.section} — ${f.claim}${f.claims.length > 1 ? `
+Merged here (nearby or same-section findings; each is its own claim):
+${f.claims.map((c) => `- ${c}`).join('\n')}` : ''}
 Dimension: ${f.dimensions.join(', ')} (raised by ${f.reviewers.join(', ')})
 Evidence: ${f.evidence}
 Proposed fix: ${f.fix}
 PR body: ${scope.prBody ? scope.prBody.slice(0, 2000) : '(none)'}
 
-Return refuted=true only when you can show, with evidence from the checkout or the PR body, that the claim is
-wrong, already handled or acknowledged, or outside this range (pre-existing and untouched). Return refuted=false
-when it stands, even partly. Either way give the reason and the severity you would assign (blocker | major | minor | note).`,
+Return refuted=true only when you can show, with evidence from the checkout or the PR body, that every claim
+listed is wrong, already handled or acknowledged, or outside this range (pre-existing and untouched). Return
+refuted=false when any claim stands, even partly. Either way give the reason and the severity you would assign (blocker | major | minor | note).`,
     { label: `verify:${f.file ? f.file.split('/').pop() : f.section}#${i + 1}`, phase: 'Verify', schema: VERDICT_SCHEMA })))
 
 // @shared skeptic-apply
@@ -350,27 +364,29 @@ log(`verdict: ${verdict} (${counts.blocker} blocker, ${counts.major} major, ${co
 // dimension ran and raised nothing above a note.
 const passed = (id) => dimensions.some((d) => d.dimension === id && d.status === 'ran') && !merged.some((f) => f.dimensions.includes(id) && RANK[f.severity] <= RANK.minor)
 const ran = (id) => dimensions.some((d) => d.dimension === id)
-// A dimension that ran clean is ticked; one the manifest does not enable is ticked as not applicable; a failed one
-// or one with a finding stays open.
-const box = (id) => (ran(id) ? (passed(id) ? '- [x]' : '- [ ]') : '- [x]')
+// A dimension that ran clean is ticked; one the manifest does not enable is ticked as not applicable; a failed one,
+// one with a finding, and one args.dimensions left out (never checked) stay open.
+const unchecked = (id) => skipped.some((s) => s.dimension === id && s.reason === 'not in args.dimensions')
+const box = (id) => (ran(id) ? (passed(id) ? '- [x]' : '- [ ]') : unchecked(id) ? '- [ ]' : '- [x]')
+const na = (id, why) => (unchecked(id) ? ' (not checked: not in args.dimensions)' : ` (not applicable: ${why})`)
 const checklist = [
   `release-readiness: ${verdict} (${counts.blocker} blocker, ${counts.major} major, ${counts.minor} minor, ${counts.note} note${failed.length ? `; uncovered: ${failed.join(', ')}` : ''})`,
   `- [ ] CI green on ${scope.from}; migrate diff clean; tripwires green`,
-  `${box('api-version')} API version pins agree on ${scope.apiVersionExpected || '<apiVersion.expected>'}${ran('api-version') ? '' : ' (not applicable: apiVersion.expected absent)'}`,
-  `${box('webhooks')} Webhook topics subscribed and handled; compliance handlers present${ran('webhooks') ? '' : ' (not applicable: no webhooks section)'}`,
-  `${box('branch-model')} Branch model: range is ${scope.from} -> ${scope.to}; protected workflows untouched or reviewed`,
-  ran('app-store-review')
-    ? '- [ ] App Store review check (public app): summary attached / companion not installed'
+  `${box('api-version')} API version pins agree on ${scope.apiVersionExpected || '<apiVersion.expected>'}${ran('api-version') ? '' : na('api-version', 'apiVersion.expected absent')}`,
+  `${box('webhooks')} Webhook topics subscribed and handled; compliance handlers present${ran('webhooks') ? '' : na('webhooks', 'no webhooks section')}`,
+  `${box('branch-model')} Branch model: range is ${scope.from} -> ${scope.to}; protected workflows untouched or reviewed${ran('branch-model') ? '' : na('branch-model', '')}`,
+  ran('app-store-review') || unchecked('app-store-review')
+    ? `- [ ] App Store review check (public app): summary attached / companion not installed${ran('app-store-review') ? '' : na('app-store-review', '')}`
     : `- [x] App Store review check: not applicable (billing.method ${scope.billingMethod || 'unset'}, not a public app)`,
-  ran('migrations')
-    ? `${box('migrations')} Migration in this release: ${scope.migrations.length} file(s); scale to zero first (scaleToZeroBeforeMigrate): ${scope.scaleToZeroBeforeMigrate ? 'yes' : 'no'}`
+  ran('migrations') || unchecked('migrations')
+    ? `${box('migrations')} Migration in this release: ${scope.migrations.length} file(s); scale to zero first (scaleToZeroBeforeMigrate): ${scope.scaleToZeroBeforeMigrate ? 'yes' : 'no'}${ran('migrations') ? '' : na('migrations', '')}`
     : '- [x] Migration in this release: none',
-  ran('extension')
-    ? `- [ ] Extension version to release: ${scope.prodHandle || '<handle>'}-<N>; verified in an asset URL after deploy${passed('extension') ? ' (settings compatibility checked)' : ''}`
+  ran('extension') || unchecked('extension')
+    ? `- [ ] Extension version to release: ${scope.prodHandle || '<handle>'}-<N>; verified in an asset URL after deploy${passed('extension') ? ' (settings compatibility checked)' : ''}${ran('extension') ? '' : na('extension', '')}`
     : '- [x] Extension version to release: none (paths.extensions empty)',
   `- [ ] Server target(s): ${scope.deployTargets ? scope.deployTargets.split('\n').join('; ') : '<workflow> on push to <branch>'}`,
-  ran('billing')
-    ? `${box('billing')} Billing live: no plan or price change in this release / change reviewed`
+  ran('billing') || unchecked('billing')
+    ? `${box('billing')} Billing live: no plan or price change in this release / change reviewed${ran('billing') ? '' : na('billing', '')}`
     : `- [x] Billing live: no (billing.live ${scope.billingLive})`,
   '- [ ] No app dev session left on the dev registration (if one ran since the last clean, run app dev clean)',
 ].join('\n')

@@ -57,10 +57,11 @@ const SCOPE_SCHEMA = {
     touchesPrisma: { type: 'boolean' },
     extensionsDeclared: { type: 'boolean' },
     touchesExtensions: { type: 'boolean' },
+    refsResolved: { type: 'boolean' },
     notes: { type: 'string' },
   },
   required: ['manifestFound', 'base', 'baseRef', 'head', 'pr', 'changedFiles', 'diffStat', 'intentSource', 'intent',
-    'touchesPrisma', 'extensionsDeclared', 'touchesExtensions', 'notes'],
+    'touchesPrisma', 'extensionsDeclared', 'touchesExtensions', 'refsResolved', 'notes'],
 }
 
 // @shared findings-schema
@@ -125,10 +126,16 @@ in the structured shape requested.
 6. touchesPrisma: any changed file under \`paths.prisma\`, or named schema.prisma, or under a migrations/
    directory. extensionsDeclared: \`paths.extensions\` is a non-empty array. touchesExtensions: any changed file
    under one of the \`paths.extensions\` directories.
-7. notes: anything a reviewer should know (no manifest, gh missing, base ref missing, diff empty).`,
+7. refsResolved: true only when \`git rev-parse --verify <baseRef>\` succeeded and the diff ran; false when the base
+   ref is missing or the diff failed (an empty changedFiles then means "unknown", not "no changes").
+8. notes: anything a reviewer should know (no manifest, gh missing, base ref missing, diff empty).`,
   { label: 'scope', phase: 'Scope', effort: 'low', schema: SCOPE_SCHEMA })
 
 if (!scope) throw new Error('scoping pass returned nothing; cannot choose a base or a roster')
+if (!scope.refsResolved) {
+  log(`the base ${scope.baseRef || scope.base || '(none)'} did not resolve, so the diff is unknown; nothing can be approved`)
+  return { verdict: 'changes-needed', base: scope.base, head: scope.head, pr: scope.pr, findings: [], reviewers: [], skipped: [], notes: `${scope.notes ? `${scope.notes}; ` : ''}base ref did not resolve` }
+}
 if (scope.changedFiles.length === 0) {
   log(`no changes between ${scope.baseRef} and ${scope.head}; nothing to review`)
   return { verdict: 'approve', base: scope.base, head: scope.head, pr: scope.pr, findings: [], reviewers: [], skipped: [], notes: scope.notes }
@@ -201,8 +208,12 @@ const sorted = raw.slice().sort((a, b) => (a.file || '~').localeCompare(b.file |
 const merged = []
 for (const f of sorted) {
   const prev = merged[merged.length - 1]
-  const sameSpot = prev && f.file && prev.file === f.file && Math.abs((f.line || 0) - (prev.line || 0)) <= LINE_FUZZ
-  const sameTopic = prev && !f.file && !prev.file && norm(f.section || f.claim) === norm(prev.section || prev.claim) && (!TOPIC_NEEDS_SAME_CLAIM || norm(f.claim) === norm(prev.claim))
+  // Two blockers or majors merge only when they make the same claim: the skeptic judges the entry's lead claim, and a
+  // refutation must never carry a different serious defect down with it (#117). A serious finding still absorbs a
+  // nearby minor or note, which only leads when nothing serious is there.
+  const mergeable = prev && (norm(f.claim) === norm(prev.claim) || RANK[f.severity] > RANK.major || RANK[prev.severity] > RANK.major)
+  const sameSpot = mergeable && f.file && prev.file === f.file && Math.abs((f.line || 0) - (prev.line || 0)) <= LINE_FUZZ
+  const sameTopic = mergeable && !f.file && !prev.file && norm(f.section || f.claim) === norm(prev.section || prev.claim) && (!TOPIC_NEEDS_SAME_CLAIM || norm(f.claim) === norm(prev.claim))
   if (sameSpot || sameTopic) {
     if (RANK[f.severity] < RANK[prev.severity]) { prev.severity = f.severity; prev.claim = f.claim; prev.fix = f.fix }
     mergeExtra(prev, f)
@@ -229,14 +240,16 @@ const verdicts = await parallel(toVerify.map((f, i) => () =>
 read the cited code and its surroundings, run only tooling that writes nothing, never modify a file, never create a
 branch, stash or worktree.
 
-Finding [${f.severity}] ${f.file ? `${f.file}:${f.line}` : f.section} — ${f.claim}
+Finding [${f.severity}] ${f.file ? `${f.file}:${f.line}` : f.section} — ${f.claim}${f.claims.length > 1 ? `
+Merged here (nearby or same-section findings; each is its own claim):
+${f.claims.map((c) => `- ${c}`).join('\n')}` : ''}
 Raised by: ${f.reviewers.join(', ')}
 Evidence: ${f.evidence}
 Proposed fix: ${f.fix}
 
-Return refuted=true only when you can show, with evidence from the checkout, that the claim is wrong, already
-handled, or out of this branch's scope (pre-existing and untouched). Return refuted=false when it stands, even
-partly. Either way give the reason and the severity you would assign (blocker | major | minor | note).`,
+Return refuted=true only when you can show, with evidence from the checkout, that every claim listed is wrong,
+already handled, or out of this branch's scope (pre-existing and untouched). Return refuted=false when any claim
+stands, even partly. Either way give the reason and the severity you would assign (blocker | major | minor | note).`,
     { label: `verify:${f.file ? f.file.split('/').pop() : 'whole'}#${i + 1}`, phase: 'Verify', schema: VERDICT_SCHEMA })))
 
 // @shared skeptic-apply
