@@ -10,8 +10,8 @@ the portfolio.
   for issues.
 - **Tools:** the `doctor` skill, `git ls-remote --tags` against the kit's repository, the companion's docs
   search (`shopify-dev`) for API version support windows, a shallow read-only clone of the upstream persona
-  repository for the review-persona delta, `list_repos`, `add_repo` with read access only, each discovered
-  product's manifest and lockfile, GitHub issues.
+  repository for the review-persona delta, each discovered product's manifest and lockfile (read only), GitHub
+  issues.
 - **May touch:** new issues, comments on existing ones.
 - **Never:** closes a `human:*` issue; relabels `human:*` to `agent:*` except per R7; opens a PR; pushes
   anything; runs `sync` or edits the manifest; dispatches a workflow named in `deploy.protectedWorkflows`.
@@ -70,16 +70,16 @@ upstream`, `code only`, `p3`, naming the files and pointing at the kit-dev skill
 from upstream" procedure. Port nothing: the re-sync is a kit PR the maintainer runs. Skip with "unverified" when
 the clone fails.
 
-Step 4, portfolio divergence. Discover the portfolio: list the repositories the account can read (`list_repos`),
-whatever the owner; attach each other one read-only (`add_repo` with read access, never push), fetch
-`.claude/shopify-app.json` from each one's default branch, and keep those carrying
-`kit.portfolioId` (a product is that id and nothing else in what you write). For every product found, fetch its
-server lockfile from its `branches.default` and read the major versions of `@shopify/shopify-app-react-router`, `@shopify/shopify-api`, `prisma`,
-`@prisma/client`, `react-router` and `typescript`. When this repository is behind another product by a major
-on any of them, open or update one issue `kit-health: <library> major diverges across the portfolio`,
-`code only`, `p3`, `dependencies`, naming the majors per product (portfolio ids only, never a repository, and no
-version of anything secret) and the dependabot ignore entry that defers it. When only this repository is in the
-portfolio, or none is readable, note it and open no issue.
+Step 4, portfolio divergence. Discover the portfolio: this session reads only the repositories attached to the
+routine, whatever their owner. Read `.claude/shopify-app.json` from each one's default branch, read only, and keep
+those carrying `kit.portfolioId` (a product is that id and nothing else in what you write). For every product
+found, fetch its server lockfile from its `branches.default` and read the major versions of
+`@shopify/shopify-app-react-router`, `@shopify/shopify-api`, `prisma`, `@prisma/client`, `react-router` and
+`typescript`. When this repository is behind another product by a major on any of them, open or update one issue
+`kit-health: <library> major diverges across the portfolio`, `code only`, `p3`, `dependencies`, naming the majors
+per product (portfolio ids only, never a repository, and no version of anything secret) and the dependabot ignore
+entry that defers it. When only this repository is in the portfolio, or none is readable, note it and open no
+issue.
 
 Finish with a short summary in the session: the doctor's verdict, the kit versions, the API window, the
 upstream persona delta, the portfolio majors, and the issues opened or updated.

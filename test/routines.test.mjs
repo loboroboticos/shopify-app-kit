@@ -111,13 +111,15 @@ describe('routines/', () => {
     for (const s of ['Step 1, the suite', 'Step 2, duplicated prose', 'Step 3, things nothing reads', 'Step 4, the size trend', 'Step 5, docs that restate a test', 'Step 6, mechanical drift', 'Step 7, the portfolio', 'Step 8, deprecation candidates', 'this routine deprecates\nnothing', 'At most one PR per run', 'Never a deletion', 'no-repo-literals', 'kit-tidy: <the finding in six words>', 'that title prefix', 'never with a closing']) assert.ok(tidy.includes(s), `kit-tidy: ${s}`);
   });
 
-  test('every portfolio discovery lists the account\'s repositories and attaches each read-only, whatever the owner (#107)', () => {
-    // A routine's session reads only the repository it was made with, so discovery attaches the others itself.
+  test('every portfolio discovery reads the repositories attached to the routine, whatever the owner (#107)', () => {
+    // A scheduled run reads only the repositories its routine carries and has no tool to attach more.
     const sites = [['routines/kit-tidy.md', 'Step 7, the portfolio'], ['routines/kit-health.md', 'Step 4, portfolio divergence'], ['routines/REGISTRY.md', '## Discovering the portfolio'], ['README.md', '**The portfolio is discovered']];
     for (const [f, from] of sites) {
       const text = fs.readFileSync(path.join(kitRoot, f), 'utf8'), i = text.indexOf(from), para = text.slice(i, text.indexOf('\n\n', i + from.length + 2)).replace(/\s+/g, ' ');
-      assert.ok(i >= 0 && /whatever the owner/.test(para) && /attach(es)? each (other )?(one )?read-only/.test(para) && !/remote's owner/.test(para), `${f}: "${from}" lists the account's repositories whatever the owner and attaches each read-only`);
+      assert.ok(i >= 0 && /attached/.test(para) && !/remote's owner|list_repos|add_repo/.test(para), `${f}: "${from}" reads the attached repositories and names no owner limit or tool a scheduled run lacks`);
     }
+    assert.match(registry.replace(/\s+/g, ' '), /`kit-tidy` is the exception: the kit first, then every consumer repository/);
+    assert.match(read('kit-tidy.md'), /git fetch\s+--tags/, 'kit-tidy fetches the tags its steps 4 and 7 compare against');
   });
 
   test('every manifest that declares kit.routines names routines that exist', () => {

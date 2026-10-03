@@ -6,10 +6,9 @@ opens one PR per run for the purely mechanical drift a test already defines as w
 
 - **Cadence:** weekly (`37 5 * * 5`, Friday 05:37 UTC), in the kit repository only.
 - **Environment:** a fresh cloud session in the kit's own environment with the checkout, `node`, the `claude` CLI
-  and the GitHub MCP tools; for the portfolio step, the account's repository listing and read-only attaches.
+  and the GitHub MCP tools; for the portfolio step, each consumer repository attached to the routine beside the kit.
 - **Tools:** `npm test`, the three `claude plugin validate` commands, git (read, plus one branch for the PR),
-  `test/budget.json`, `list_repos`, `add_repo` with read access only, each product's manifest, issues and
-  comments.
+  `test/budget.json`, each attached consumer's manifest (read only), issues and comments.
 - **May touch:** new `kit-tidy:` issues (one of them `kit-tidy: deprecation candidates`), comments on open ones, one PR per run to `main` limited to mechanical
   drift (a drifted enumeration a mirror test names, a stale `# shopify-app-kit v` header, a README row for a file
   that exists).
@@ -54,10 +53,10 @@ people); a fixture no test reads, by name or by listing its directory; a skill, 
 routine, rule seed or README row names; a reference file linked only from its own skill's index line with no
 step pointing at it.
 
-Step 4, the size trend. Run `node --test test/budget.test.mjs` and read the headroom diagnostics; compute the
-insert:delete ratio since the last tag (`git log <last tag>..HEAD --shortstat`). Both go into the summary as one
-line each. An issue only when a directory is within 2% of its ceiling: `kit-tidy: <dir> is at <n> of <cap>`,
-`code only`, `p3`, listing the three largest files in it.
+Step 4, the size trend. Run `node --test test/budget.test.mjs` and read the headroom diagnostics; run `git fetch
+--tags --quiet` (the checkout carries no tags) and compute the insert:delete ratio since the last tag (`git log
+<last tag>..HEAD --shortstat`). Both go into the summary as one line each. An issue only when a directory is within
+2% of its ceiling: `kit-tidy: <dir> is at <n> of <cap>`, `code only`, `p3`, listing the three largest files in it.
 
 Step 5, docs that restate a test. A sentence in the README, a `SKILL.md` or a reference that enumerates what a
 test already asserts, or that states a number a constant defines, and that `test/docs-mirror.test.mjs` does not
@@ -69,13 +68,13 @@ is exactly what the test's message says (a drifted enumeration, a stale `# shopi
 row missing for a file that exists): fix it on a branch, run the suite, open one PR titled
 `kit-tidy: <what drifted>` whose body names the test per fix. Nothing else rides it. No such drift: no PR.
 
-Step 7, the portfolio. This session reads only its own checkout until it attaches more. List the repositories the
-account can read (`list_repos`), whatever the owner; attach each one read-only (`add_repo` with read access, never
-push), fetch `.claude/shopify-app.json` from its default branch, and keep those carrying `kit.portfolioId`. For
-each product: its id, `kit.version` against the kit's latest tag (`git describe --tags --abbrev=0`), the top-level
-sections its manifest declares, and its `kit.routines`. One table in the summary, ids only. File nothing on a
-consumer: that is `kit-health`'s job. When none is readable or an attach is refused, say "portfolio: unverified"
-and why.
+Step 7, the portfolio. The routine carries each consumer repository beside the kit (the one routine made with more
+than one, since it loads no plugin), and this session reads only those. For each attached repository other than the
+kit, read `.claude/shopify-app.json` from its default branch, read only, and keep those carrying `kit.portfolioId`.
+For each product: its id, `kit.version` against the kit's latest tag (`git describe --tags --abbrev=0` after the
+step 4 fetch), the top-level sections its manifest declares, and its `kit.routines`. One table in the summary, ids
+only. File nothing on a consumer: that is `kit-health`'s job. When no consumer is attached or none carries the id,
+say "portfolio: unverified" and why.
 
 Step 8, deprecation candidates. Only when step 7 found at least one product. Growth stays pull-driven only if
 removal is too, so propose, never deprecate: (a) a manifest section or a guard-read key (the README's "Keys the
