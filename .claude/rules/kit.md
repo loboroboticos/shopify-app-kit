@@ -28,6 +28,7 @@ claude plugin validate skills --strict
 ```
 
 Every change under `skills/`, `agents/`, `hooks/`, `workflows/`, `schemas/`, `lessons/` or `.claude-plugin/`
-bumps the version and gets a CHANGELOG line; `routines/`, `templates/`, `test/` and the root files do not.
+bumps the version and gets a CHANGELOG line, and so does adding, removing or renaming a routine (the doctor reads
+`routines/` beside it); a prompt edit, `templates/`, `test/` and the root files do not.
 
 For every procedure (add, remove, re-sync the personas, release): `/shopify-app-kit:kit-dev`.

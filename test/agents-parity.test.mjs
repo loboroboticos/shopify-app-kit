@@ -68,9 +68,7 @@ describe('agents parity', () => {
       const disallowsAll = MUST_DISALLOW.every((t) => disallowed.includes(t));
       assert.ok(toolsClean || disallowsAll,
         `review agents are read-only: tools must exclude ${EDITING_TOOLS.join('/')} or disallowedTools must include ${MUST_DISALLOW.join(', ')}`);
-      if (tools.length === 0 && !disallowsAll) {
-        assert.fail(`no tools list: disallowedTools must include ${MUST_DISALLOW.join(', ')}`);
-      }
+      if (tools.length === 0 && !disallowsAll) assert.fail(`no tools list: disallowedTools must include ${MUST_DISALLOW.join(', ')}`);
 
       if (SKILL_REVIEWERS.includes(name)) {
         // The legend applies only to a reviewer that grades [P0]-[P2]; the input contract and verdict line to all three.

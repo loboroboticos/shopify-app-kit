@@ -90,4 +90,6 @@ is a complete standalone instruction: it starts by reading `.claude/shopify-app.
 R7, never dispatches a protected workflow, and opens at most one PR per run. Add its row to
 `routines/REGISTRY.md` (cron minute off the hour and distinct from the others; say in the row which products run
 it), and extend `test/routines.test.mjs` (the file list and the boundary phrases).
-`routines/` is not plugin-visible, so a routine change alone needs no version bump; the CHANGELOG still gets a line.
+Adding, removing or renaming a routine bumps the version (CI enforces it): the doctor checks `kit.routines` against
+the `routines/` of the installed version, which only a new version updates. A prompt edit alone needs no bump; the
+CHANGELOG still gets a line.

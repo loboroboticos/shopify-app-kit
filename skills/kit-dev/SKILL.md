@@ -40,4 +40,5 @@ claude --plugin-dir .                 # then /shopify-app-kit:doctor should be l
 ```
 
 Any change under `skills/`, `agents/`, `hooks/`, `workflows/`, `schemas/`, `lessons/` or `.claude-plugin/`
-bumps the version (CI enforces it on PRs to `main`); `routines/`, `templates/`, `test/` and the root files do not.
+bumps the version (CI enforces it on PRs to `main`), and so does adding, removing or renaming a routine; a prompt
+edit, `templates/`, `test/` and the root files do not.

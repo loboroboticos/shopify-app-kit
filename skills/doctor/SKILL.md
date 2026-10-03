@@ -51,9 +51,9 @@ Checks the consumer repo you are in, never the kit itself. Report findings as a 
    findings too. GitHub disables schedules in a repository idle for 60 days, so a stale line means dispatch it
    and check it is enabled. Silent without `gh`.
 
-8. **Report.** One line per problem, each with the fix: repair the manifest key, remove a `kit.routines` entry the
-   kit does not ship, run `/shopify-app-kit:sync`, add the settings snippet, install a companion, or dispatch a
-   stale workflow. If everything is clean, say so in one line.
+8. **Report.** One line per problem, each with the fix: repair the manifest key, update the kit (or remove the
+   entry) for a `kit.routines` routine it does not ship, remove a kit-scoped one, run `/shopify-app-kit:sync`, add
+   the settings snippet, install a companion, or dispatch a stale workflow. If everything is clean, say so in one line.
 
 ## References
 

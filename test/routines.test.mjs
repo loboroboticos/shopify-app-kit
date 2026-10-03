@@ -49,6 +49,7 @@ describe('routines/', () => {
       assert.ok(!/\n## /.test(prompt), 'the prompt is the last section');
       // Parameterised by the manifest and the label set; the repo comes from the remote.
       for (const s of KIT_SCOPED.has(f) ? KIT_READS : CONSUMER_READS) assert.ok(prompt.includes(s), `the prompt reads ${s}`);
+      assert.equal(text.includes('not a consumer'), KIT_SCOPED.has(f), 'only a kit-scoped routine says "not a consumer" (doctor.sh reads it)');
       assert.ok(prompt.includes(NEVER_CLOSES), 'the prompt itself carries the rule (it is pasted whole into the routine)');
       // Filing is deduped on a title prefix; the block (R2) is named in the prompt's own text, not left to rules.md.
       if (!KIT_SCOPED.has(f) && prompt.includes('title prefix')) {
