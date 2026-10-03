@@ -269,7 +269,7 @@ describe('templates/', () => {
   test('.claudeignore keeps graphify-out/ out of context and says where it lives', () => {
     const text = read('.claudeignore');
     assert.match(text, /^graphify-out\/$/m);
-    assert.match(text, /graph\/ branch/);
+    assert.match(text, /the graph branch/);
     assert.match(text, /\.gitignore/);
     assert.ok(text.split('\n').filter((l) => l && !l.startsWith('#')).every((l) => l === 'graphify-out/'), 'only graphify-out/ is ignored by default');
   });

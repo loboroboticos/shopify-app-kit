@@ -57,4 +57,4 @@ Checks the consumer repo you are in, never the kit itself. Report findings as a 
 
 ## References
 
-- `references/companion.md`: the Shopify companion plugin, the graphify skill and the kit: the split, where the kit's skills call them, the `graph/` branch, install and opt-out.
+- `references/companion.md`: the Shopify companion plugin, the graphify skill and the kit: the split, where the kit's skills call them, the `graph` branch, install and opt-out.

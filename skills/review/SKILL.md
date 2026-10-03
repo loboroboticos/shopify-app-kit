@@ -2,7 +2,7 @@
 name: review
 description: Deep pre-merge review of a Shopify app branch. Runs the kit's correctness/security and code-quality review agents in parallel, each checking the diff against this repo's .claude/shopify-app.json, then synthesizes one verdict. Use when a branch or PR needs a harsh, thorough audit before merge or promotion, or when asked for a deep, thermonuclear or full review.
 allowed-tools: Read, Grep, Glob, Agent, Bash(git *), Bash(jq *), Bash(gh pr *)
-argument-hint: "[base-branch | PR number]"
+argument-hint: "[base-branch | PR number | commit]"
 ---
 
 # shopify-app-kit review
@@ -16,6 +16,8 @@ maintainability against the app's canonical layers. Both are diff-scoped and evi
 1. **Scope.** Read `${CLAUDE_PROJECT_DIR}/.claude/shopify-app.json` (the manifest). If it is missing, say the
    review runs in generic mode and continue. Choose the base:
    - the argument, if it names a branch or a PR number (`gh pr view <n> --json baseRefName,headRefName,number,title,body`);
+   - the argument, if it is a commit or the empty tree (`git rev-parse --verify '<arg>^{tree}'` succeeds): a
+     routine's range. Diff it two-dot, `git diff <base> HEAD`, in place of every `<base>...HEAD` below;
    - else `branches.promotion.to` when the current branch is `branches.promotion.from`;
    - else `branches.default`; else `main`.
 

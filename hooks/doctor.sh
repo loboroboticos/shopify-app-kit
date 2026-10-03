@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shopify-app-kit v0.17.4
+# shopify-app-kit v0.17.5
 # hooks/doctor.sh: SessionStart briefing for a consumer repo. Validates .claude/shopify-app.json structurally
 # (required keys, enums, patterns of schema v1), prints one paragraph of facts to stdout, reports vendored-hook
 # drift and a kit.routines entry that is not a consumer routine this kit ships, checks the two companions (the
@@ -168,7 +168,7 @@ if command -v claude >/dev/null 2>&1; then
   if ! command -v graphify >/dev/null 2>&1 \
     && [ ! -f "${CLAUDE_CONFIG_DIR:-${HOME:-/nonexistent}/.claude}/skills/graphify/SKILL.md" ] \
     && [ ! -f "$root/.claude/skills/graphify/SKILL.md" ]; then
-    echo "Companion: graphify is not installed; run: pip install graphifyy==$GRAPHIFY_VERSION && graphify install (the graphify-refresh routine builds graphify-out/ on the graph/ branch with it)."
+    echo "Companion: graphify is not installed; run: pip install graphifyy==$GRAPHIFY_VERSION && graphify install (the graphify-refresh routine builds graphify-out/ on the graph branch with it)."
   fi
 fi
 

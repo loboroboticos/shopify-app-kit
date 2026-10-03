@@ -9,7 +9,7 @@ the portfolio.
   and the Shopify companion plugin loaded, git read access to the kit's repository, and the GitHub MCP tools
   for issues.
 - **Tools:** the `doctor` skill, `git ls-remote --tags` against the kit's repository, the companion's docs
-  search (`shopify-dev`) for API version support windows, a shallow read-only clone of the upstream persona
+  search (`shopify-dev`) for API version support windows, a blobless read-only clone of the upstream persona
   repository for the review-persona delta, each discovered product's manifest and lockfile (read only), GitHub
   issues.
 - **May touch:** new issues, comments on existing ones.
@@ -62,13 +62,14 @@ not installed, say "unverified" in the summary and open no issue.
 
 Step 3b, review personas. The kit's `design-review-*` and `qa-review-*` agents are ported from the
 `StarshipSuperjam/engine-template` repository at the commit its CHANGELOG records under the most recent
-"Ported from" or "Re-synced" line. Shallow-clone that repository's `main` (read-only, into a scratch directory)
-and count the `.claude/agents/engine-*.md` files whose content changed since that commit (`git diff --stat
-<commit>..HEAD -- .claude/agents/`). Report the delta in the summary as "<n> persona files changed upstream
-since <commit>"; when n is greater than zero, open or update one issue `kit-health: <n> review personas changed
-upstream`, `code only`, `p3`, naming the files and pointing at the kit-dev skill's "Re-sync the review personas
-from upstream" procedure. Port nothing: the re-sync is a kit PR the maintainer runs. Skip with "unverified" when
-the clone fails.
+"Ported from" or "Re-synced" line. Clone that repository's `main` read-only into a scratch directory with
+`--filter=blob:none` (every commit, file contents fetched on demand; a depth-1 clone does not contain that
+commit) and count the `.claude/agents/engine-*.md` files whose content changed since it (`git diff --stat
+<commit>..HEAD -- .claude/agents/`). Report the delta in the summary as one line: the count, then persona files
+changed upstream since, then the commit. When the count is above zero, open or update one issue `kit-health: <n>
+review personas changed upstream`, `code only`, `p3`, naming the files and pointing at the kit-dev skill's
+"Re-sync the review personas from upstream" procedure. Port nothing: the re-sync is a kit PR the maintainer runs.
+Skip with "unverified" when the clone fails.
 
 Step 4, portfolio divergence. Discover the portfolio: this session reads only the repositories attached to the
 routine, whatever their owner. Read `.claude/shopify-app.json` from each one's default branch, read only, and keep
