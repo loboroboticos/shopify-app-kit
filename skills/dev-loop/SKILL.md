@@ -1,6 +1,6 @@
 ---
 name: dev-loop
-description: Start, run and cleanly stop a local Shopify app dev session against the dev registration named in this repo's .claude/shopify-app.json (the right --config, the right store, tunnel port in a sandbox, app dev clean at the end, theme work outside the app repo). Use when asked to run the app locally, preview a theme extension, start app dev, or when a dev session ended without cleaning up.
+description: Start, run and cleanly stop a local Shopify app dev session against the dev registration named in this repo's .claude/shopify-app.json (the right --config, the right store, tunnel port in a sandbox, app dev clean at the end, theme work outside the app repo). Use when asked to run the app locally, preview a theme extension, start app dev, test a theme app extension on a live storefront, or when a dev session ended without cleaning up.
 allowed-tools: Read, Grep, Glob, Bash(jq *), Bash(cat *), Bash(ls *), Bash(shopify app dev *), Bash(shopify theme pull *), Bash(shopify theme dev *), Bash(mkdir *), Bash(cd *)
 ---
 
@@ -56,5 +56,5 @@ The companion plugin's `shopify-use-shopify-cli` skill is the CLI reference when
 
 ## References
 
-- `references/cli-traps.md`: the four CLI traps (implicit default config, `automatically_update_urls_on_dev`, the
-  expiring quick tunnel, the missing `clean`) and the handle-prefix rule for dev vs production extensions.
+- `references/cli-traps.md`: the four CLI traps around `app dev` and the dev vs production handle-prefix rule.
+- `references/storefront-qa.md`: testing a theme app extension on a live storefront (password, probe, cloud browser).
