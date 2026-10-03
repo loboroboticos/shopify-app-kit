@@ -5,6 +5,23 @@ vendored hook carries it on line 2 (`# shopify-app-kit vX.Y.Z`). A version that 
 `### Deprecated`; the next minor deletes it and lists it under `### Removed` (`kit-dev`: "Remove a skill, agent,
 hook, workflow or routine").
 
+## 0.17.6
+
+Skills name the repository root, not `$CLAUDE_PROJECT_DIR` in braces, and `triage` scopes the 60-day schedule
+shutdown to public repositories (#123).
+
+- The Bash tool does not set `CLAUDE_PROJECT_DIR`, and the skill loader fills the braced form with the directory
+  the session started in. In a session holding several repositories that is their parent, so `sync` would copy
+  the hooks outside the consumer (and its `awk` check would read those copies and pass), and the `doctor` skill
+  would find no manifest. `sync` and `doctor` now take `<root>` from `git rev-parse --show-toplevel` in the
+  consumer's checkout and allow that command; the ten other skills read `.claude/shopify-app.json` from the repo.
+  `kit-dev`'s "Add a skill" says so, and `test/skills-parity.test.mjs` fails a SKILL.md that uses the braced
+  form. Hook commands keep the unbraced `$CLAUDE_PROJECT_DIR`, which Claude Code sets for hooks and the loader
+  leaves as written.
+- `triage` step 4: GitHub disables schedules in a public repository idle for 60 days, as 0.17.4 says elsewhere.
+- Consumers: the skills arrive with the plugin update; `/shopify-app-kit:sync` moves the vendored hook headers
+  (no hook body changed). Re-paste `triage` from its `## Prompt`.
+
 ## 0.17.5
 
 The routine steps that could not run as written, the rest of #118. Re-paste `graphify-refresh`, `kit-health`,

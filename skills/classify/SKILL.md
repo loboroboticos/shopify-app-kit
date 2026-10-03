@@ -13,7 +13,7 @@ tripwire. Depth is in `references/`; the steps are the contract.
 
 ## Steps
 
-1. **Read the manifest.** From `${CLAUDE_PROJECT_DIR}/.claude/shopify-app.json` take `classify` (`provider`,
+1. **Read the manifest.** From the repo's `.claude/shopify-app.json` take `classify` (`provider`,
    `defaultEscalateThreshold`, `budget`, `labelSets`), `database.rls` and `checks.tripwireDir`. No `classify`
    section means the app classifies nothing yet; add the section in the same change as the first call.
 

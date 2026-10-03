@@ -13,7 +13,7 @@ require". Detail and rationale live in `references/`; the steps are the contract
 
 ## Steps
 
-1. **Read the manifest.** From `${CLAUDE_PROJECT_DIR}/.claude/shopify-app.json` take `apiVersion.expected`,
+1. **Read the manifest.** From the repo's `.claude/shopify-app.json` take `apiVersion.expected`,
    `apiVersion.pins`, `webhooks.topics`, `webhooks.compliance`, `scopes.required`, `scopes.optional`,
    `paths.appTomls`, `paths.webhookHandlers` and `paths.shopifyServer`.
 

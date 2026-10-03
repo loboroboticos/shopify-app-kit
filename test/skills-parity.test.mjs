@@ -40,6 +40,7 @@ describe('skills parity', () => {
       assert.ok(fm.description.length <= 1024, `description ≤ 1024 chars (${fm.description.length})`);
       assert.match(fm.description, /Use when/, 'description contains "Use when"');
       for (const k of ['disable-model-invocation', 'user-invocable']) if (k in fm) assert.match(fm[k], /^(true|false)$/, `${k} is a boolean`);
+      assert.doesNotMatch(fs.readFileSync(file, 'utf8'), /\$\{CLAUDE_PROJECT_DIR/, 'name the repo root (git rev-parse --show-toplevel), never ${CLAUDE_PROJECT_DIR}: the Bash tool does not set it and the skill loader fills it with the directory the session started in (#123)');
     });
     const scriptsDir = path.join(skillDir, 'scripts');
     if (fs.existsSync(scriptsDir)) {

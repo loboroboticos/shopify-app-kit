@@ -12,7 +12,7 @@ record is in `references/adr-shape.md`.
 
 ## Steps
 
-1. **Read the manifest** at `${CLAUDE_PROJECT_DIR}/.claude/shopify-app.json` for `checks.tripwireDir` (where the
+1. **Read the manifest**, the repo's `.claude/shopify-app.json`, for `checks.tripwireDir` (where the
    docs-map tripwire lives, if the repo has one) and `paths` (so a rule can be path-scoped correctly).
 
 2. **Find the owner before writing.** Open the repo's docs map (the index that names one owning document per

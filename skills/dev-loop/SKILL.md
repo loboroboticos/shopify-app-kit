@@ -12,7 +12,7 @@ The companion plugin's `shopify-use-shopify-cli` skill is the CLI reference when
 
 ## Steps
 
-1. **Read the manifest.** From `${CLAUDE_PROJECT_DIR}/.claude/shopify-app.json` take `shopifyCli.configs.dev`,
+1. **Read the manifest.** From the repo's `.claude/shopify-app.json` take `shopifyCli.configs.dev`,
    `shopifyCli.devPolicy`, `shopifyCli.deployPolicy`, `shopifyCli.themeDevFromRoot` and `paths.storeBindings`.
    Without a manifest, stop: the guard hooks will block a bare `app dev` anyway.
 

@@ -13,7 +13,7 @@ performs on push. Never merge, never run a protected workflow by hand, never tou
 
 ## Steps
 
-1. **Read the manifest.** From `${CLAUDE_PROJECT_DIR}/.claude/shopify-app.json` take `branches` (default,
+1. **Read the manifest.** From the repo's `.claude/shopify-app.json` take `branches` (default,
    protected, promotion), `deploy` (targets, protectedWorkflows, scaleToZeroBeforeMigrate), `billing` (live,
    testFlag, method), `shopifyCli.configs.deploy`, `shopifyCli.deployPolicy`, `app.handles` and `paths.extensions`.
 
