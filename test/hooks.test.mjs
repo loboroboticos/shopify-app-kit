@@ -504,7 +504,7 @@ describe('doctor.sh', () => {
   });
 
   test('accepts $schema and $comment without reporting unknown top-level keys', () => {
-    const r = runDoctor({ manifest: path.join(fixtures, 'annotated-app.json') });
+    const r = runDoctor({ manifest: variant(npmRoot, (m) => { m.$schema = 'x'; m.$comment = 'x'; }) });
     assert.equal(r.status, 0, r.stderr);
     assert.match(r.stdout, /shopify-app-kit doctor \(v\d+\.\d+\.\d+\): .*OK \(schema v1, kit\.version 0\.1\.0\)/);
     assert.doesNotMatch(r.stdout, /unknown top-level key/);
@@ -551,7 +551,7 @@ describe('doctor.sh', () => {
   });
 
   test('still reports an unrelated unknown top-level key', () => {
-    const p = variant(path.join(fixtures, 'annotated-app.json'), (m) => { m.$notes = 'x'; });
+    const p = variant(npmRoot, (m) => { m.$schema = 'x'; m.$comment = 'x'; m.$notes = 'x'; });
     const r = runDoctor({ manifest: p });
     assert.equal(r.status, 0, r.stderr);
     assert.match(r.stdout, /does not satisfy schema v1/);
