@@ -5,6 +5,33 @@ vendored hook carries it on line 2 (`# shopify-app-kit vX.Y.Z`). A version that 
 `### Deprecated`; the next minor deletes it and lists it under `### Removed` (`kit-dev`: "Remove a skill, agent,
 hook, workflow or routine").
 
+## 0.17.2
+
+The guard hooks close the bypasses and the fail-open a review of 0.17.1 reproduced (#116). Each case below exited 0
+on 0.17.1 and now blocks; `test/hooks.test.mjs` carries every one.
+
+- `guard-protected-branch`: a failed `gh api` (expired token, 404, rate limit) no longer resolves to its error body,
+  so a dispatch, rerun or cancel by numeric id fails closed. With jq, the tool name is `.tool_name` itself, so a
+  `tool_name` key inside `tool_input` cannot spoof it; GitHub MCP server names match in any letter case.
+- git push: `--branches`, wildcard and non-literal destinations, a push the repo's config sends to a protected
+  branch (`remote.<r>.push`, `push.default` upstream / matching), and `git -c` that redirects a push or aliases one.
+- gh: `pr edit -Bmain`, `workflow run <numeric id>`, `run rerun|cancel`, and `gh api` dispatches, run reruns, a PR's
+  `base=`, `contents` and `git/refs` writes to a protected branch, GraphQL auto-merge, and a query read from a file.
+- `lib.sh`: a here-string or a quoted `<<` no longer swallows the following lines; a heredoc fed to a shell is
+  checked; `\`-newline is joined; `bash -c`, `sh -c`, `eval`, `sudo -u`, `env -i`, `timeout`, `nice`, `xargs` and
+  `npx -p` are seen through. New `kit_pm_parse` reads npm/pnpm/yarn/bun past their global options.
+- `guard-shopify-cli` and `guard-migrations`: `pnpm exec`, `npm exec --`, `npm run shopify|prisma --`,
+  `npm --prefix`, `pnpm --filter` / `-C`, `npx -p`, `yarn` / `bun x` and `shopify app:deploy`; SQL spaced by more than
+  one blank. `guard-package-manager`: npm's global options and its install/ci/link/dedupe aliases.
+- Not changed: `;` and `&&` inside quoted text still split a command, so a commit message that quotes a guarded
+  command can still be blocked (fail-safe; quote-aware splitting is a separate change).
+- Consumers: `/shopify-app-kit:sync` vendors the new hooks.
+
+### Budget
+
+`hooks/` 1150 → 1360 and `test/` 3255 → 3325: the fixes are guard code a consumer runs on every command, and each
+reproduced bypass gets a test (#116, #109).
+
 ## 0.17.1
 
 `dev-loop` gains `references/storefront-qa.md`: how to test a theme app extension on a live, password-protected

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shopify-app-kit v0.17.1
+# shopify-app-kit v0.17.2
 # hooks/guard-shopify-cli.sh: PreToolUse(Bash) guard for Shopify CLI commands, driven by .claude/shopify-app.json.
 #
 #   shopify app dev [clean]     per shopifyCli.devPolicy      (config-required: --config must equal configs.dev)
@@ -111,17 +111,23 @@ check_pm_deploy() {
 }
 
 on_command() {
-  local dir="$1" prog sub
+  local dir="$1" prog sub a
   shift
   words=("$@")
   prog="${1##*/}"
   shift
   case "$prog" in
     npm | pnpm | yarn | bun)
-      sub="${1:-}"
-      case "$sub" in run | run-script) sub="${2:-}" ;; esac
-      [ "$sub" = deploy ] && check_pm_deploy "$prog" ;;
+      # Global options (npm --prefix web, pnpm --filter web, -C web) are skipped; exec/x/dlx and a `shopify` script
+      # run the CLI itself, so the command they run is checked as if typed.
+      kit_pm_parse "$prog" "$@"
+      sub="$kit_pm_sub"
+      case "$sub" in run | run-script) sub="${kit_pm_rest[0]:-}" ;; esac
+      [ "$sub" = deploy ] && check_pm_deploy "$prog"
+      if [ "${#kit_inner[@]}" -gt 0 ]; then on_command "$dir" "${kit_inner[@]}"; fi ;;
     shopify)
+      # The CLI's colon form (shopify app:deploy) is the same command.
+      case "${1:-}" in app:* | theme:*) a="$1"; shift; set -- "${a%%:*}" "${a#*:}" "$@" ;; esac
       case "${1:-} ${2:-}" in
         "app dev") shift 2; check_config_policy dev "$dev_policy" "$cfg_dev" "$@" ;;
         "app deploy") shift 2; check_config_policy deploy "$deploy_policy" "$cfg_deploy" "$@" ;;

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shopify-app-kit v0.17.1
+# shopify-app-kit v0.17.2
 # hooks/lib.sh: shared helpers for the shopify-app-kit guard hooks. Sourced, never executed.
 # Vendored into consumers at .claude/hooks/kit/lib.sh by /shopify-app-kit:sync, next to the guards.
 #
@@ -22,7 +22,7 @@
 #   kit_walk_commands CMD CB  -> calls CB "<effective dir>" <prog> <args...> for every simple command in CMD,
 #                                after heredoc stripping, control-operator splitting and cd/pushd/popd tracking.
 
-KIT_VERSION="0.17.1"
+KIT_VERSION="0.17.2"
 KIT_HOOK_NAME="${KIT_HOOK_NAME:-hook}"
 KIT_MANIFEST_RULE="Add or repair .claude/shopify-app.json (the repo manifest the kit's guard hooks read; schema: shopify-app-kit schemas/shopify-app.v1.schema.json)."
 
@@ -200,16 +200,22 @@ kit_resolve_dir() {
 
 # ---------------------------------------------------------------- command splitting
 
-# kit_strip_heredocs CMD: heredoc bodies are prose; print CMD without them (the opening line stays).
+# kit_strip_heredocs CMD: heredoc bodies are prose; print CMD without them (the opening line stays). A here-string
+# (<<<) and a << inside quotes open nothing, and the body of a heredoc fed to a shell (bash <<EOF, ... | sh) is a
+# script, so it stays.
 kit_strip_heredocs() {
-  local line delim="" stripped=""
+  local line delim="" stripped="" pre dq sq d
+  local re="(^|[^<])<<-?[[:space:]]*[\"']?([A-Za-z_][A-Za-z0-9_]*)" shell_re='(^|[[:space:];|&(])(bash|sh|zsh|dash|ksh)([[:space:]]|$)'
   while IFS= read -r line; do
     if [ -n "$delim" ]; then
       [ "${line#"${line%%[!$'\t']*}"}" = "$delim" ] && delim=""
       continue
     fi
     stripped+="$line"$'\n'
-    if [[ "$line" =~ \<\<-?[[:space:]]*[\'\"]?([A-Za-z_][A-Za-z0-9_]*) ]]; then delim="${BASH_REMATCH[1]}"; fi
+    if [[ "$line" =~ $re ]]; then
+      d="${BASH_REMATCH[2]}"; pre="${line%%"${BASH_REMATCH[0]}"*}"; dq="${pre//[!\"]/}"; sq="${pre//[!\']/}"
+      if [ $(( ${#dq} % 2 + ${#sq} % 2 )) -eq 0 ] && ! [[ "$line" =~ $shell_re ]]; then delim="$d"; fi
+    fi
   done <<<"$1"
   printf '%s' "$stripped"
 }
@@ -229,6 +235,59 @@ kit_split_segments() {
   printf '%s' "$s"
 }
 
+# kit__wrap_value WRAPPER OPTION: does OPTION of the wrapper command take the next word as its value?
+kit__wrap_value() {
+  case "$1 $2" in
+    "sudo -u" | "sudo -g" | "sudo -C" | "sudo -D" | "sudo -h" | "sudo -p" | "sudo -r" | "sudo -t" | "sudo -U" | "sudo -T" \
+      | "sudo --user" | "sudo --group" | "sudo --chdir" | "doas -u" | "doas -C" | "env -u" | "env --unset" | "env -C" \
+      | "env --chdir" | "nice -n" | "nice --adjustment" | "timeout -s" | "timeout -k" | "timeout --signal" \
+      | "timeout --kill-after" | "xargs -I" | "xargs -n" | "xargs -P" | "xargs -L" | "xargs -s" | "xargs -d" | "xargs -E" \
+      | "xargs -a" | "exec -a" | "stdbuf -i" | "stdbuf -o" | "stdbuf -e" | "ionice -c" | "ionice -n" | "ionice -p") return 0 ;;
+  esac
+  return 1
+}
+
+# kit_pm_parse PM ARGS...: for an npm/pnpm/yarn/bun command, skip its global options (and their values) and set
+# kit_pm_sub (the subcommand), kit_pm_rest (the words after it) and kit_inner (the command it runs, when it runs one:
+# exec/x/dlx X, run|run-script shopify|prisma, or pnpm/yarn/bun shopify|prisma; empty otherwise).
+kit_pm_parse() {
+  local pm="${1##*/}" i=1 j=0
+  local -a w=("$@")
+  kit_pm_sub=""; kit_pm_rest=(); kit_inner=()
+  while [ "$i" -lt "${#w[@]}" ]; do
+    case "${w[i]}" in
+      -*=*) i=$((i + 1)) ;;
+      --prefix | --workspace | --registry | --cache | --userconfig | --globalconfig | --loglevel | --dir | --filter \
+        | --workspace-concurrency | --reporter | --cwd | -C | -F) i=$((i + 2)) ;;
+      -w) if [ "$pm" = npm ]; then i=$((i + 2)); else i=$((i + 1)); fi ;;
+      -*) i=$((i + 1)) ;;
+      *) break ;;
+    esac
+  done
+  [ "$i" -lt "${#w[@]}" ] || return 0
+  kit_pm_sub="${w[i]}"
+  [ $((i + 1)) -ge "${#w[@]}" ] || kit_pm_rest=("${w[@]:i+1}")
+  case "$kit_pm_sub" in
+    exec | x | dlx)
+      while [ "$j" -lt "${#kit_pm_rest[@]}" ]; do
+        case "${kit_pm_rest[j]}" in
+          -p | --package | -c | --call) j=$((j + 2)) ;;
+          -*) j=$((j + 1)) ;;
+          *) break ;;
+        esac
+      done
+      [ "$j" -ge "${#kit_pm_rest[@]}" ] || kit_inner=("${kit_pm_rest[@]:j}") ;;
+    run | run-script)
+      case "${kit_pm_rest[0]:-}" in
+        shopify | prisma)
+          kit_inner=("${kit_pm_rest[0]}")
+          for j in "${!kit_pm_rest[@]}"; do [ "$j" -eq 0 ] || [ "${kit_pm_rest[j]}" = -- ] || kit_inner+=("${kit_pm_rest[j]}"); done ;;
+      esac ;;
+    shopify | prisma) [ "$pm" = npm ] || kit_inner=("$kit_pm_sub" ${kit_pm_rest[@]+"${kit_pm_rest[@]}"}) ;;
+  esac
+  return 0
+}
+
 kit__stack_pop() {
   if [ "${#kit_stack[@]}" -gt 0 ]; then
     dir="${kit_stack[$((${#kit_stack[@]} - 1))]}"
@@ -239,14 +298,16 @@ kit__stack_pop() {
 }
 
 # kit_walk_commands CMD CALLBACK: for every simple command in CMD, call CALLBACK "<effective dir>" <words...>,
-# where words start at the program (wrappers like env/npx/VAR=x are skipped, quotes are removed).
-# The effective dir starts at $cwd and follows literal cd/pushd/popd; it is "" after a cd whose target is not literal.
+# where words start at the program (wrappers like env/sudo/timeout/xargs/eval/npx/VAR=x, their options, and a shell's
+# -c are skipped; quotes are removed; a backslash-newline joins two lines). The effective dir starts at $cwd and
+# follows literal cd/pushd/popd; it is "" after a cd whose target is not literal.
 kit_walk_commands() {
-  local command_text="$1" cb="$2" stripped segments seg i prog
+  local command_text="$1" cb="$2" stripped segments seg i j c prog wrap bsnl=$'\\\n'
   local -a w
   kit_stack=()
   dir="$cwd"
   stripped="$(kit_strip_heredocs "$command_text")"
+  stripped="${stripped//"$bsnl"/ }"
   segments="$(kit_split_segments "$stripped")"
   while IFS= read -r seg; do
     case "$seg" in
@@ -258,11 +319,34 @@ kit_walk_commands() {
     for i in "${!w[@]}"; do w[i]="${w[i]//[\"\']/}"; done
     i=0
     while [ "$i" -lt "${#w[@]}" ]; do
-      case "${w[i]}" in
-        *=* | env | command | exec | time | nohup | sudo) i=$((i + 1)) ;;
+      wrap="${w[i]##*/}"
+      [[ "${w[i]}" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]] && wrap="VAR="
+      case "$wrap" in
+        VAR=) i=$((i + 1)) ;;
+        env | command | exec | time | nohup | sudo | doas | nice | timeout | xargs | eval | stdbuf | ionice | setsid)
+          i=$((i + 1))
+          while [ "$i" -lt "${#w[@]}" ]; do
+            case "${w[i]}" in
+              --) i=$((i + 1)); break ;;
+              -*) if kit__wrap_value "$wrap" "${w[i]}"; then i=$((i + 2)); else i=$((i + 1)); fi ;;
+              *=*) if [ "$wrap" = env ]; then i=$((i + 1)); else break; fi ;;
+              *) break ;;
+            esac
+          done
+          if [ "$wrap" = timeout ] && [ "$i" -lt "${#w[@]}" ]; then i=$((i + 1)); fi ;;
+        bash | sh | zsh | dash | ksh)
+          j=$((i + 1)); c=0
+          while [ "$j" -lt "${#w[@]}" ] && [[ "${w[j]}" == -* ]]; do
+            [[ "${w[j]}" == --* ]] || [[ "${w[j]}" != *c* ]] || c=1
+            j=$((j + 1))
+          done
+          [ "$c" -eq 1 ] || break
+          i=$j ;;
         npx | pnpx | bunx | corepack)
           i=$((i + 1))
-          while [ "$i" -lt "${#w[@]}" ] && [[ "${w[i]}" == -* ]]; do i=$((i + 1)); done ;;
+          while [ "$i" -lt "${#w[@]}" ] && [[ "${w[i]}" == -* ]]; do
+            case "${w[i]}" in -p | --package | -c | --call) i=$((i + 2)) ;; *) i=$((i + 1)) ;; esac
+          done ;;
         *) break ;;
       esac
     done

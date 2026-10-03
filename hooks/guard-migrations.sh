@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shopify-app-kit v0.17.1
+# shopify-app-kit v0.17.2
 # hooks/guard-migrations.sh: PreToolUse(Bash) guard that keeps destructive Prisma database commands out of an agent
 # session, driven by .claude/shopify-app.json (paths.prisma, deploy.scaleToZeroBeforeMigrate, database.*).
 #
@@ -43,7 +43,8 @@ fi
 kit_parse_input
 case "$cmd" in *prisma*) ;; *) exit 0 ;; esac
 
-lower_cmd="$(printf '%s' "$cmd" | tr '[:upper:]' '[:lower:]')"
+# Lowercased with every run of whitespace as one space, so DROP<two spaces or a tab>DATABASE still reads as one phrase.
+lower_cmd="$(printf '%s' "$cmd" | tr '[:upper:]' '[:lower:]' | tr -s '[:space:]' ' ')"
 
 prisma_path=""
 provider=""
@@ -109,17 +110,10 @@ on_command() {
   case "$prog" in
     prisma) check_prisma "$@" ;;
     npm | pnpm | yarn | bun)
-      # pnpm exec prisma, pnpm dlx prisma, npm exec [--] prisma, yarn [dlx] prisma, bun x prisma; flags between are skipped.
-      while [ $# -gt 0 ]; do
-        case "$1" in
-          exec | dlx | x | --) shift ;;
-          -*) shift ;;
-          *) break ;;
-        esac
-      done
-      [ "${1##*/}" = prisma ] || return 0
-      shift
-      check_prisma "$@" ;;
+      # pnpm exec prisma, pnpm dlx prisma, npm exec [--] prisma, yarn [dlx] prisma, bun x prisma, npm run prisma --,
+      # pnpm prisma; global options and their values (pnpm --filter web, -C web, npm --prefix web) are skipped.
+      kit_pm_parse "$prog" "$@"
+      if [ "${#kit_inner[@]}" -gt 0 ]; then on_command "$dir" "${kit_inner[@]}"; fi ;;
   esac
   return 0
 }
