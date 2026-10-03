@@ -1,7 +1,7 @@
 // Every skills/*/SKILL.md: frontmatter keys are Claude Code skill fields, name matches its directory,
 // description is short and says when to use it. A skill may carry a references/ directory of plain markdown
 // (progressive disclosure): every reference file is linked from its SKILL.md, has no frontmatter, ends with a
-// `Sources:` line naming only the neutral lesson sources, and the SKILL.md itself stays short.
+// `Sources:` line naming only the neutral lesson sources. The SKILL.md length cap is test/budget.json's classes.skill.
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
@@ -19,8 +19,6 @@ const ALLOWED_ENTRIES = new Set(['SKILL.md', 'references', 'scripts']);
 // The allowed source labels are the first column of lessons/README.md's Sources table (portfolio ids and the
 // founding app-N labels), so a new product's id is added there and nowhere else.
 const SOURCE_LABELS = new Set([...fs.readFileSync(path.join(kitRoot, 'lessons', 'README.md'), 'utf8').matchAll(/^\| `([a-z0-9][a-z0-9-]*)` \|/gm)].map((m) => m[1]));
-// Every SKILL.md is a short entry point; depth lives in references/ (test/budget.json carries the same cap).
-const MAX_SKILL_LINES = 60;
 // Maintainer skills document the kit itself: their references are procedures, not lessons, so they carry no
 // Sources: line and test/lessons-index.test.mjs does not require them to be a lesson's home.
 const MAINTAINER_SKILLS = new Set(['kit-dev']);
@@ -34,11 +32,7 @@ describe('skills parity', () => {
     const refsDir = path.join(skillDir, 'references');
     test(`skills/${dir}/SKILL.md`, () => {
       assert.ok(fs.existsSync(file), 'SKILL.md exists');
-      const lines = fs.readFileSync(file, 'utf8').split(/\r?\n/).filter((l, i, a) => !(i === a.length - 1 && l === '')).length;
-      assert.ok(lines <= MAX_SKILL_LINES, `skills/${dir}/SKILL.md is ${lines} lines; keep it ≤ ${MAX_SKILL_LINES} and move depth into references/`);
-      for (const entry of fs.readdirSync(skillDir)) {
-        assert.ok(ALLOWED_ENTRIES.has(entry), `skills/${dir}/${entry}: only SKILL.md and references/ belong in a skill directory`);
-      }
+      for (const entry of fs.readdirSync(skillDir)) assert.ok(ALLOWED_ENTRIES.has(entry), `skills/${dir}/${entry}: only SKILL.md, references/ and scripts/ belong in a skill directory`);
       const fm = frontmatter(fs.readFileSync(file, 'utf8'));
       for (const k of Object.keys(fm)) assert.ok(ALLOWED_KEYS.has(k), `unknown frontmatter key ${k}`);
       assert.equal(fm.name, dir, 'name === directory');

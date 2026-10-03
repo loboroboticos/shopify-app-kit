@@ -74,13 +74,10 @@ function overlay(dir, extra = []) {
 describe('skills/new-app/SKILL.md', () => {
   const fm = frontmatter(skill, { lenient: true });
   test('is user-invoked with the documented argument hint', () => {
-    assert.equal(fm.name, 'new-app');
     assert.equal(fm['disable-model-invocation'], 'true');
     for (const flag of ['<app-name>', '--server-dir <dir>', '--pm npm|pnpm', '--default-branch <b>', '--protected-branch <b>', '--dry-run <dir>']) {
       assert.ok(fm['argument-hint'].includes(flag), `argument-hint mentions ${flag}`);
     }
-    assert.match(fm.description, /Use when/);
-    assert.ok(fm.description.length <= 1024);
   });
 
   test('allows only the read/write tools and the seven Bash prefixes', () => {
@@ -92,7 +89,6 @@ describe('skills/new-app/SKILL.md', () => {
     const documented = new Set([...templatesReadme.matchAll(/^\| `\{\{([A-Z][A-Z0-9_]*)\}\}` \|/gm)].map((m) => m[1]));
     const texts = [skill, ...fs.readdirSync(path.join(skillDir, 'references')).map((f) => fs.readFileSync(path.join(skillDir, 'references', f), 'utf8'))];
     const mentioned = new Set(texts.flatMap((t) => [...t.matchAll(PLACEHOLDER)].map((m) => m[1])));
-    assert.ok(mentioned.size >= 5, 'the skill names the placeholders it substitutes');
     assert.deepEqual([...mentioned].filter((p) => !documented.has(p)), [], 'a placeholder the skill mentions is missing from templates/README.md');
     for (const p of ['APP_NAME', 'DEFAULT_BRANCH', 'PROTECTED_BRANCH', 'PACKAGE_MANAGER', 'SERVER_DIR', 'GITLEAKS_VERSION', 'GITLEAKS_SHA256']) assert.ok(mentioned.has(p), `the skill mentions {{${p}}}`);
   });
@@ -104,9 +100,7 @@ describe('skills/new-app/SKILL.md', () => {
     assert.ok(!/shopify auth login/.test(skill), 'the skill never logs the CLI in');
   });
 
-  test('links its three scripts and two references', () => {
-    for (const f of fs.readdirSync(scripts)) assert.ok(skill.includes(`scripts/${f}`), f);
-    for (const f of fs.readdirSync(path.join(skillDir, 'references'))) assert.ok(skill.includes(`references/${f}`), f);
+  test('ships exactly its three scripts (skills-parity checks each is linked)', () => {
     assert.deepEqual(fs.readdirSync(scripts).sort(), ['apply-overlay.mjs', 'smoke-guards.sh', 'validate-manifest.mjs']);
   });
 });

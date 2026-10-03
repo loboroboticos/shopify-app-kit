@@ -54,7 +54,6 @@ describe('labels.json', () => {
     assert.deepEqual(doc.ladder, LADDER);
     for (const rung of doc.ladder) assert.ok(names.includes(rung), `ladder rung ${rung} is not a label`);
     assert.ok(!doc.ladder.includes('human:bootstrap'), 'human:bootstrap is not a rung of its own');
-    assert.ok(names.includes('human:bootstrap'));
     const bootstrap = labels.find((l) => l.name === 'human:bootstrap');
     assert.match(bootstrap.description, /Unlocks/);
   });

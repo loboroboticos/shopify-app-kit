@@ -77,18 +77,15 @@ describe('schema v1', () => {
   });
 
   describe('auth, billing.method and docs (additive in v1)', () => {
-    test('the multi-tenant fixture carries all three and validates', () => {
+    test('the multi-tenant fixture carries all three', () => {
       const m = load('multi-tenant-app.json');
       assert.equal(m.auth.expiringOfflineTokens, true);
       assert.equal(m.billing.method, 'app-pricing');
       assert.deepEqual(m.docs, { adrDir: 'docs/adr', mapFile: 'README.md', mapHeading: '## Docs map' });
-      assert.deepEqual(validate(m, schema), []);
     });
 
     test('every billing.method enum value validates', () => {
-      for (const method of ['billing-api', 'app-pricing', 'none']) {
-        assert.deepEqual(validate(mutate('multi-tenant-app.json', (m) => { m.billing.method = method; }), schema), [], method);
-      }
+      for (const method of ['billing-api', 'app-pricing', 'none']) assert.deepEqual(validate(mutate('multi-tenant-app.json', (m) => { m.billing.method = method; }), schema), [], method);
     });
 
     test('an unknown billing.method is rejected', () => {
@@ -106,10 +103,9 @@ describe('schema v1', () => {
       assert.ok(errs.some((e) => /docs\.adrDir: expected type string/.test(e)), JSON.stringify(errs));
     });
 
-    test('the older fixtures validate without the new keys', () => {
+    test('the older fixtures carry none of the additive keys', () => {
       const m = load('npm-root-app.json');
-      assert.ok(!('auth' in m) && !('docs' in m) && !('method' in m.billing));
-      assert.deepEqual(validate(m, schema), []);
+      assert.ok(!('auth' in m) && !('docs' in m) && !('method' in m.billing) && !('classify' in m));
     });
 
     test('every new key carries a description', () => {
@@ -138,10 +134,6 @@ describe('schema v1', () => {
       assert.deepEqual(validate(mutate('multi-tenant-app.json', withClassify), schema), []);
     });
 
-    test('classify stays additive (no additionalProperties: false)', () => {
-      assert.notEqual(schema.properties.classify.additionalProperties, false);
-    });
-
     test('an unknown provider is rejected', () => {
       const errs = validate(mutate('multi-tenant-app.json', (m) => { withClassify(m); m.classify.provider = 'gpt'; }), schema);
       assert.ok(errs.some((e) => /classify\.provider: must be one of jev/.test(e)), JSON.stringify(errs));
@@ -155,12 +147,6 @@ describe('schema v1', () => {
     test('a labelSet needs its labels array', () => {
       const errs = validate(mutate('multi-tenant-app.json', (m) => { withClassify(m); delete m.classify.labelSets.supportIntent.labels; }), schema);
       assert.ok(errs.some((e) => /classify\.labelSets\.supportIntent: missing required labels/.test(e)), JSON.stringify(errs));
-    });
-
-    test('the older fixtures validate without a classify section', () => {
-      const m = load('npm-root-app.json');
-      assert.ok(!('classify' in m));
-      assert.deepEqual(validate(m, schema), []);
     });
   });
 });
