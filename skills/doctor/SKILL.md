@@ -34,8 +34,8 @@ Checks the consumer repo you are in, never the kit itself. Report findings as a 
    plugin's version in `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json`; a lower `kit.version` means a sync is due.
 
 5. **Check settings registration.** `${CLAUDE_PROJECT_DIR}/.claude/settings.json` must register each vendored
-   `guard-*.sh` under `hooks.PreToolUse` with matcher `Bash` and command
-   `bash "$CLAUDE_PROJECT_DIR/.claude/hooks/kit/<guard>.sh"`. A guard that is vendored but not registered never
+   `guard-*.sh` under `hooks.PreToolUse` with matcher `Bash` (the protected-branch guard also `mcp__.*github.*`) and
+   command `bash "$CLAUDE_PROJECT_DIR/.claude/hooks/kit/<guard>.sh"`. A guard vendored but not registered never
    fires. Also confirm `enabledPlugins` pins `shopify-app-kit@shopify-app-kit`.
 
 6. **Check the companions.** The hook's output from step 2 carries the `Companion:` lines: a warning when

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shopify-app-kit v0.16.12
+# shopify-app-kit v0.17.0
 # hooks/doctor.sh: SessionStart briefing for a consumer repo. Validates .claude/shopify-app.json structurally
 # (required keys, enums, patterns of schema v1), prints one paragraph of facts to stdout, reports vendored-hook
 # drift and a kit.routines entry that is not a consumer routine this kit ships, checks the two companions (the
@@ -120,6 +120,8 @@ if [ -d "$hookdir" ]; then
   done
   if [ -f "$root/.claude/settings.json" ] && ! grep -q 'hooks/kit/guard-' "$root/.claude/settings.json" 2>/dev/null; then
     echo "Drift: .claude/settings.json does not register .claude/hooks/kit/guard-*.sh under PreToolUse; the vendored guards will not fire. /shopify-app-kit:sync prints the snippet."
+  elif [ -f "$root/.claude/hooks/kit/guard-protected-branch.sh" ] && ! grep -q '"mcp__\.\*github' "$root/.claude/settings.json" 2>/dev/null; then
+    echo "Drift: .claude/settings.json does not register guard-protected-branch.sh for the GitHub MCP tools (matcher mcp__.*github.*), so an MCP push, merge or workflow run is unguarded. /shopify-app-kit:sync prints the snippet."
   fi
 elif [ -n "$kv" ]; then
   echo "Drift: the manifest says kit.version $kv but $root/.claude/hooks/kit/ does not exist; run /shopify-app-kit:sync."

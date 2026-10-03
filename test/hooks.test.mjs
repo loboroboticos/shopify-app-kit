@@ -18,9 +18,10 @@ fs.mkdirSync(path.join(consumer, 'web'), { recursive: true });
 fs.mkdirSync(path.join(consumer, 'scratch'), { recursive: true });
 const MISSING = path.join(consumer, 'nope', 'shopify-app.json');
 
-function runHook(hook, { manifest, command, cwd = consumer, event = 'PreToolUse', extraEnv = {} }) {
+// tool + input send an MCP tool's payload instead of a Bash command.
+function runHook(hook, { manifest, command, tool = 'Bash', input, cwd = consumer, event = 'PreToolUse', extraEnv = {} }) {
   const payload = event === 'PreToolUse'
-    ? { hook_event_name: event, tool_name: 'Bash', tool_input: { command }, cwd }
+    ? { hook_event_name: event, tool_name: tool, tool_input: input ?? { command }, cwd }
     : { hook_event_name: event, source: 'startup', cwd };
   const env = { ...process.env, CLAUDE_PROJECT_DIR: consumer, ...extraEnv };
   delete env.SHOPIFY_APP_KIT_ROOT;
@@ -180,6 +181,7 @@ describe('guard-shopify-cli.sh', () => {
 // A fake gh on PATH answers `gh pr view <sel> [-R repo] --json baseRefName --jq .baseRefName` with $FAKE_GH_BASE, and
 // `gh run list --workflow <file> ... --jq '.[0].updatedAt // empty'` with the timestamp $FAKE_GH_RUNS (a JSON object
 // keyed by workflow file) maps that file to; FAKE_GH_RUNS=ERROR makes it fail like a logged-out gh.
+// `gh api <endpoint> --jq .path` answers with $FAKE_GH_PATHS[endpoint] (a JSON object), or fails when it has none.
 const fakeBin = path.join(consumer, 'fakebin');
 fs.mkdirSync(fakeBin, { recursive: true });
 fs.writeFileSync(path.join(fakeBin, 'gh'), `#!/usr/bin/env bash
@@ -189,6 +191,8 @@ case " $* " in
     [ "\${FAKE_GH_RUNS:-}" = "ERROR" ] && { echo 'gh: not logged in' >&2; exit 1; }
     wf=""; while [ $# -gt 0 ]; do [ "$1" = "--workflow" ] && wf="\${2:-}"; shift; done
     printf '%s' "\${FAKE_GH_RUNS:-null}" | jq -r --arg w "$wf" '(. // {})[$w] // empty' ;;
+  *' api '*' --jq .path '*)
+    printf '%s' "\${FAKE_GH_PATHS:-null}" | jq -e -r --arg e "$2" '(. // {})[$e] // empty' 2>/dev/null || exit 1 ;;
   *) exit 1 ;;
 esac
 `, { mode: 0o755 });
@@ -205,8 +209,8 @@ spawnSync('git', ['init', '-q', '-b', 'beta', onBeta]);
 const releaseTrain = path.join(fixtures, 'release-train-app.json');
 
 function runGuard(hook, c) {
-  const extraEnv = { PATH: `${fakeBin}${path.delimiter}${process.env.PATH}`, FAKE_GH_BASE: c.base ?? '' };
-  return runHook(hook, { manifest: c.fixture, command: c.cmd, cwd: c.cwd, extraEnv });
+  const extraEnv = { PATH: `${fakeBin}${path.delimiter}${process.env.PATH}`, FAKE_GH_BASE: c.base ?? '', FAKE_GH_PATHS: JSON.stringify(c.paths ?? {}) };
+  return runHook(hook, { manifest: c.fixture, command: c.cmd, tool: c.tool, input: c.input, cwd: c.cwd, extraEnv });
 }
 
 // guardCases(hook, cases): one test per case (hoisted, so a guard's block may sit above this). A blocked case
@@ -216,7 +220,7 @@ function guardCases(hook, cases) {
   const name = path.basename(hook, '.sh');
   for (const c of cases) {
     const where = `${c.cwd ? ` @${path.relative(consumer, c.cwd) || '.'}` : ''}${c.base !== undefined ? ` [base=${c.base || '<none>'}]` : ''}`;
-    test(`${path.basename(c.fixture, '.json')} :: ${JSON.stringify(c.cmd)}${where} -> ${c.exit}${c.stdout ? ' +reminder' : ''}`, () => {
+    test(`${path.basename(c.fixture, '.json')} :: ${c.tool ? `${c.tool} ${JSON.stringify(c.input)}` : JSON.stringify(c.cmd)}${where} -> ${c.exit}${c.stdout ? ' +reminder' : ''}`, () => {
       const r = runGuard(hook, c);
       assert.equal(r.status, c.exit, `exit code; stderr: ${r.stderr}`);
       if (c.exit === 2) {
@@ -302,8 +306,55 @@ const protectedCases = [
   { fixture: pnpmRoot, cmd: 'git push origin feature/x', exit: 0 },
 ];
 
+// The GitHub MCP tools, on any repo (o/r here). { fixture, tool, input, base? ($FAKE_GH_BASE), paths? ($FAKE_GH_PATHS), exit, stderr? }
+const gh = (verb) => `mcp__github__${verb}`;
+const repo = { owner: 'o', repo: 'r' };
+const mcpCases = [
+  { fixture: npmRoot, tool: gh('push_files'), input: { ...repo, branch: 'main', files: [], message: 'm' }, exit: 2, stderr: /push_files writes to a protected branch \(main\)/ },
+  { fixture: npmRoot, tool: gh('create_or_update_file'), input: { ...repo, branch: 'refs/heads/main', path: 'a' }, exit: 2, stderr: /create_or_update_file writes to a protected branch/ },
+  { fixture: npmRoot, tool: gh('delete_file'), input: { ...repo, branch: 'main', path: 'a' }, exit: 2, stderr: /delete_file writes to a protected branch \(main\)/ },
+  { fixture: npmRoot, tool: gh('delete_file'), input: { ...repo, path: 'a' }, exit: 2, stderr: /names no branch/ },
+  { fixture: npmRoot, tool: gh('create_branch'), input: { ...repo, branch: 'main' }, exit: 2, stderr: /create_branch writes to a protected branch \(main\)/ },
+  { fixture: npmRoot, tool: gh('update_pull_request'), input: { ...repo, pullNumber: 12, base: 'main' }, exit: 2, stderr: /retargets PR #12 at a protected branch \(main\)/ },
+  { fixture: npmRoot, tool: gh('merge_pull_request'), input: { ...repo, pullNumber: 12 }, base: 'main', exit: 2, stderr: /merge_pull_request of PR #12 merges into main/ },
+  { fixture: npmRoot, tool: gh('merge_pull_request'), input: { ...repo, pullNumber: 12 }, base: '', exit: 2, stderr: /base branch could not be resolved with gh/ },
+  { fixture: npmRoot, tool: gh('enable_pr_auto_merge'), input: { ...repo, pullNumber: 12 }, base: 'main', exit: 2, stderr: /enable_pr_auto_merge of PR #12 merges into main/ },
+  { fixture: npmRoot, tool: gh('actions_run_trigger'), input: { ...repo, method: 'run_workflow', workflow_id: 'deploy.yml', ref: 'main' }, exit: 2, stderr: /run_workflow of a production deploy \(deploy\.yml\)/ },
+  { fixture: npmRoot, tool: gh('actions_run_trigger'), input: { ...repo, method: 'run_workflow', workflow_id: '.github/workflows/shopify-deploy.yml', ref: 'main' }, exit: 2, stderr: /production deploy/ },
+  { fixture: npmRoot, tool: gh('actions_run_trigger'), input: { ...repo, method: 'run_workflow', workflow_id: '4242', ref: 'main' }, paths: { 'repos/o/r/actions/workflows/4242': '.github/workflows/deploy.yml' }, exit: 2, stderr: /production deploy \(deploy\.yml\)/ },
+  { fixture: npmRoot, tool: gh('actions_run_trigger'), input: { ...repo, method: 'run_workflow', workflow_id: '4242', ref: 'main' }, exit: 2, stderr: /workflow id 4242: gh could not map it/ },
+  { fixture: npmRoot, tool: gh('actions_run_trigger'), input: { ...repo, method: 'run_workflow', ref: 'main' }, exit: 2, stderr: /names no workflow/ },
+  { fixture: npmRoot, tool: gh('actions_run_trigger'), input: { ...repo, method: 'rerun_workflow_run', run_id: 99 }, paths: { 'repos/o/r/actions/runs/99': '.github/workflows/shopify-deploy.yml@refs/heads/main' }, exit: 2, stderr: /rerun_workflow_run of a production deploy run \(shopify-deploy\.yml\)/ },
+  { fixture: npmRoot, tool: gh('actions_run_trigger'), input: { ...repo, method: 'cancel_workflow_run', run_id: 99 }, exit: 2, stderr: /cancel_workflow_run of run 99: its workflow could not be resolved/ },
+  { fixture: npmRoot, tool: 'mcp__plugin_github_github__push_files', input: { ...repo, branch: 'main' }, exit: 2, stderr: /push_files writes to a protected branch/ },
+  { fixture: MISSING, tool: gh('push_files'), input: { ...repo, branch: 'beta' }, exit: 2, stderr: /manifest is missing or unreadable/ },
+
+  { fixture: npmRoot, tool: gh('push_files'), input: { ...repo, branch: 'beta', files: [{ path: 'a', content: 'git push origin main' }], message: 'm' }, exit: 0 },
+  { fixture: npmRoot, tool: gh('create_branch'), input: { ...repo, branch: 'claude/x', from_branch: 'main' }, exit: 0 },
+  { fixture: npmRoot, tool: gh('update_pull_request'), input: { ...repo, pullNumber: 12, base: 'beta' }, exit: 0 },
+  { fixture: npmRoot, tool: gh('update_pull_request'), input: { ...repo, pullNumber: 12, title: 'main' }, exit: 0 },
+  { fixture: npmRoot, tool: gh('merge_pull_request'), input: { ...repo, pullNumber: 12 }, base: 'beta', exit: 0 },
+  { fixture: npmRoot, tool: gh('actions_run_trigger'), input: { ...repo, method: 'run_workflow', workflow_id: 'qa.yml', ref: 'main' }, exit: 0 },
+  { fixture: npmRoot, tool: gh('actions_run_trigger'), input: { ...repo, method: 'rerun_failed_jobs', run_id: 7 }, paths: { 'repos/o/r/actions/runs/7': '.github/workflows/ci.yml' }, exit: 0 },
+  { fixture: npmRoot, tool: gh('actions_run_trigger'), input: { ...repo, method: 'delete_workflow_run_logs', run_id: 7 }, exit: 0 },
+  { fixture: npmRoot, tool: gh('create_pull_request'), input: { ...repo, base: 'main', head: 'beta', title: 'Promote' }, exit: 0 },
+  { fixture: npmRoot, tool: gh('issue_write'), input: { ...repo, body: 'git push origin main' }, exit: 0 },
+  { fixture: npmRoot, tool: 'mcp__other__push_files', input: { branch: 'main' }, exit: 0 },
+  { fixture: releaseTrain, tool: gh('push_files'), input: { ...repo, branch: 'release' }, exit: 2, stderr: /writes to a protected branch \(release\)/ },
+  { fixture: releaseTrain, tool: gh('actions_run_trigger'), input: { ...repo, method: 'run_workflow', workflow_id: 'deploy.yml', ref: 'main' }, exit: 0 },
+];
+
 describe('guard-protected-branch.sh', () => {
   guardCases('guard-protected-branch.sh', protectedCases);
+  guardCases('guard-protected-branch.sh', mcpCases);
+
+  test('without jq, a GitHub MCP write fails closed and any other MCP tool passes', () => {
+    const run = (tool, input) => runHook('guard-protected-branch.sh', { manifest: npmRoot, tool, input, cwd: loudCwd, extraEnv: { PATH: noJqPath() } });
+    let r = run(gh('push_files'), { ...repo, branch: 'beta' });
+    assert.equal(r.status, 2, r.stderr); assert.match(r.stderr, /jq is not installed, so a GitHub MCP push_files cannot be checked/);
+    r = run(gh('issue_write'), { ...repo, body: 'git push origin main; gh pr merge 12' });
+    assert.equal(r.status, 0, r.stderr); assert.equal(r.stderr, '');
+  });
 
   test('the throwaway checkouts really are on main and beta', () => {
     assert.equal(spawnSync('git', ['-C', onMain, 'symbolic-ref', '--short', 'HEAD'], { encoding: 'utf8' }).stdout.trim(), 'main');
@@ -589,6 +640,15 @@ describe('doctor.sh', () => {
     assert.equal(r.status, 0, r.stderr);
     assert.match(r.stdout, /Drift: guard-shopify-cli\.sh is v0\.0\.9 but the manifest's kit\.version is 0\.1\.0/);
     assert.match(r.stdout, /Drift: \.claude\/settings\.json does not register/);
+  });
+
+  test('reports a protected-branch guard registered for Bash but not for the GitHub MCP tools', () => {
+    const dir = checkout(npmRoot, '.claude/hooks/kit');
+    fs.writeFileSync(path.join(dir, '.claude', 'hooks', 'kit', 'guard-protected-branch.sh'), `#!/usr/bin/env bash\n# shopify-app-kit v${KIT_VERSION}\nexit 0\n`);
+    const entry = (matcher) => ({ matcher, hooks: [{ type: 'command', command: 'bash "$CLAUDE_PROJECT_DIR/.claude/hooks/kit/guard-protected-branch.sh"' }] });
+    const run = (pre) => { fs.writeFileSync(path.join(dir, '.claude', 'settings.json'), JSON.stringify({ hooks: { PreToolUse: pre } })); return runDoctor({ manifest: undefined, cwd: dir, extraEnv: { CLAUDE_PROJECT_DIR: dir } }); };
+    assert.match(run([entry('Bash')]).stdout, /does not register guard-protected-branch\.sh for the GitHub MCP tools/);
+    assert.doesNotMatch(run([entry('Bash'), entry('mcp__.*github.*')]).stdout, /for the GitHub MCP tools/);
   });
 
   test('reports a vendored guard the kit no longer ships, and one the plugin marks deprecated', () => {

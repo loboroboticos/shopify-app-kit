@@ -28,8 +28,8 @@ their logic, and touches nothing outside `.claude/`.
    '.kit.version = $v'`, written back with the file's existing formatting where possible).
 5. **Print the registration snippet** and ask the user to merge it into `${CLAUDE_PROJECT_DIR}/.claude/settings.json`
    when `hooks.PreToolUse` does not already register the guards (the doctor reports this): one entry per
-   `guard-*.sh` copied, none for `lib.sh` (it is sourced). A consumer upgrading from a kit with fewer guards adds
-   the new entry by hand; the doctor does not notice a missing entry while one guard is registered.
+   `guard-*.sh` copied under `Bash`, plus the GitHub MCP entry; none for `lib.sh` (it is sourced). A consumer
+   upgrading adds a new entry by hand; the doctor reports a missing MCP entry, not a missing Bash one.
 
    ```json
    {
@@ -43,7 +43,8 @@ their logic, and touches nothing outside `.claude/`.
              { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/kit/guard-package-manager.sh\"" },
              { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/kit/guard-migrations.sh\"" }
            ]
-         }
+         },
+         { "matcher": "mcp__.*github.*", "hooks": [ { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/kit/guard-protected-branch.sh\"" } ] }
        ]
      }
    }

@@ -122,12 +122,17 @@ describe('templates/', () => {
     const s = JSON.parse(read('.claude/settings.json'));
     assert.equal(s.extraKnownMarketplaces['shopify-app-kit'].source.repo, 'loboroboticos/shopify-app-kit');
     assert.equal(s.enabledPlugins['shopify-app-kit@shopify-app-kit'], true);
-    const pre = s.hooks.PreToolUse.flatMap((h) => h.hooks.map((x) => x.command)).join('\n');
     // Every guard the kit ships is registered, and nothing else is.
     const shipped = fs.readdirSync(path.join(kitRoot, 'hooks')).filter((n) => /^guard-.*\.sh$/.test(n)).sort();
     assert.deepEqual(shipped, ['guard-migrations.sh', 'guard-package-manager.sh', 'guard-protected-branch.sh', 'guard-shopify-cli.sh']);
-    const registered = [...pre.matchAll(/hooks\/kit\/(guard-[a-z-]+\.sh)/g)].map((m) => m[1]).sort();
-    assert.deepEqual(registered, shipped, 'settings.json registers exactly the guards under hooks/');
+    const bash = s.hooks.PreToolUse.filter((h) => h.matcher === 'Bash').flatMap((h) => h.hooks.map((x) => x.command)).join('\n');
+    const registered = [...bash.matchAll(/hooks\/kit\/(guard-[a-z-]+\.sh)/g)].map((m) => m[1]).sort();
+    assert.deepEqual(registered, shipped, 'the Bash entry registers exactly the guards under hooks/');
+    // The protected-branch guard also runs on the GitHub MCP tools, whatever the server's name prefix.
+    const mcp = s.hooks.PreToolUse.filter((h) => h.matcher !== 'Bash');
+    for (const tool of ['mcp__github__merge_pull_request', 'mcp__plugin_github_github__push_files']) {
+      assert.ok(mcp.some((h) => new RegExp(`^(?:${h.matcher})$`).test(tool) && h.hooks.some((x) => x.command.includes('hooks/kit/guard-protected-branch.sh'))), tool);
+    }
     assert.ok(s.hooks.SessionStart.flatMap((h) => h.hooks.map((x) => x.command)).some((c) => c.includes('kit-bootstrap.sh')));
   });
 
