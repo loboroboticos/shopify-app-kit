@@ -101,21 +101,6 @@ describe('docs mirror their sources', () => {
     }
   });
 
-  test('the kit-dev add.md restates the parity tests\' constants exactly', () => {
-    const add = read('skills', 'kit-dev', 'references', 'add.md');
-    const list = (file, name) => JSON.parse(read('test', file).match(new RegExp(`^const ${name} = (?:new Set\\()?(\\[[^\\]]*\\])`, 'm'))[1].replace(/'/g, '"'));
-    const skillCap = JSON.parse(read('test', 'budget.json')).classes.skill;
-    assert.ok(add.includes(`Every SKILL.md stays at or under ${skillCap} lines`), `add.md says "at or under ${skillCap} lines" (test/budget.json classes.skill)`);
-    assert.deepEqual(uniq(add.match(/`disallowedTools: ([^`]+)`/)[1].split(', ')), uniq(list('agents-parity.test.mjs', 'MUST_DISALLOW')), 'add.md: disallowedTools (MUST_DISALLOW)');
-    assert.deepEqual(uniq(add.match(/`export const meta = \{ ([^}]+) \}`/)[1].split(', ')), uniq(list('workflows-parity.test.mjs', 'META_KEYS')), 'add.md: the meta keys (META_KEYS)');
-    const fields = list('routines.test.mjs', 'HEADER_FIELDS');
-    const routine = region(add, 'A routine is one file', '## Prompt');
-    assert.ok(routine.includes(`${WORDS[fields.length]} header fields`), `add.md says "${WORDS[fields.length]} header fields" (HEADER_FIELDS)`);
-    assert.deepEqual(ticks(routine).map((t) => t.match(/^- \*\*(.+):\*\*$/)?.[1]).filter(Boolean), fields, 'add.md: the header fields in order (HEADER_FIELDS)');
-    const reads = region(add, 'starts by reading', 'never closes');
-    for (const r of list('routines.test.mjs', 'CONSUMER_READS')) assert.ok(reads.includes(r), `add.md: the routine prompt reads ${r} (CONSUMER_READS)`);
-  });
-
   test('every graphify pin in the README is the doctor\'s', () => {
     const pins = [...readme.matchAll(/graphifyy==([0-9.]+)/g)].map((m) => m[1]);
     assert.ok(pins.length > 0, 'the README names the pinned graphify install');
@@ -171,7 +156,7 @@ describe('docs mirror their sources', () => {
     const cap = JSON.parse(read('test', 'budget.json')).classes.skill;
     assert.ok(read('skills', 'kit-dev', 'SKILL.md').includes(`at most ${cap} lines`), `kit-dev/SKILL.md says "at most ${cap} lines"`);
     const add = read('skills', 'kit-dev', 'references', 'add.md');
-    assert.ok(add.includes(`at or under ${cap} lines`), `add.md says "at or under ${cap} lines"`);
+    assert.ok(add.includes(`Every SKILL.md stays at or under ${cap} lines`), `add.md says "Every SKILL.md stays at or under ${cap} lines"`);
     assert.deepEqual(uniq(after(add, 'disallowedTools: ', '`').split(', ')), uniq(constant('test/agents-parity.test.mjs', 'MUST_DISALLOW')));
     assert.deepEqual(uniq(after(add, 'export const meta = { ', ' }').split(', ')), uniq(constant('test/workflows-parity.test.mjs', 'META_KEYS')));
     const fields = constant('test/routines.test.mjs', 'HEADER_FIELDS');

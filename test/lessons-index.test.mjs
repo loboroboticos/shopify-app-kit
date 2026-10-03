@@ -114,7 +114,7 @@ describe('lessons index', () => {
     assert.deepEqual(uncited, [], `move each of these to ## History with the reason "uncited", or cite it by id from a SKILL.md, agent, rule seed, workflow or routine:\n${uncited.join('\n')}`);
   });
 
-  test('history rows are dated, carry a reason, and are never also live', () => {
+  test('the history section exists, and its rows are dated, carry a reason and are never also live', () => {
     const { history } = parse();
     const live = new Set(all.map((r) => r.id));
     const text = fs.readFileSync(indexPath, 'utf8');
@@ -122,10 +122,7 @@ describe('lessons index', () => {
       assert.ok(h.reason && h.reason.length > 0, `${h.id}: history row has a reason`);
       assert.ok(!live.has(h.id), `${h.id} is both live and in History`);
     }
+    assert.match(text, /^## History/m, 'INDEX.md keeps a ## History section for superseded lessons');
     if (history.length) assert.match(text.slice(text.indexOf('\n## History')), /^### \d{4}-\d{2}-\d{2} /m, 'History rows sit under a dated subsection');
-  });
-
-  test('the history section exists', () => {
-    assert.match(fs.readFileSync(indexPath, 'utf8'), /^## History/m, 'INDEX.md keeps a ## History section for superseded lessons');
   });
 });

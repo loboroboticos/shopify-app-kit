@@ -137,5 +137,4 @@ describe('routines/', () => {
     }
     assert.ok(ran.has('review') && ran.has('doctor'), `the routines run review and doctor (found: ${[...ran].join(', ') || 'none'})`);
   });
-
 });

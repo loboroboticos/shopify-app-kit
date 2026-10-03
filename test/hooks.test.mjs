@@ -554,14 +554,6 @@ describe('doctor.sh', () => {
     assert.match(r.stdout, /Drift: .*hooks\/kit\/ does not exist/);
   });
 
-  test('accepts $schema and $comment without reporting unknown top-level keys', () => {
-    const r = runDoctor({ manifest: variant(npmRoot, (m) => { m.$schema = 'x'; m.$comment = 'x'; }) });
-    assert.equal(r.status, 0, r.stderr);
-    assert.match(r.stdout, /shopify-app-kit doctor \(v\d+\.\d+\.\d+\): .*OK \(schema v1, kit\.version 0\.1\.0\)/);
-    assert.doesNotMatch(r.stdout, /unknown top-level key/);
-    assert.doesNotMatch(r.stdout, /does not satisfy schema v1/);
-  });
-
   test('prints expiring-token, billing-method and portfolio facts when the manifest carries them', () => {
     const r = runDoctor({ manifest: path.join(fixtures, 'multi-tenant-app.json') });
     assert.equal(r.status, 0, r.stderr);
@@ -592,13 +584,14 @@ describe('doctor.sh', () => {
     assert.doesNotMatch(r.stdout, /Portfolio:/);
   });
 
-  test('knows every top-level key the schema allows (the list is derived, not kept by hand)', () => {
+  test('knows every top-level key the schema allows, $schema and $comment included (the list is derived, not kept by hand)', () => {
     // Fill every section the fixture lacks with a minimal valid value, so the manifest declares all of them.
     const minimal = { classify: { provider: 'jev', labelSets: { intent: { labels: ['a', 'b'] } } }, webhooks: { topics: [] }, scopes: { required: [] }, checks: {}, deploy: {}, apiVersion: { expected: '2026-07' }, paths: {}, docs: {}, auth: {}, billing: {}, database: { provider: 'postgres' } };
     const p = variant(path.join(fixtures, 'multi-tenant-app.json'), (m) => { for (const k of Object.keys(schema.properties)) if (!(k in m)) m[k] = k.startsWith('$') ? 'x' : (minimal[k] ?? {}); });
     const r = runDoctor({ manifest: p });
     assert.equal(r.status, 0, r.stderr);
-    assert.doesNotMatch(r.stdout, /unknown top-level key/, r.stdout);
+    assert.match(r.stdout, /shopify-app-kit doctor \(v\d+\.\d+\.\d+\): .*OK \(schema v1, kit\.version 0\.1\.0\)/, r.stdout);
+    assert.doesNotMatch(r.stdout, /unknown top-level key|does not satisfy schema v1/, r.stdout);
   });
 
   test('still reports an unrelated unknown top-level key', () => {

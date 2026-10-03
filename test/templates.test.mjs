@@ -83,17 +83,13 @@ describe('templates/', () => {
     assert.deepEqual(gone, [], `templates/README.md names templates that do not exist:\n${gone.join('\n')}`);
   });
 
-  test('every placeholder used is documented in templates/README.md', () => {
-    const documented = new Set([...readme.matchAll(/^\| `\{\{([A-Z][A-Z0-9_]*)\}\}` \|/gm)].map((m) => m[1]));
-    assert.ok(documented.size >= 5, 'the README documents the placeholders');
+  test('every placeholder used is documented in templates/README.md, and every documented one is used', () => {
+    const documented = [...readme.matchAll(/^\| `\{\{([A-Z][A-Z0-9_]*)\}\}` \|/gm)].map((m) => m[1]);
+    assert.ok(documented.length >= 5, 'the README documents the placeholders');
     const undocumented = [];
-    for (const f of files) for (const m of read(f).matchAll(PLACEHOLDER)) if (!documented.has(m[1])) undocumented.push(`${f}: {{${m[1]}}}`);
+    for (const f of files) for (const m of read(f).matchAll(PLACEHOLDER)) if (!documented.includes(m[1])) undocumented.push(`${f}: {{${m[1]}}}`);
     assert.deepEqual([...new Set(undocumented)], [], 'add each placeholder to the Placeholders table of templates/README.md');
     for (const p of documented) assert.ok(p in SUBSTITUTIONS, `test/templates.test.mjs has no substitution for {{${p}}}`);
-  });
-
-  test('every documented placeholder is used by at least one template', () => {
-    const documented = [...readme.matchAll(/^\| `\{\{([A-Z][A-Z0-9_]*)\}\}` \|/gm)].map((m) => m[1]);
     const used = new Set(files.flatMap((f) => [...read(f).matchAll(PLACEHOLDER)].map((m) => m[1])));
     assert.deepEqual(documented.filter((p) => !used.has(p)), [], 'a documented placeholder that no template uses');
   });
@@ -115,10 +111,6 @@ describe('templates/', () => {
     for (const handle of Object.values(m.app.handles)) assert.match(handle, /^example/);
   });
 
-  test('the starter manifest carries no unsubstituted placeholder after substitution', () => {
-    assert.equal(substitute(read('.claude/shopify-app.json')).match(PLACEHOLDER), null);
-  });
-
   test('JSON templates parse before and after substitution', () => {
     for (const f of files.filter((x) => x.endsWith('.json'))) {
       assert.doesNotThrow(() => JSON.parse(read(f)), `${f} parses as JSON`);
@@ -130,11 +122,9 @@ describe('templates/', () => {
     const s = JSON.parse(read('.claude/settings.json'));
     assert.equal(s.extraKnownMarketplaces['shopify-app-kit'].source.repo, 'loboroboticos/shopify-app-kit');
     assert.equal(s.enabledPlugins['shopify-app-kit@shopify-app-kit'], true);
-    const pre = s.hooks.PreToolUse.flatMap((h) => h.hooks.map((x) => x.command)).join('\n');
     // Every guard the kit ships is registered, and nothing else is.
     const shipped = fs.readdirSync(path.join(kitRoot, 'hooks')).filter((n) => /^guard-.*\.sh$/.test(n)).sort();
     assert.deepEqual(shipped, ['guard-migrations.sh', 'guard-package-manager.sh', 'guard-protected-branch.sh', 'guard-shopify-cli.sh']);
-    for (const g of shipped) assert.ok(pre.includes(`hooks/kit/${g}`), g);
     const bash = s.hooks.PreToolUse.filter((h) => h.matcher === 'Bash').flatMap((h) => h.hooks.map((x) => x.command)).join('\n');
     const registered = [...bash.matchAll(/hooks\/kit\/(guard-[a-z-]+\.sh)/g)].map((m) => m[1]).sort();
     assert.deepEqual(registered, shipped, 'the Bash entry registers exactly the guards under hooks/');
@@ -262,9 +252,7 @@ describe('templates/', () => {
     assert.match(text, /^exit 0$/m);
     assert.doesNotMatch(text, /set -e/);
     // graphify: a pip package (graphifyy) plus `graphify install`, pinned to the same release the doctor names.
-    const pin = text.match(/^GRAPHIFY_VERSION="(\d+\.\d+\.\d+)"$/m)?.[1];
-    assert.ok(pin, 'GRAPHIFY_VERSION="X.Y.Z" is set');
-    assert.equal(pin, fs.readFileSync(path.join(kitRoot, 'hooks', 'doctor.sh'), 'utf8').match(/^GRAPHIFY_VERSION="([^"]+)"$/m)[1], 'the bootstrap and the doctor pin the same graphify release');
+    assert.equal(text.match(/^GRAPHIFY_VERSION="(\d+\.\d+\.\d+)"$/m)?.[1], fs.readFileSync(path.join(kitRoot, 'hooks', 'doctor.sh'), 'utf8').match(/^GRAPHIFY_VERSION="([^"]+)"$/m)[1], 'GRAPHIFY_VERSION="X.Y.Z" is set, to the release the doctor pins');
     assert.match(text, /pip install --quiet "graphifyy==\$GRAPHIFY_VERSION"/);
     assert.match(text, /uv tool install "graphifyy==\$GRAPHIFY_VERSION"/);
     assert.match(text, /pipx install "graphifyy==\$GRAPHIFY_VERSION"/);
@@ -311,11 +299,10 @@ describe('templates/', () => {
 
   test('the ADR seeds name every decision a new app takes first', () => {
     const text = read('docs/adr/SEEDS.md');
-    for (const seed of ['isolation model', 'Code disposition', 'Forbidden patterns', 'Schema ownership', 'Isolation canary', 'Tenant provisioning', 'Webhook intake', 'Principal', 'MCP auth substrate', 'Deployment target', 'Billing method', 'Distribution', 'Branch model']) {
-      assert.ok(text.includes(seed), seed);
-    }
-    assert.match(read('docs/adr/0000-template.md'), /^---\nstatus: .*\ndate: .*\ndeciders: .*\n---/);
-    for (const section of ['## Context', '## Decision', '## Consequences']) assert.ok(read('docs/adr/0000-template.md').includes(section), section);
+    for (const seed of ['isolation model', 'Code disposition', 'Forbidden patterns', 'Schema ownership', 'Isolation canary', 'Tenant provisioning', 'Webhook intake', 'Principal', 'MCP auth substrate', 'Deployment target', 'Billing method', 'Distribution', 'Branch model']) assert.ok(text.includes(seed), seed);
+    const adr = read('docs/adr/0000-template.md');
+    assert.match(adr, /^---\nstatus: .*\ndate: .*\ndeciders: .*\n---/);
+    for (const section of ['## Context', '## Decision', '## Consequences']) assert.ok(adr.includes(section), section);
   });
 
   // Repo literals: test/no-repo-literals.test.mjs walks templates/ with the forbidden list.
