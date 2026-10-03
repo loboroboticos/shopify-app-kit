@@ -6,9 +6,10 @@ opens one PR per run for the purely mechanical drift a test already defines as w
 
 - **Cadence:** weekly (`37 5 * * 5`, Friday 05:37 UTC), in the kit repository only.
 - **Environment:** a fresh cloud session in the kit's own environment with the checkout, `node`, the `claude` CLI
-  and the GitHub MCP tools; read access to the repositories under the remote's owner for the portfolio step.
+  and the GitHub MCP tools; for the portfolio step, the account's repository listing and read-only attaches.
 - **Tools:** `npm test`, the three `claude plugin validate` commands, git (read, plus one branch for the PR),
-  `test/budget.json`, the repository listing and each product's manifest, issues and comments.
+  `test/budget.json`, `list_repos`, `add_repo` with read access only, each product's manifest, issues and
+  comments.
 - **May touch:** new `kit-tidy:` issues (one of them `kit-tidy: deprecation candidates`), comments on open ones, one PR per run to `main` limited to mechanical
   drift (a drifted enumeration a mirror test names, a stale `# shopify-app-kit v` header, a README row for a file
   that exists).
@@ -68,11 +69,13 @@ is exactly what the test's message says (a drifted enumeration, a stale `# shopi
 row missing for a file that exists): fix it on a branch, run the suite, open one PR titled
 `kit-tidy: <what drifted>` whose body names the test per fix. Nothing else rides it. No such drift: no PR.
 
-Step 7, the portfolio. List the repositories under the remote's owner that this session can read; for each,
-fetch `.claude/shopify-app.json` from its default branch and keep those carrying `kit.portfolioId`. For each
-product: its id, `kit.version` against the kit's latest tag (`git describe --tags --abbrev=0`), the top-level
+Step 7, the portfolio. This session reads only its own checkout until it attaches more. List the repositories the
+account can read (`list_repos`), whatever the owner; attach each one read-only (`add_repo` with read access, never
+push), fetch `.claude/shopify-app.json` from its default branch, and keep those carrying `kit.portfolioId`. For
+each product: its id, `kit.version` against the kit's latest tag (`git describe --tags --abbrev=0`), the top-level
 sections its manifest declares, and its `kit.routines`. One table in the summary, ids only. File nothing on a
-consumer: that is `kit-health`'s job. When no repository is readable, say "portfolio: unverified".
+consumer: that is `kit-health`'s job. When none is readable or an attach is refused, say "portfolio: unverified"
+and why.
 
 Step 8, deprecation candidates. Only when step 7 found at least one product. Growth stays pull-driven only if
 removal is too, so propose, never deprecate: (a) a manifest section or a guard-read key (the README's "Keys the

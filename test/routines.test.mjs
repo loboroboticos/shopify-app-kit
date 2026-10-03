@@ -111,6 +111,15 @@ describe('routines/', () => {
     for (const s of ['Step 1, the suite', 'Step 2, duplicated prose', 'Step 3, things nothing reads', 'Step 4, the size trend', 'Step 5, docs that restate a test', 'Step 6, mechanical drift', 'Step 7, the portfolio', 'Step 8, deprecation candidates', 'this routine deprecates\nnothing', 'At most one PR per run', 'Never a deletion', 'no-repo-literals', 'kit-tidy: <the finding in six words>', 'that title prefix', 'never with a closing']) assert.ok(tidy.includes(s), `kit-tidy: ${s}`);
   });
 
+  test('every portfolio discovery lists the account\'s repositories and attaches each read-only, whatever the owner (#107)', () => {
+    // A routine's session reads only the repository it was made with, so discovery attaches the others itself.
+    const sites = [['routines/kit-tidy.md', 'Step 7, the portfolio'], ['routines/kit-health.md', 'Step 4, portfolio divergence'], ['routines/REGISTRY.md', '## Discovering the portfolio'], ['README.md', '**The portfolio is discovered']];
+    for (const [f, from] of sites) {
+      const text = fs.readFileSync(path.join(kitRoot, f), 'utf8'), i = text.indexOf(from), para = text.slice(i, text.indexOf('\n\n', i + from.length + 2)).replace(/\s+/g, ' ');
+      assert.ok(i >= 0 && /whatever the owner/.test(para) && /attach(es)? each (other )?(one )?read-only/.test(para) && !/remote's owner/.test(para), `${f}: "${from}" lists the account's repositories whatever the owner and attaches each read-only`);
+    }
+  });
+
   test('every manifest that declares kit.routines names routines that exist', () => {
     const manifests = [...fs.readdirSync(path.join(kitRoot, 'test', 'fixtures', 'manifests')).map((f) => path.join(kitRoot, 'test', 'fixtures', 'manifests', f)), path.join(kitRoot, 'templates', '.claude', 'shopify-app.json')];
     for (const p of manifests) {

@@ -330,8 +330,8 @@ body says what closing it needs. Scheduled Claude Code Routines are the workforc
   `deploy.protectedWorkflows`, and opens at most one PR per run. `routines/REGISTRY.md` has the table and the
   maintainer's step: one routine per prompt per repo, made on the claude.ai routines page, never from inside a session.
 - **The portfolio is discovered, never listed.** Each consumer's manifest declares `kit.portfolioId` (an opaque
-  id, never a name) and `kit.routines`; a cross-repo routine lists the repositories under the remote's owner it
-  can read and keeps the ones carrying the id. Nothing private is written anywhere in the kit.
+  id, never a name) and `kit.routines`; a cross-repo routine lists the repositories the account can read,
+  whatever the owner, attaches each read-only and keeps the ones carrying the id. Nothing private is written anywhere in the kit.
 
 `test/labels.test.mjs` and `test/routines.test.mjs` keep the set and the prompts in shape.
 

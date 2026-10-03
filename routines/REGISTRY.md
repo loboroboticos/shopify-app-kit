@@ -32,10 +32,12 @@ so the fired sessions never queue behind each other.
 
 The kit keeps no register of products: a public file could hold only private facts. Each consumer's manifest
 declares `kit.portfolioId` (an opaque id, never a business, product or store name) and `kit.routines` (the
-routines it runs, by file name). A cross-repo routine discovers the portfolio at run time: it lists the
-repositories under the git remote's owner that its session can read, fetches `.claude/shopify-app.json` from each
-one's default branch, keeps those carrying `kit.portfolioId`, and refers to a product by that id only. A consumer
-the session cannot read is not in the portfolio for that run, and the summary says how many were found.
+routines it runs, by file name). A routine's session reads only the one repository it was made with, so a
+cross-repo routine discovers the portfolio at run time: it lists the repositories the account can read
+(`list_repos`), whatever the owner, attaches each read-only (`add_repo` with read access), fetches
+`.claude/shopify-app.json` from each one's default branch, keeps those carrying `kit.portfolioId`, and refers to a
+product by that id only. A consumer it cannot attach is not in the portfolio for that run, and the summary says
+how many were found.
 `new-app`'s checklist sets both keys; `dev-parity` is listed only by a product with a dev registration and a
 hosted beta; `kit-tidy` runs in the kit repository and is nobody's roster entry.
 
