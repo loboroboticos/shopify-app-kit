@@ -69,7 +69,7 @@ and take its cadence from the cron line. For each, find the most recent successf
 last success is older than 8 days, or a weekly one older than 15 days, is stale: dispatch it with
 `workflow_dispatch` unless its file name or `name:` is in `deploy.protectedWorkflows`, and note the dispatch
 in the queue issue. A 403 on dispatch means the GitHub App lacks `actions: write`; note that instead and move
-on. GitHub disables schedules in a repository idle for 60 days, so every stale workflow is listed even when
+on. GitHub disables schedules in a public repository idle for 60 days, so every stale workflow is listed even when
 the dispatch succeeded.
 
 Step 5, re-score. For every issue that closed or changed shape since the last run (a bootstrap closed, a

@@ -13,7 +13,7 @@ found a path that trusted the client, bypassed the policy or stranded a shop. De
 
 ## Steps
 
-1. **Read the manifest.** From `${CLAUDE_PROJECT_DIR}/.claude/shopify-app.json` take `database.provider`,
+1. **Read the manifest.** From the repo's `.claude/shopify-app.json` take `database.provider`,
    `database.rls`, `auth.expiringOfflineTokens`, `paths.prisma`, `paths.shopifyServer`, `paths.webhookHandlers`
    and `webhooks.compliance`. With `database.rls` false, the shop-scoping rules below still hold but are
    enforced in the data layer, not by the database; say so in the report.

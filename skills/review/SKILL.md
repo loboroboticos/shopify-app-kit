@@ -13,7 +13,7 @@ maintainability against the app's canonical layers. Both are diff-scoped and evi
 
 ## Steps
 
-1. **Scope.** Read `${CLAUDE_PROJECT_DIR}/.claude/shopify-app.json` (the manifest). If it is missing, say the
+1. **Scope.** Read the repo's `.claude/shopify-app.json` (the manifest). If it is missing, say the
    review runs in generic mode and continue. Choose the base:
    - the argument, if it names a branch or a PR number (`gh pr view <n> --json baseRefName,headRefName,number,title,body`);
    - the argument, if it is a commit or the empty tree (`git rev-parse --verify '<arg>^{tree}'` succeeds): a

@@ -13,7 +13,7 @@ probe is in `references/checks-vs-probes.md`.
 
 ## Steps
 
-1. **Read the manifest.** From `${CLAUDE_PROJECT_DIR}/.claude/shopify-app.json` take `checks.tripwireDir` (where
+1. **Read the manifest.** From the repo's `.claude/shopify-app.json` take `checks.tripwireDir` (where
    tripwires live) and the sections the new check will read (`apiVersion.pins`, `paths.appTomls`,
    `webhooks.topics`, `deploy.targets`, whichever apply). The manifest is the single data binding most tripwires
    assert against; read it in the test rather than restating its values.

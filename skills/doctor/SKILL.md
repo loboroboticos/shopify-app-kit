@@ -1,7 +1,7 @@
 ---
 name: doctor
 description: Validate this repo's .claude/shopify-app.json against the kit schema, print its app facts, report vendored-hook or settings drift, check the two companions (the Shopify plugin and the graphify skill), and report the liveness of every scheduled workflow. Use when starting work in a Shopify app repo, after a kit sync, when a guard hook blocked something unexpectedly, or before creating the routine triggers.
-allowed-tools: Read, Grep, Glob, Bash(jq *), Bash(cat *), Bash(bash *), Bash(sed *), Bash(ls *), Bash(claude plugin list), Bash(gh run list *), Bash(gh workflow list *)
+allowed-tools: Read, Grep, Glob, Bash(git rev-parse *), Bash(jq *), Bash(cat *), Bash(bash *), Bash(sed *), Bash(ls *), Bash(claude plugin list), Bash(gh run list *), Bash(gh workflow list *)
 ---
 
 # shopify-app-kit doctor
@@ -10,13 +10,13 @@ Checks the consumer repo you are in, never the kit itself. Report findings as a 
 
 ## Steps
 
-1. **Find the manifest.** Read `${CLAUDE_PROJECT_DIR}/.claude/shopify-app.json`. If it does not exist this repo is
-   not a kit consumer: say so, point at the README's adoption section, and stop.
+1. **Find the manifest.** `git rev-parse --show-toplevel` in the repo prints `<root>`; read `<root>/.claude/shopify-app.json`.
+   If it does not exist this repo is not a kit consumer: say so, point at the README's adoption section, and stop.
 
 2. **Validate it.** Run the kit's structural check, which is the same one the SessionStart hook runs:
 
    ```bash
-   echo "{\"cwd\":\"${CLAUDE_PROJECT_DIR}\"}" | bash "${CLAUDE_PLUGIN_ROOT}/hooks/doctor.sh"
+   echo "{\"cwd\":\"<root>\"}" | bash "${CLAUDE_PLUGIN_ROOT}/hooks/doctor.sh"
    ```
 
    Then compare the manifest with `${CLAUDE_PLUGIN_ROOT}/schemas/shopify-app.v1.schema.json` for anything the
@@ -28,7 +28,7 @@ Checks the consumer repo you are in, never the kit itself. Report findings as a 
    configs and the four policies (`devPolicy`, `deployPolicy`, `configUsePolicy`, `themeDevFromRoot`), package
    managers by directory, expected API version, deploy targets, the portfolio id and its routines. One paragraph.
 
-4. **Check vendored hooks.** For every `${CLAUDE_PROJECT_DIR}/.claude/hooks/kit/*.sh`, line 2 must read
+4. **Check vendored hooks.** For every `<root>/.claude/hooks/kit/*.sh`, line 2 must read
    `# shopify-app-kit v<kit.version>` where `kit.version` comes from the manifest. Report each mismatch or missing
    file (expected: `lib.sh` plus every `guard-*.sh` under `${CLAUDE_PLUGIN_ROOT}/hooks/`). Compare `kit.version` with the
    plugin's version in `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json`; a lower `kit.version` means a sync is due.

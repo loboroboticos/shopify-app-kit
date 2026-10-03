@@ -13,12 +13,12 @@ live, is in `references/executor-ladder.md`.
 
 ## Steps
 
-1. **Read the label set.** `${CLAUDE_PROJECT_DIR}/.github/labels.json` when the repo keeps its own copy, else
+1. **Read the label set.** The repo's `.github/labels.json` when it keeps its own copy, else
    `${CLAUDE_PLUGIN_ROOT}/labels.json`. Its `ladder` array is the executor order (least privileged first);
    `human:bootstrap` sits alongside `human:account`. Never invent a label; a missing one is created with
    `node ${CLAUDE_PLUGIN_ROOT}/scripts/sync-labels.mjs`, adding `--file .github/labels.json` when the repo keeps
    its own copy (never by hand, never deleting).
-2. **Read the repo facts** from `${CLAUDE_PROJECT_DIR}/.claude/shopify-app.json`: `branches.default` (the only
+2. **Read the repo facts** from its `.claude/shopify-app.json`: `branches.default` (the only
    PR target), `deploy.protectedWorkflows` (never dispatched by an agent), `billing.live` and `app.kind` (they
    decide whether a line is irreversible, rule R6).
 3. **Write the body from the work-item template** (`.github/ISSUE_TEMPLATE/work-item.md`): "What", the "Close

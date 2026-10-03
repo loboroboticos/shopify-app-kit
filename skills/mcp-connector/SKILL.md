@@ -12,7 +12,7 @@ Detail and rationale live in `references/`; the steps are the contract.
 
 ## Steps
 
-1. **Read the manifest.** From `${CLAUDE_PROJECT_DIR}/.claude/shopify-app.json` take `database.rls`,
+1. **Read the manifest.** From the repo's `.claude/shopify-app.json` take `database.rls`,
    `paths.server` and `checks.tripwireDir`. With `database.rls` true, every token carries the tenant id as a
    routing prefix and the grant is read within ordinary RLS under that tenant; with it false, the grant lookup
    is the tenant scoping and must be explicit.
