@@ -42,6 +42,9 @@ const SEVERITIES = constant('workflows/pre-pr-review.js', 'SEVERITIES');
 const bumpDirs = uniq(read('.github', 'workflows', 'ci.yml').match(/--\s+((?:[a-z.-]+\s+)+)\|\| true/)[1].trim().split(/\s+/));
 const GRAPHIFY_VERSION = read('hooks', 'doctor.sh').match(/^GRAPHIFY_VERSION="([^"]+)"$/m)[1];
 const WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve'];
+// Every count a file states before `noun`, as a number: a count word or digits with at most one word between ("ten
+// filing rules"), read with markdown marks dropped and whitespace collapsed, so "**nine**" or a wrapped count still counts.
+const counts = (file, noun) => [...read(file).replace(/[*_`[\]]/g, '').replace(/\s+/g, ' ').matchAll(new RegExp(`\\b(${WORDS.join('|')}|\\d+)(?: [\\w-]+)? ${noun}\\b`, 'gi'))].map((m) => (/\d/.test(m[1]) ? Number(m[1]) : WORDS.indexOf(m[1].toLowerCase())));
 
 describe('docs mirror their sources', () => {
   test('the README "What you get" table lists exactly the shipped guards', () => {
@@ -180,21 +183,14 @@ describe('docs mirror their sources', () => {
     const rows = [...read('skills', 'issue-filing', 'references', 'executor-ladder.md').matchAll(/^\| `([a-z:]+( only)?)` \|/gm)].map((m) => m[1]);
     assert.deepEqual(rows.filter((r) => ladder.includes(r)), ladder, 'the rung table follows the ladder order');
     assert.deepEqual(uniq(rows), uniq(workTypes), 'the rung table has one row per work type');
-    // Every "the <n> (filing) rules" in the README and the skill counts rules.md's ## R<n> headings (#76).
-    const n = WORDS[(read('skills', 'issue-filing', 'references', 'rules.md').match(/^## R\d+:/gm) ?? []).length];
-    for (const file of ['README.md', 'skills/issue-filing/SKILL.md']) {
-      const said = [...read(file).matchAll(new RegExp(`\\bthe (${WORDS.join('|')})(?: filing)? rules\\b`, 'gi'))].map((m) => m[1].toLowerCase());
-      assert.ok(said.length > 0 && said.every((w) => w === n), `${file} says "the ${n} rules" (rules.md's ## R<n> headings), not ${said.join(', ') || 'nothing'}`);
-    }
+    // Every count of rules in the README, the skill and rules.md itself is the number of rules.md's ## R<n> headings (#76).
+    const n = (read('skills', 'issue-filing', 'references', 'rules.md').match(/^## R\d+:/gm) ?? []).length;
+    for (const file of ['README.md', 'skills/issue-filing/SKILL.md', 'skills/issue-filing/references/rules.md']) assert.deepEqual(uniq(counts(file, 'rules')), [n], `${file} says "${WORDS[n]} rules" (or "${n} rules") wherever it counts them: rules.md has ${n} ## R<n> headings`);
   });
 
   test('the doctor skill and the CI-posture reference state GitHub\'s idle threshold as the hook does, and no cadence threshold', () => {
-    const idle = read('hooks', 'doctor.sh').match(/after (\d+) idle days/)[1];
-    const doctor = read('skills', 'doctor', 'SKILL.md');
-    assert.ok(doctor.includes(`idle for ${idle} days`), `doctor/SKILL.md says "idle for ${idle} days"`);
-    assert.doesNotMatch(doctor, /daily \d+ days/, 'the cadence thresholds live in hooks/doctor.sh only');
-    const posture = read('skills', 'release', 'references', 'ci-posture.md');
-    for (const s of [`after ${idle} days of inactivity`, `no commits for ${idle} days`]) assert.ok(posture.includes(s), `ci-posture.md says "${s}" (#77)`);
+    const idle = Number(read('hooks', 'doctor.sh').match(/after (\d+) idle days/)[1]);
+    for (const file of ['skills/doctor/SKILL.md', 'skills/release/references/ci-posture.md']) assert.deepEqual(uniq(counts(file, 'days')), [idle], `${file} says "${idle} days" wherever it counts days (doctor.sh: after ${idle} idle days); the cadence thresholds live in hooks/doctor.sh only (#77)`);
   });
 
   test('every site that lists the compliance webhook topics lists the ones the webhooks reference does (#79)', () => {
@@ -207,6 +203,6 @@ describe('docs mirror their sources', () => {
 
   test('the scaffold reference counts the new-app skill\'s numbered steps (#78)', () => {
     const steps = (read('skills', 'new-app', 'SKILL.md').match(/^\d+\. \*\*/gm) ?? []).length;
-    assert.ok(read('skills', 'new-app', 'references', 'scaffold.md').includes(`its ${WORDS[steps]} steps`), `scaffold.md says "its ${WORDS[steps]} steps"`);
+    assert.deepEqual(uniq(counts('skills/new-app/references/scaffold.md', 'steps')), [steps], `scaffold.md says "its ${WORDS[steps]} steps" (or "${steps} steps") wherever it counts them`);
   });
 });

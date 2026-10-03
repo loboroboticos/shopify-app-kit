@@ -10,6 +10,7 @@ const fixtures = path.join(kitRoot, 'test', 'fixtures', 'manifests');
 
 const load = (name) => JSON.parse(fs.readFileSync(path.join(fixtures, name), 'utf8'));
 const mutate = (name, fn) => { const m = load(name); fn(m); return m; };
+const annotated = (fn = () => {}) => mutate('npm-root-app.json', (m) => { m.$schema = 'https://example.com/shopify-app.v1.schema.json'; m.$comment = 'x'; fn(m); });
 
 describe('schema v1', () => {
   test('is draft 2020-12 and closed at the top level only', () => {
@@ -58,19 +59,16 @@ describe('schema v1', () => {
   });
 
   test('top-level $schema and $comment metadata keys are allowed', () => {
-    const m = load('annotated-app.json');
-    assert.equal(typeof m.$schema, 'string');
-    assert.equal(typeof m.$comment, 'string');
-    assert.deepEqual(validate(m, schema), []);
+    assert.deepEqual(validate(annotated(), schema), []);
   });
 
   test('an unrelated unknown key still fails next to the metadata keys', () => {
-    const errs = validate(mutate('annotated-app.json', (m) => { m.$notes = 'x'; }), schema);
+    const errs = validate(annotated((m) => { m.$notes = 'x'; }), schema);
     assert.deepEqual(errs, ['$: unexpected property $notes']);
   });
 
   test('metadata keys must be strings', () => {
-    const errs = validate(mutate('annotated-app.json', (m) => { m.$comment = { text: 'x' }; }), schema);
+    const errs = validate(annotated((m) => { m.$comment = { text: 'x' }; }), schema);
     assert.ok(errs.some((e) => /\$\.\$comment: expected type string/.test(e)), JSON.stringify(errs));
   });
 

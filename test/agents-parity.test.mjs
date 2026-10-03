@@ -71,8 +71,9 @@ describe('agents parity', () => {
       if (tools.length === 0 && !disallowsAll) assert.fail(`no tools list: disallowedTools must include ${MUST_DISALLOW.join(', ')}`);
 
       if (SKILL_REVIEWERS.includes(name)) {
-        // The legend applies only to a reviewer that grades [P0]-[P2]; the input contract and verdict line to all three.
-        for (const s of [INPUT_CONTRACT, SHARED[0], ...(body.includes('- [P0]') ? [SHARED[1]] : [])]) assert.ok(body.replace(/\s+/g, ' ').includes(s), `${name} keeps the shared line "${s.slice(0, 60)}…"`);
+        // The legend binds the two that grade [P0]-[P2] (all but review-quality), named so a reformatted bullet cannot
+        // switch it off, and any reviewer that comes to grade [P0]; the input contract and verdict line bind all three.
+        for (const s of [INPUT_CONTRACT, SHARED[0], ...(name !== 'review-quality' || body.includes('[P0]') ? [SHARED[1]] : [])]) assert.ok(body.replace(/\s+/g, ' ').includes(s), `${name} keeps the shared line "${s.slice(0, 60)}…"`);
       }
       if (!ROSTER.test(name)) return;
       assert.ok(disallowsAll, `roster agents set disallowedTools including ${MUST_DISALLOW.join(', ')}; found "${fm.disallowedTools ?? ''}"`);
