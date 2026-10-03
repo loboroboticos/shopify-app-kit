@@ -488,6 +488,7 @@ function runDoctor({ plugins = BOTH_PLUGINS, optedOut = true, claude = true, gra
 }
 
 describe('doctor.sh', () => {
+  const schema = JSON.parse(fs.readFileSync(path.join(hooksDir, '..', 'schemas', 'shopify-app.v1.schema.json'), 'utf8'));
   test('prints a briefing for a valid manifest and exits 0', () => {
     const r = runDoctor({ manifest: npmRoot });
     assert.equal(r.status, 0, r.stderr);
@@ -521,13 +522,15 @@ describe('doctor.sh', () => {
     assert.doesNotMatch(r.stdout, /Drift: kit\.routines/, 'every declared routine ships');
   });
 
-  test('reports a kit.routines entry the kit does not ship, and only that one', () => {
-    const p = variant(path.join(fixtures, 'multi-tenant-app.json'), (m) => { m.kit.routines.push('no-such-routine'); });
+  test('reports a kit.routines entry that is not a consumer routine the kit ships, and only those', () => {
+    const p = variant(path.join(fixtures, 'multi-tenant-app.json'), (m) => { m.kit.routines.push('registry', '../CHANGELOG', 'kit-tidy', 'REGISTRY'); });
     const r = runDoctor({ manifest: p });
     assert.equal(r.status, 0, r.stderr);
-    assert.match(r.stdout, /Drift: kit\.routines names `no-such-routine`, which this kit version does not ship; remove it or update the kit\./);
+    for (const n of ['registry', '../CHANGELOG']) assert.ok(r.stdout.includes(`Drift: kit.routines names \`${n}\`, which this kit version does not ship; remove it or update the kit.`), `${n} is matched by exact name (routines/../CHANGELOG.md exists; a case-insensitive disk finds registry.md):\n${r.stdout}`);
+    assert.match(r.stdout, /Drift: kit\.routines names `kit-tidy`, which runs in the kit repository and is nobody's roster entry; remove it\./);
+    assert.match(r.stdout, /- kit\.routines must be an array of strings matching/, 'REGISTRY fails the schema pattern');
     assert.doesNotMatch(r.stdout, /Drift: kit\.routines names `(triage|pr-steward|kit-health|dependency-wave)`/);
-    assert.match(r.stdout, /Portfolio: example-p1; routines: triage, pr-steward, kit-health, dependency-wave, no-such-routine\./);
+    assert.match(r.stdout, /Portfolio: example-p1; routines: triage, pr-steward, kit-health, dependency-wave, registry, \.\.\/CHANGELOG, kit-tidy, REGISTRY\./);
   });
 
   test('omits the expiring-token, billing-method and portfolio facts when the manifest lacks them', () => {
@@ -539,7 +542,6 @@ describe('doctor.sh', () => {
   });
 
   test('knows every top-level key the schema allows (the list is derived, not kept by hand)', () => {
-    const schema = JSON.parse(fs.readFileSync(path.join(hooksDir, '..', 'schemas', 'shopify-app.v1.schema.json'), 'utf8'));
     // Fill every section the fixture lacks with a minimal valid value, so the manifest declares all of them.
     const minimal = { classify: { provider: 'jev', labelSets: { intent: { labels: ['a', 'b'] } } }, webhooks: { topics: [] }, scopes: { required: [] }, checks: {}, deploy: {}, apiVersion: { expected: '2026-07' }, paths: {}, docs: {}, auth: {}, billing: {}, database: { provider: 'postgres' } };
     const p = variant(path.join(fixtures, 'multi-tenant-app.json'), (m) => { for (const k of Object.keys(schema.properties)) if (!(k in m)) m[k] = k.startsWith('$') ? 'x' : (minimal[k] ?? {}); });
@@ -564,7 +566,7 @@ describe('doctor.sh', () => {
     assert.equal(r.stderr, '');
   });
 
-  test('reports structural problems and still exits 0', () => {
+  test('reports structural problems, keeps the facts paragraph and still exits 0', () => {
     const p = variant(npmRoot, (bad) => {
       bad.shopifyCli.deployPolicy = 'yolo';
       delete bad.branches.protected;
@@ -577,8 +579,13 @@ describe('doctor.sh', () => {
     assert.match(r.stdout, /- shopifyCli\.deployPolicy must be one of/);
     assert.match(r.stdout, /- branches\.protected must be a non-empty array/);
     assert.match(r.stdout, /- apiVersion\.expected must look like/);
-    assert.match(r.stdout, /- kit\.portfolioId must match \^\[a-z0-9\]\[a-z0-9-\]\{1,31\}\$/);
-    assert.match(r.stdout, /- kit\.routines must be an array of strings/);
+    const patterns = [schema.properties.kit.properties.portfolioId.pattern, schema.properties.kit.properties.routines.items.pattern];
+    assert.ok(r.stdout.includes(`- kit.portfolioId must match ${patterns[0]} (an opaque id, never a name)`), r.stdout);
+    assert.ok(r.stdout.includes(`- kit.routines must be an array of strings matching ${patterns[1]} (routine file names without .md)`), r.stdout);
+    for (const f of ['hooks/doctor.sh', 'README.md']) for (const s of patterns) assert.ok(!fs.readFileSync(path.join(kitRoot, f), 'utf8').includes(s), `${f} restates the schema's ${s}`);
+    const k = runDoctor({ manifest: variant(npmRoot, (m) => { m.kit = '0.16.9'; }) });
+    assert.match(k.stdout, /Example App \(embedded-app\)\. Default branch beta/, 'a kit that is not an object keeps the facts paragraph');
+    assert.doesNotMatch(k.stderr, /Cannot index/);
   });
 
   test('reports vendored hook drift against kit.version', () => {

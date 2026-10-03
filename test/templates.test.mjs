@@ -87,9 +87,7 @@ describe('templates/', () => {
     const documented = new Set([...readme.matchAll(/^\| `\{\{([A-Z][A-Z0-9_]*)\}\}` \|/gm)].map((m) => m[1]));
     assert.ok(documented.size >= 5, 'the README documents the placeholders');
     const undocumented = [];
-    for (const f of files) {
-      for (const m of read(f).matchAll(PLACEHOLDER)) if (!documented.has(m[1])) undocumented.push(`${f}: {{${m[1]}}}`);
-    }
+    for (const f of files) for (const m of read(f).matchAll(PLACEHOLDER)) if (!documented.has(m[1])) undocumented.push(`${f}: {{${m[1]}}}`);
     assert.deepEqual([...new Set(undocumented)], [], 'add each placeholder to the Placeholders table of templates/README.md');
     for (const p of documented) assert.ok(p in SUBSTITUTIONS, `test/templates.test.mjs has no substitution for {{${p}}}`);
   });

@@ -5,6 +5,26 @@ vendored hook carries it on line 2 (`# shopify-app-kit vX.Y.Z`). A version that 
 `### Deprecated`; the next minor deletes it and lists it under `### Removed` (`kit-dev`: "Remove a skill, agent,
 hook, workflow or routine").
 
+## 0.16.12
+
+The doctor's `kit.*` checks follow the schema, and a routine reaches installs in a new version (#89, #90, #91, #96).
+
+- `hooks/doctor.sh` reads the `portfolioId` and routine-name patterns from the schema beside it, as it already did
+  the top-level keys; the README points at the schema, and a test fails on a second copy in either. It reports a
+  `kit.routines` entry that fails the pattern, matches no routine file by its exact name (`../CHANGELOG`, or
+  `registry` on a case-insensitive disk) or names the kit-scoped `kit-tidy`. A `kit` that is not an object keeps
+  the facts paragraph and writes nothing to stderr. (#90, #91, #96)
+- Adding, removing or renaming a routine bumps the version, and CI enforces it: an install sees `routines/` only
+  through a new version, so the doctor's "update the kit" now helps. A prompt edit still needs no bump;
+  `.claude/rules/kit.md`, `kit-dev` and the doctor skill's report step say so. (#89)
+- Consumers: the fixes ship with the plugin (the doctor is not vendored); the guards change only their version line.
+
+### Budget
+
+`CHANGELOG.md` raised from 800 to 900, as the 0.16.4 note foresaw. These sections are the consumers' upgrade notes:
+the release workflow publishes each one and `kit-health` summarises those between a consumer's version and the
+latest, so none is removed. 900 is about ten more releases.
+
 ## 0.16.11
 
 Without jq, the guards catch every spelling of the commands they refuse (#88, #97).

@@ -47,16 +47,19 @@ jobs:
           set -euo pipefail
           git fetch --no-tags origin main
           changed="$(git diff --name-only "origin/main...HEAD" -- skills agents hooks workflows schemas lessons .claude-plugin || true)"
+          # A routine added, removed or renamed changes what the doctor finds beside it; a prompt edit alone does not.
+          routines="$(git diff --name-only --diff-filter=ADR "origin/main...HEAD" -- 'routines/*.md' || true)"
+          changed="$(printf '%s\n%s\n' "$changed" "$routines" | grep . || true)"
           if [ -z "$changed" ]; then
-            echo "No plugin-visible files changed; no version bump required."
+            echo "No plugin-visible files changed and no routine was added, removed or renamed; no version bump required."
             exit 0
           fi
-          echo "Plugin-visible files changed:"; printf '  %s\n' $changed
+          echo "Files that need a version bump:"; printf '  %s\n' $changed
           head_version="$(jq -r .version .claude-plugin/plugin.json)"
           base_version="$(git show origin/main:.claude-plugin/plugin.json 2>/dev/null | jq -r .version 2>/dev/null || echo '<none>')"
           echo "origin/main version: $base_version; this PR: $head_version"
           if [ "$head_version" = "$base_version" ]; then
-            echo "::error file=.claude-plugin/plugin.json::skills/, agents/, hooks/, workflows/, schemas/, lessons/ or .claude-plugin/ changed but the plugin version did not. Bump .claude-plugin/plugin.json (and the '# shopify-app-kit vX.Y.Z' hook headers) and add a CHANGELOG entry."
+            echo "::error file=.claude-plugin/plugin.json::skills/, agents/, hooks/, workflows/, schemas/, lessons/ or .claude-plugin/ changed, or a routine was added, removed or renamed, but the plugin version did not. Bump .claude-plugin/plugin.json (and the '# shopify-app-kit vX.Y.Z' hook headers) and add a CHANGELOG entry."
             exit 1
           fi
 

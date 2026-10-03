@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# shopify-app-kit v0.16.11
+# shopify-app-kit v0.16.12
 # hooks/doctor.sh: SessionStart briefing for a consumer repo. Validates .claude/shopify-app.json structurally
 # (required keys, enums, patterns of schema v1), prints one paragraph of facts to stdout, reports vendored-hook
-# drift and a kit.routines entry this kit does not ship, checks the two companions (the Shopify plugin and the
-# graphify skill), and, when gh is on PATH, prints the last successful run of every scheduled workflow. Never
-# exits non-zero. Silent when the repo has no manifest (it is not a consumer). Registered by the plugin's
-# hooks/hooks.json; not vendored.
+# drift and a kit.routines entry that is not a consumer routine this kit ships, checks the two companions (the
+# Shopify plugin and the graphify skill), and, when gh is on PATH, prints the last successful run of every
+# scheduled workflow. Never exits non-zero. Silent when the repo has no manifest (it is not a consumer).
+# Registered by the plugin's hooks/hooks.json; not vendored.
 set -uo pipefail
 
 # The graphify release the templates' kit-bootstrap.sh installs; both pins are compared by test/templates.test.mjs.
@@ -32,12 +32,12 @@ if ! jq -e . "$manifest" >/dev/null 2>&1; then
   exit 0
 fi
 
-# The known top-level keys come from the schema next to this hook, never from a second list here: a section added
-# to the schema is known to the doctor in the same commit. Without the schema the unknown-key check is skipped.
+# The known top-level keys and the kit.* patterns come from the schema next to this hook, never from a second copy
+# here: the doctor follows a schema change in the same commit. Without the schema those checks are skipped.
 schema="$(dirname "${BASH_SOURCE[0]}")/../schemas/shopify-app.v1.schema.json"
-known="$(jq -c '.properties | keys' "$schema" 2>/dev/null || echo null)"
+rules="$(jq -c '.properties as $p | {keys: ($p | keys), portfolioId: $p.kit.properties.portfolioId.pattern, routine: $p.kit.properties.routines.items.pattern}' "$schema" 2>/dev/null || echo null)"
 
-problems="$(jq -r --argjson known "$known" '
+problems="$(jq -r --argjson rules "$rules" '
   def policies: ["config-required", "operator-only", "allowed"];
   def prob(c; m): if c then [] else [m] end;
   def isstr: type == "string";
@@ -46,8 +46,8 @@ problems="$(jq -r --argjson known "$known" '
   prob(isobj; "manifest must be a JSON object")
   + prob(.kit.schemaVersion == 1; "kit.schemaVersion must be 1")
   + prob((.kit.version == null) or (.kit.version | isstr); "kit.version must be a string or null")
-  + prob((.kit.portfolioId == null) or (.kit.portfolioId | isstr and test("^[a-z0-9][a-z0-9-]{1,31}$")); "kit.portfolioId must match ^[a-z0-9][a-z0-9-]{1,31}$ (an opaque id, never a name)")
-  + prob((.kit.routines == null) or (.kit.routines | strarr); "kit.routines must be an array of strings")
+  + prob((.kit.portfolioId == null) or (.kit.portfolioId | isstr and ($rules.portfolioId == null or test($rules.portfolioId))); "kit.portfolioId must match \($rules.portfolioId // "its schema pattern") (an opaque id, never a name)")
+  + prob((.kit.routines == null) or (.kit.routines | strarr and ($rules.routine == null or all(.[]; test($rules.routine)))); "kit.routines must be an array of strings matching \($rules.routine // "its schema pattern") (routine file names without .md)")
   + prob(.app.name | isstr; "app.name must be a string")
   + prob(.shopifyCli | isobj; "shopifyCli must be an object")
   + prob((.shopifyCli.devPolicy // "") as $p | policies | index($p) != null; "shopifyCli.devPolicy must be one of config-required | operator-only | allowed")
@@ -62,7 +62,7 @@ problems="$(jq -r --argjson known "$known" '
   + prob((.packageManagers | isobj) and all(.packageManagers[]; . == "npm" or . == "pnpm"); "packageManagers must map directories to npm | pnpm")
   + prob((.apiVersion == null) or (.apiVersion.expected | isstr and test("^20[0-9][0-9]-(01|04|07|10)$")); "apiVersion.expected must look like 2026-07")
   + prob((.database == null) or (.database.provider | isstr); "database.provider must be a string")
-  + (if $known == null then [] else ((keys - $known) | map("unknown top-level key: " + .)) end)
+  + (if $rules.keys == null then [] else ((keys - $rules.keys) | map("unknown top-level key: " + .)) end)
   | .[]
 ' "$manifest" 2>&1)"
 
@@ -89,13 +89,13 @@ mf '
   + "API version \(.apiVersion.expected | s). "
   + (if .auth.expiringOfflineTokens == null then "" else "Expiring offline tokens: \(if .auth.expiringOfflineTokens then "yes" else "no" end). " end)
   + (if .billing.method == null then "" else "Billing method: \(.billing.method). " end)
-  + (if .kit.portfolioId == null then "" else "Portfolio: \(.kit.portfolioId); routines: \(((.kit.routines // []) | if type == "array" then map(tostring) | join(", ") else "" end) as $r | if $r == "" then "none" else $r end). " end)
+  + (((.kit | objects) // {}) as $k | if $k.portfolioId == null then "" else "Portfolio: \($k.portfolioId); routines: \((($k.routines // []) | if type == "array" then map(tostring) | join(", ") else "" end) as $r | if $r == "" then "none" else $r end). " end)
   + "Guard hooks read this manifest and fail closed when it is missing."
 '
 
 # Vendored-hook drift: each .claude/hooks/kit/*.sh header should match kit.version; a vendored guard the kit no
 # longer ships is stale, and one the kit marks `# Deprecated:` (line 3 of the plugin's copy) is leaving.
-kv="$(mf '.kit.version // empty')"
+kv="$(mf '((.kit | objects) // {}).version // empty')"
 hookdir="$root/.claude/hooks/kit"
 plugin_hooks="$(dirname "${BASH_SOURCE[0]}")"
 if [ -d "$hookdir" ]; then
@@ -125,13 +125,16 @@ elif [ -n "$kv" ]; then
   echo "Drift: the manifest says kit.version $kv but $root/.claude/hooks/kit/ does not exist; run /shopify-app-kit:sync."
 fi
 
-# kit.routines names the routines this product runs (the registry's maintainer step makes one per entry); an entry
-# with no routines/<name>.md next to this hook is a typo or a routine the kit removed, which a cross-repo routine
-# would otherwise find out at run time. Skipped when routines/ is not next to this hook, like the schema.
+# kit.routines names the routines this product runs (the registry's maintainer step makes one per entry). An entry
+# with no routines/<name>.md of that exact name next to this hook is a typo, a removed routine or one a newer kit
+# adds; one whose file says "not a consumer" runs in the kit repository. Skipped when routines/ is not next to it.
 routines_dir="$(dirname "${BASH_SOURCE[0]}")/../routines"
 if [ -d "$routines_dir" ]; then
-  mf '(.kit.routines // []) | if type == "array" then .[] | tostring else empty end' | while IFS= read -r r; do
-    [ -f "$routines_dir/$r.md" ] || echo "Drift: kit.routines names \`$r\`, which this kit version does not ship; remove it or update the kit."
+  mf '(((.kit | objects) // {}).routines // []) | if type == "array" then .[] | tostring else empty end' | while IFS= read -r r; do
+    rf=""; for g in "$routines_dir"/*.md; do [ "${g##*/}" = "$r.md" ] && rf="$g"; done
+    if [ -z "$rf" ]; then echo "Drift: kit.routines names \`$r\`, which this kit version does not ship; remove it or update the kit."
+    elif grep -q 'not a consumer' "$rf"; then echo "Drift: kit.routines names \`$r\`, which runs in the kit repository and is nobody's roster entry; remove it."
+    fi
   done
 fi
 
