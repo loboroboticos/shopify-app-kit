@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# shopify-app-kit v0.16.12
-# hooks/guard-protected-branch.sh: PreToolUse(Bash) guard that keeps a session off the protected branches named in
+# shopify-app-kit v0.17.0
+# hooks/guard-protected-branch.sh: PreToolUse(Bash and GitHub MCP) guard that keeps a session off the protected branches named in
 # .claude/shopify-app.json (branches.protected, branches.default, branches.promotion, deploy.protectedWorkflows).
 #
 #   git push                    blocked when the destination is protected: an explicit refspec (main, :main,
@@ -11,6 +11,12 @@
 #   gh api                      blocked for pulls/<n>/merge into a protected base, /merges with base=<protected>,
 #                               writes to git/refs/heads/<protected>, and any mergePullRequest GraphQL mutation
 #   gh workflow run             blocked for deploy.protectedWorkflows (file name, .github/workflows/<file>, display name)
+#   GitHub MCP tools            the same rules for mcp__*github*__ tools on any repo (a second PreToolUse matcher,
+#                               mcp__.*github.*): push_files / create_or_update_file / delete_file / create_branch to a
+#                               protected branch, update_pull_request base, merge_pull_request / enable_pr_auto_merge
+#                               into a protected base, actions_run_trigger run_workflow of a protected workflow and
+#                               rerun / cancel of its runs. A PR base, numeric workflow id or run's workflow is resolved
+#                               with gh; unresolvable = blocked. Every other MCP tool passes.
 #
 # Allowed on purpose: gh pr create --base <protected> (a promotion PR), pushes to the default or a feature branch,
 # git status/commit/log, gh api reads, gh workflow run of any other workflow. Anything the guard cannot read
@@ -25,7 +31,21 @@ kit_fail_closed_on_exit
 
 kit_read_input
 
+# A GitHub MCP tool this guard checks sets mcp_verb; any other MCP tool is not this guard's business.
+raw_tool="$(kit_raw_tool)"
+mcp_verb=""
+case "$raw_tool" in
+  mcp__*github*__*)
+    mcp_verb="${raw_tool##*__}"
+    case "$mcp_verb" in
+      push_files | create_or_update_file | delete_file | create_branch | update_pull_request | merge_pull_request | enable_pr_auto_merge | actions_run_trigger) ;;
+      *) exit 0 ;;
+    esac ;;
+  mcp__*) exit 0 ;;
+esac
+
 if ! kit_has_jq; then
+  [ -z "$mcp_verb" ] || kit_require_jq "a GitHub MCP $mcp_verb cannot be checked against the manifest's protected branches"
   # Without jq the protected names cannot be read, so every guarded verb fails closed, whatever it names and however
   # the command is spelled: the program and its verb as words, in order (kit_raw_words).
   case "$(kit_raw_words)" in
@@ -36,7 +56,7 @@ if ! kit_has_jq; then
 fi
 
 kit_parse_input
-case "$cmd" in *git* | *gh*) ;; *) exit 0 ;; esac
+[ -n "$mcp_verb" ] || case "$cmd" in *git* | *gh*) ;; *) exit 0 ;; esac
 
 kit_require_manifest "$cwd"
 jq -e '(.branches.protected | type == "array") and (.branches.protected | length) > 0' "$manifest" >/dev/null 2>&1 \
@@ -218,5 +238,46 @@ on_command() {
   return 0
 }
 
+# gh_path ENDPOINT: the .path of a gh api read (a workflow, or a run's workflow) as a file name, or nothing.
+gh_path() { local p; p="$( (cd "$cwd" 2>/dev/null && gh api "$1" --jq .path 2>/dev/null) )"; p="${p%%@*}"; printf '%s' "${p##*/}"; }
+
+check_mcp() {
+  local slug n base="" wf="" run method
+  slug="$(kit_tool_arg owner)/$(kit_tool_arg repo)"
+  case "$mcp_verb" in
+    push_files | create_or_update_file | delete_file | create_branch)
+      n="$(kit_tool_arg branch)"
+      [ -n "$n" ] || block "$mcp_verb names no branch, so it cannot be checked (fail closed)" "$RULE"
+      if is_protected "$n"; then block "$mcp_verb writes to a protected branch ($n)" "$RULE"; fi ;;
+    update_pull_request)
+      base="$(kit_tool_arg base)"
+      if is_protected "$base"; then block "update_pull_request retargets PR #$(kit_tool_arg pullNumber) at a protected branch ($base)" "$RULE"; fi ;;
+    merge_pull_request | enable_pr_auto_merge)
+      n="$(kit_tool_arg pullNumber)"
+      [ -z "$n" ] || base="$(pr_base "$n" -R "$slug")"
+      [ -n "$base" ] || block "$mcp_verb of PR #${n:-?}: its base branch could not be resolved with gh, so the merge is refused (fail closed)" "$RULE"
+      if is_protected "$base"; then block "$mcp_verb of PR #$n merges into $base" "$RULE"; fi ;;
+    actions_run_trigger)
+      method="$(kit_tool_arg method)"
+      case "$method" in
+        run_workflow)
+          wf="$(kit_tool_arg workflow_id)"
+          [ -n "$wf" ] || block "actions_run_trigger run_workflow names no workflow, so it cannot be checked (fail closed)" "$RULE"
+          case "$wf" in
+            *[!0-9]*) ;;
+            *) wf="$(gh_path "repos/$slug/actions/workflows/$wf")"
+               [ -n "$wf" ] || block "actions_run_trigger run_workflow of workflow id $(kit_tool_arg workflow_id): gh could not map it to a file (fail closed)" "$RULE" ;;
+          esac
+          if is_protected_workflow "$wf"; then block "actions_run_trigger run_workflow of a production deploy ($wf)" "$RULE"; fi ;;
+        rerun_workflow_run | rerun_failed_jobs | cancel_workflow_run)
+          run="$(kit_tool_arg run_id)"
+          [ -z "$run" ] || wf="$(gh_path "repos/$slug/actions/runs/$run")"
+          [ -n "$wf" ] || block "actions_run_trigger $method of run ${run:-?}: its workflow could not be resolved with gh (fail closed)" "$RULE"
+          if is_protected_workflow "$wf"; then block "actions_run_trigger $method of a production deploy run ($wf)" "$RULE"; fi ;;
+      esac ;;
+  esac
+}
+
+if [ -n "$mcp_verb" ]; then check_mcp; exit 0; fi
 kit_walk_commands "$cmd" on_command
 exit 0

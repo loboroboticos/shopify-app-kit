@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
-# shopify-app-kit v0.16.12
+# shopify-app-kit v0.17.0
 # hooks/lib.sh: shared helpers for the shopify-app-kit guard hooks. Sourced, never executed.
 # Vendored into consumers at .claude/hooks/kit/lib.sh by /shopify-app-kit:sync, next to the guards.
 #
 # Contract for a guard that sources this file:
 #   KIT_HOOK_NAME=guard-something; . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 #   kit_read_input            -> $input (raw hook JSON from stdin)
-#   kit_parse_input           -> $cmd (tool_input.command), $cwd (absolute)   [needs jq]
+#   kit_parse_input           -> $cmd (tool_input.command), $tool (tool_name), $cwd (absolute)   [needs jq]
+#   kit_tool_arg KEY          -> tool_input.KEY as text, or nothing (an MCP tool's argument)   [needs jq]
+#   kit_raw_tool              -> tool_name without jq, or nothing
 #   kit_raw_command           -> tool_input.command without jq, JSON-escaped (the whole payload when it has none)
 #   kit_raw_words             -> kit_raw_command as words two spaces apart, for a no-jq pre-filter (over-matches)
 #   kit_resolve_manifest DIR  -> $manifest, $root (the CONSUMER repo root)
@@ -20,7 +22,7 @@
 #   kit_walk_commands CMD CB  -> calls CB "<effective dir>" <prog> <args...> for every simple command in CMD,
 #                                after heredoc stripping, control-operator splitting and cd/pushd/popd tracking.
 
-KIT_VERSION="0.16.12"
+KIT_VERSION="0.17.0"
 KIT_HOOK_NAME="${KIT_HOOK_NAME:-hook}"
 KIT_MANIFEST_RULE="Add or repair .claude/shopify-app.json (the repo manifest the kit's guard hooks read; schema: shopify-app-kit schemas/shopify-app.v1.schema.json)."
 
@@ -28,6 +30,7 @@ manifest=""
 root=""
 input=""
 cmd=""
+tool=""
 cwd=""
 
 # ---------------------------------------------------------------- blocking
@@ -46,10 +49,15 @@ kit_has_jq() { command -v jq >/dev/null 2>&1; }
 
 kit_parse_input() {
   cmd="$(jq -r '.tool_input.command // empty' <<<"$input" 2>/dev/null || true)"
+  tool="$(jq -r '.tool_name // empty' <<<"$input" 2>/dev/null || true)"
   cwd="$(jq -r '.cwd // empty' <<<"$input" 2>/dev/null || true)"
   [ -n "$cwd" ] || cwd="$PWD"
   case "$cwd" in /*) ;; *) cwd="$PWD/$cwd" ;; esac
 }
+
+kit_tool_arg() { jq -r --arg k "$1" '.tool_input[$k] // empty | tostring' <<<"$input" 2>/dev/null || true; }
+
+kit_raw_tool() { printf '%s' "$input" | sed -E -n 's/.*"tool_name"[[:space:]]*:[[:space:]]*"([^"\\]*)".*/\1/p'; }
 
 # kit_raw_command: tool_input.command without jq, JSON-escaped as it sits in the payload (a substring test on it is
 # as good as one on the parsed command); the whole payload when no command key is found, so an unknown shape still

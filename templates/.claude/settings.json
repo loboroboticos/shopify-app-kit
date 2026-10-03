@@ -1,5 +1,5 @@
 {
-  "$comment": ".claude/settings.json (shopify-app-kit template). Pins the kit's marketplace and plugin, registers the four vendored guards (copied to .claude/hooks/kit/ by /shopify-app-kit:sync) under PreToolUse, and the bootstrap hook that installs the plugins in a remote session. The guards read .claude/shopify-app.json and fail closed without it.",
+  "$comment": ".claude/settings.json (shopify-app-kit template). Pins the kit's marketplace and plugin, registers the four vendored guards (copied to .claude/hooks/kit/ by /shopify-app-kit:sync) under PreToolUse (guard-protected-branch a second time for the GitHub MCP tools), and the bootstrap hook that installs the plugins in a remote session. The guards read .claude/shopify-app.json and fail closed without it.",
   "extraKnownMarketplaces": {
     "shopify-app-kit": {
       "source": { "source": "github", "repo": "loboroboticos/shopify-app-kit" }
@@ -25,6 +25,12 @@
           { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/kit/guard-protected-branch.sh\"" },
           { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/kit/guard-package-manager.sh\"" },
           { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/kit/guard-migrations.sh\"" }
+        ]
+      },
+      {
+        "matcher": "mcp__.*github.*",
+        "hooks": [
+          { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/kit/guard-protected-branch.sh\"" }
         ]
       }
     ]
