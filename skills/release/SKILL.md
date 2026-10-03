@@ -39,8 +39,9 @@ performs on push. Never merge, never run a protected workflow by hand, never tou
    A deploy workflow GitHub has disabled for inactivity never fires; the workflow posture is in `references/ci-posture.md`.
 
 6. **Billing.** When `billing.live` is true, say before any billing-related step that a subscribe, upgrade or
-   plan change against the production registration is a real charge to a real merchant. The only agent-safe
-   billing path is the test flag (`billing.testFlag`) under the dev registration (`references/billing-live-posture.md`).
+   plan change against the production registration is a real charge to a real merchant. Under `billing.method`
+   `billing-api` the only agent-safe billing path is the test flag (`billing.testFlag`) under the dev registration
+   (`references/billing-live-posture.md`); under `app-pricing` there is no test flag and no agent-safe billing path.
 
 7. **Checklist.** End with the workflow's checklist block from step 2, the one source of the release checklist
    (its lines live in `workflows/release-readiness.js`); the operator pastes it into the PR body and ticks as they

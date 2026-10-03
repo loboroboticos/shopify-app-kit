@@ -38,7 +38,8 @@ absent, say so once and run the generic sections only.
 - Every topic in `topics` has exactly one handler under `paths.webhookHandlers` and a subscription (in the app
   TOMLs or the Shopify server module). A topic added to code but not to the manifest, or vice versa, is P1.
 - `compliance: true` requires handlers for the three privacy topics (`customers/data_request`,
-  `customers/redact`, `shop/redact`) that verify the request and return 200.
+  `customers/redact`, `shop/redact`) that verify the request and enqueue a real redaction or export job; a handler
+  that only returns 200 is P0.
 - Handlers are idempotent under redelivery, tolerate an uninstalled or missing shop record, respond quickly and
   push slow work off the request path. `app/uninstalled` cleans up sessions; `app/scopes_update` updates the
   stored scopes.
@@ -59,10 +60,11 @@ absent, say so once and run the generic sections only.
 - A new Prisma migration with `scaleToZeroBeforeMigrate: true` requires the deploy workflow to scale the app to
   zero before running migrations; otherwise P1.
 
-**Billing** (`billing.live`, `billing.testFlag`)
-- With `live: true`, a billing mutation is a test charge only when `testFlag` is set in the environment; a
-  hardcoded test flag or a missing production path is P0. Plan names, prices, trial days and intervals do not
-  change silently; `app_subscriptions/update` stays handled.
+**Billing** (`billing.method`, `billing.live`, `billing.testFlag`)
+- Plan names, prices, trial days and intervals do not change silently.
+- Under `method: billing-api` with `live: true`, a billing mutation is a test charge only when `testFlag` is set
+  in the environment; a hardcoded test flag or a missing production path is P0, and `app_subscriptions/update`
+  stays handled. Under `app-pricing` there are no subscription mutations or webhooks to check.
 
 **Database** (`database.provider`, `database.rls`, `database.sharedDevDbWithBeta`)
 - With `rls: false`, every query that touches shop data is filtered by the shop identifier; a query that can

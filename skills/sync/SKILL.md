@@ -2,7 +2,7 @@
 name: sync
 description: Vendor the kit's guard hooks into this repo's .claude/hooks/kit/, stamp their version headers, record kit.version in .claude/shopify-app.json, and print the settings.json registration snippet. Use when adopting the kit in a repo or after upgrading the pinned kit version.
 disable-model-invocation: true
-allowed-tools: Read, Write, Edit, Grep, Glob, Bash(jq *), Bash(cp *), Bash(mkdir *), Bash(ls *), Bash(cat *), Bash(diff *), Bash(bash *)
+allowed-tools: Read, Write, Edit, Grep, Glob, Bash(jq *), Bash(cp *), Bash(mkdir *), Bash(ls *), Bash(cat *), Bash(diff *), Bash(bash *), Bash(awk *)
 ---
 
 # shopify-app-kit sync
@@ -22,39 +22,37 @@ their logic, and touches nothing outside `.claude/`.
    `.claude/hooks/kit/guard-*.sh` with no counterpart under `${CLAUDE_PLUGIN_ROOT}/hooks/` (a guard the kit
    removed) together with its `settings.json` entry, and say which; the doctor reports such a copy as stale.
 3. **Stamp the headers.** Line 2 of every copied file is `# shopify-app-kit v<version>`. The kit ships them
-   stamped; verify with `sed -n '2p' "${CLAUDE_PROJECT_DIR}"/.claude/hooks/kit/*.sh` and fix any that differ.
+   stamped; verify with `awk 'FNR==2 {print FILENAME ": " $0}' "${CLAUDE_PROJECT_DIR}"/.claude/hooks/kit/*.sh`
+   (line 2 of every file) and fix any that differ.
    Consumers' tripwire tests compare this line with the manifest's `kit.version`.
-4. **Record the version.** Set `kit.version` in the manifest to the plugin version (`jq --arg v "$version"
-   '.kit.version = $v'`, written back with the file's existing formatting where possible).
+4. **Record the version.** Edit the manifest in place (the Edit tool, never a `jq` rewrite, which reformats the
+   file): set `kit.version` to the plugin version and, when `$schema` is present, point its ref at the tag
+   (`…/shopify-app-kit/v<version>/schemas/shopify-app.v1.schema.json`). The doctor reports either one stale.
 5. **Print the registration snippet** and ask the user to merge it into `${CLAUDE_PROJECT_DIR}/.claude/settings.json`
    when `hooks.PreToolUse` does not already register the guards (the doctor reports this): one entry per
    `guard-*.sh` copied under `Bash`, plus the GitHub MCP entry; none for `lib.sh` (it is sourced). A consumer
-   upgrading adds a new entry by hand; the doctor reports a missing MCP entry, not a missing Bash one.
+   upgrading adds a new entry by hand; the doctor reports every vendored guard that neither `settings.json` nor
+   `settings.local.json` registers, and a missing MCP entry.
 
    ```json
-   {
-     "hooks": {
-       "PreToolUse": [
-         {
-           "matcher": "Bash",
-           "hooks": [
-             { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/kit/guard-shopify-cli.sh\"" },
-             { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/kit/guard-protected-branch.sh\"" },
-             { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/kit/guard-package-manager.sh\"" },
-             { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/kit/guard-migrations.sh\"" }
-           ]
-         },
-         { "matcher": "mcp__.*github.*", "hooks": [ { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/kit/guard-protected-branch.sh\"" } ] }
-       ]
-     }
-   }
+   { "hooks": { "PreToolUse": [
+     { "matcher": "Bash", "hooks": [
+         { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/kit/guard-shopify-cli.sh\"" },
+         { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/kit/guard-protected-branch.sh\"" },
+         { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/kit/guard-package-manager.sh\"" },
+         { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/kit/guard-migrations.sh\"" }
+     ] },
+     { "matcher": "mcp__.*github.*", "hooks": [ { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/kit/guard-protected-branch.sh\"" } ] }
+   ] } }
    ```
 
-6. **Verify.** Run one blocked and one allowed case through each vendored guard, for example
-   `printf '{"tool_name":"Bash","tool_input":{"command":"shopify app deploy"},"cwd":"%s"}' "${CLAUDE_PROJECT_DIR}" | bash "${CLAUDE_PROJECT_DIR}/.claude/hooks/kit/guard-shopify-cli.sh"; echo "exit $?"`,
-   which expects exit 2 and a `Blocked by shopify-app-kit/guard-shopify-cli:` message under a `config-required`
-   or `operator-only` deploy policy; likewise `git push origin <protected>` through `guard-protected-branch.sh`,
-   `pnpm install` from a directory mapped to `npm` through `guard-package-manager.sh`, and `npx prisma migrate
-   reset` through `guard-migrations.sh`. Then run the `doctor` skill and confirm it reports no drift.
-7. **Commit** `.claude/hooks/kit/`, the manifest and the settings change together, with a message like
-   `chore: sync shopify-app-kit v<version> hooks`.
+6. **Verify.** Feed each vendored guard a blocked and an allowed case as tool-call JSON, e.g.
+   `printf '{"tool_name":"Bash","tool_input":{"command":"%s"},"cwd":"%s"}' "shopify app deploy" "${CLAUDE_PROJECT_DIR}" | bash "${CLAUDE_PROJECT_DIR}/.claude/hooks/kit/guard-shopify-cli.sh"; echo "exit $?"`
+   (2 blocked, 0 allowed). Blocked, then allowed: `shopify app deploy` (config-required deploy policy), `npm run
+   build`; `git push origin <protected>`, `git status`; `pnpm install` in an `npm` directory, its own manager's
+   install; `npx prisma migrate reset`, `npx prisma migrate status`. MCP: `{"tool_name":"mcp__github__merge_pull_request",
+   "tool_input":{"owner":"o","repo":"r","pullNumber":1},"cwd":"<repo root>"}` through `guard-protected-branch.sh` exits 2. Then run the
+   `doctor` skill and confirm it reports no drift.
+7. **Commit** `.claude/hooks/kit/`, the manifest and the settings change together on a branch, with a message
+   like `chore: sync shopify-app-kit v<version> hooks`, and open a PR to `branches.default`; never commit to a
+   protected branch.

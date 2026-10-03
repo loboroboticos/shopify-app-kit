@@ -1,7 +1,9 @@
 # Billing posture when the app charges real money
 
 The Billing API has one flag between a test charge and a real one. These rules keep the flag, the plan names,
-the caches and the ledgers from disagreeing.
+the caches and the ledgers from disagreeing. The test flag and `app_subscriptions/update` apply under
+`billing.method` `billing-api`; under `app-pricing` the rest still holds, and the reconcile job reads the
+Partner Active Subscription API instead of repairing missed webhooks.
 
 ## The test flag is an environment fact
 

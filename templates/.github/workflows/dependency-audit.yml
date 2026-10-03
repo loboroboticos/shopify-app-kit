@@ -8,7 +8,7 @@ name: dependency-audit
 on:
   schedule:
     # Off the hour and on a different minute from secret-scan.yml. GitHub disables scheduled workflows after
-    # 60 days without a commit to the repository; the liveness tripwire lists this workflow.
+    # 60 days without a commit to a public repository; the liveness tripwire lists this workflow.
     - cron: '41 6 * * 1'
   workflow_dispatch:
 
