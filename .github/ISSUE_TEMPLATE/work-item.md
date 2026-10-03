@@ -8,8 +8,8 @@ assignees: ''
 
 <!-- .github/ISSUE_TEMPLATE/work-item.md (shopify-app-kit template)
      Every issue says what can close it. The ladder below is the executor rung: a session reads the ticked line,
-     applies the label, and closes a human:* issue only once the human work is done. Rules:
-     .claude/rules/pr-and-issues.md. -->
+     applies the label, and closes a human:* issue only once the human work is done; a routine never closes one.
+     Rules: .claude/rules/pr-and-issues.md. -->
 
 ## What
 
@@ -26,7 +26,7 @@ Tick exactly one group. Ticked lines from more than one group? Split the issue.
 - [ ] A logged-in CLI / .env / browser on the maintainer's machine → `agent:local`
 - [ ] A one-time human bootstrap that does not exist yet → link Bootstrap: #__
 
-**Human (a human does the work; an agent closes it once that work is done)**
+**Human (a human does the work; a session closes it once that work is done, a routine never does)**
 - [ ] A product / architecture / art-direction decision → `human:decision`
 - [ ] Account, payment, payout, tax, 2FA, dashboard-only click, real money → `human:account`
 - [ ] Legal, compliance, trademark, DPA, third-party review → `human:legal`
