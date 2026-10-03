@@ -16,7 +16,8 @@ live, is in `references/executor-ladder.md`.
 1. **Read the label set.** `${CLAUDE_PROJECT_DIR}/.github/labels.json` when the repo keeps its own copy, else
    `${CLAUDE_PLUGIN_ROOT}/labels.json`. Its `ladder` array is the executor order (least privileged first);
    `human:bootstrap` sits alongside `human:account`. Never invent a label; a missing one is created with
-   `node ${CLAUDE_PLUGIN_ROOT}/scripts/sync-labels.mjs` (never by hand, never deleting).
+   `node ${CLAUDE_PLUGIN_ROOT}/scripts/sync-labels.mjs`, adding `--file .github/labels.json` when the repo keeps
+   its own copy (never by hand, never deleting).
 2. **Read the repo facts** from `${CLAUDE_PROJECT_DIR}/.claude/shopify-app.json`: `branches.default` (the only
    PR target), `deploy.protectedWorkflows` (never dispatched by an agent), `billing.live` and `app.kind` (they
    decide whether a line is irreversible, rule R6).
@@ -36,10 +37,11 @@ live, is in `references/executor-ladder.md`.
    `launch-gate`, `blocked` or `deploy` when they apply, and a row in the ranking doc when the repo keeps one.
 7. **Closing or relabelling a `human:*` issue** (R7): a session closes it once the human work is done and its
    close condition is met, saying what met it; a routine never closes it. An agent never moves it to `agent:*`
-   or `code only`, except on a comment beginning `decision:` or when a closed `Bootstrap:` lists it under
+   or `code only`, except on a `decision:` comment by a writer or when a closed `Bootstrap:` lists it under
    Unlocks; then remove `blocked` from its children and comment "unblocked by #N".
 8. **Filing from CI or a routine** (R9): search open issues for the same title prefix first and comment on the
-   match; a new one carries `bug` + `p1` + the executor label and never attaches traces or test results.
+   match; a CI failure's carries `bug` + `p1`, a routine's the priority its prompt names, each with the executor
+   label and an ROI bucket, never traces or test results.
 9. **The one exemption:** the pinned "maintainer's queue" issue is a tracking surface the triage routine
    rewrites; it carries no work type, priority or ROI and the lint skips it (`references/rules.md`).
 10. **Report** the number, the three labels, the executor line it ticked, and every issue it split or unblocked.

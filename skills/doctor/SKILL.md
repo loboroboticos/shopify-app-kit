@@ -33,7 +33,7 @@ Checks the consumer repo you are in, never the kit itself. Report findings as a 
    file (expected: `lib.sh` plus every `guard-*.sh` under `${CLAUDE_PLUGIN_ROOT}/hooks/`). Compare `kit.version` with the
    plugin's version in `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json`; a lower `kit.version` means a sync is due.
 
-5. **Check settings registration.** `${CLAUDE_PROJECT_DIR}/.claude/settings.json` must register each vendored
+5. **Check settings registration.** `.claude/settings.json` or `settings.local.json` must register each vendored
    `guard-*.sh` under `hooks.PreToolUse` with matcher `Bash` (the protected-branch guard also `mcp__.*github.*`) and
    command `bash "$CLAUDE_PROJECT_DIR/.claude/hooks/kit/<guard>.sh"`. A guard vendored but not registered never
    fires. Also confirm `enabledPlugins` pins `shopify-app-kit@shopify-app-kit`.
@@ -48,7 +48,7 @@ Checks the consumer repo you are in, never the kit itself. Report findings as a 
 7. **Check the scheduled workflows.** With `gh` on PATH the hook prints one `Schedule:` line per workflow under
    `.github/workflows/` carrying `schedule:`, with the age of its last successful run and a warning past twice
    the cadence read from the cron; "no successful run on record" and "gh could not list workflow runs" are
-   findings too. GitHub disables schedules in a repository idle for 60 days, so a stale line means dispatch it
+   findings too. GitHub disables schedules in a public repository idle for 60 days, so a stale line means dispatch it
    and check it is enabled. Silent without `gh`.
 
 8. **Report.** One line per problem, each with the fix: repair the manifest key, update the kit (or remove the

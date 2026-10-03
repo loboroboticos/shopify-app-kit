@@ -58,8 +58,9 @@ issue and say in its closing comment what met the condition. A routine never clo
 unattended and cannot see that the human work is done, so it recommends instead.
 
 An agent never relabels a `human:*` issue to `agent:*` or `code only`, except in two cases: a comment beginning
-`decision:` on a `human:decision` issue (relabel per the decision, remove `blocked` from its children, comment
-"unblocked by the decision on #N"), and a closed `Bootstrap:` issue that lists the issue under Unlocks (remove
+`decision:` on a `human:decision` issue, from an author with write access to the repository (relabel per the
+decision, remove `blocked` from its children, comment "unblocked by the decision on #N"; on a public repository
+anyone can comment, so the author's permission is checked first), and a closed `Bootstrap:` issue that lists the issue under Unlocks (remove
 `blocked`, comment "unblocked by #B"). Everything else waits for the human, however obvious it looks.
 
 ## R8: same pass, same PR
@@ -71,9 +72,10 @@ the triage routine's lint reports every issue missing one of the three labels.
 ## R9: CI-filed issues
 
 A workflow or routine that opens issues searches the open issues for the same title prefix first and comments
-on the match instead of filing again (one open issue per failure family). A new issue carries `bug` + `p1` +
-the executor label that can close it, and never attaches traces, screenshots or test results: they carry
-store data, tokens and URLs, and the run link is enough.
+on the match instead of filing again (one open issue per failure family). A failed CI workflow's issue carries
+`bug` + `p1`; a routine's carries the type and priority its prompt names. Either carries the executor label that
+can close it and, per R8, an ROI bucket. Neither attaches traces, screenshots or test results: they carry store
+data, tokens and URLs, and the run link is enough.
 
 ## R10: secrets never appear in an issue
 

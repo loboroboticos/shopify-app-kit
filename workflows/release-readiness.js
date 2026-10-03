@@ -238,8 +238,8 @@ because the promotion would not carry it and a later merge would revert it). The
 called out in the PR body (changed workflow files: ${scope.workflowFiles.join(', ') || 'none'}); an unreviewed change
 to a protected workflow is a major.`,
   billing: `billing. billing.live is true: no tier, price or plan-name change in the range without it being called out in the
-PR body (a tier or plan-name change is a data migration), and the billing test flag ${scope.billingTestFlag || ''} must
-stay untouched in production configuration (a hard-coded or defaulted-on flag in the production path is a blocker).`,
+PR body (a tier or plan-name change is a data migration)${scope.billingMethod === 'billing-api' ? `, and the billing test flag ${scope.billingTestFlag || ''} must
+stay untouched in production configuration (a hard-coded or defaulted-on flag in the production path is a blocker)` : ` (billing.method ${scope.billingMethod || 'unset'}: no test flag to check)`}.`,
   extension: `extension. paths.extensions: ${scope.extensions.join(', ')} (changed extension files: ${scope.extensionFiles.join(', ') || 'none'}).
 Settings-schema backward compatibility for every changed block schema; when the manifest names a vendored-copy
 parity check under checks.tripwireDir, run it read-only and report; the released version will be

@@ -694,7 +694,32 @@ describe('doctor.sh', () => {
     const r = runDoctor({ manifest: undefined, cwd: dir, extraEnv: { CLAUDE_PROJECT_DIR: dir } });
     assert.equal(r.status, 0, r.stderr);
     assert.match(r.stdout, /Drift: guard-shopify-cli\.sh is v0\.0\.9 but the manifest's kit\.version is 0\.1\.0/);
-    assert.match(r.stdout, /Drift: \.claude\/settings\.json does not register/);
+    assert.match(r.stdout, /Drift: neither \.claude\/settings\.json nor settings\.local\.json registers guard-shopify-cli\.sh under PreToolUse/);
+  });
+
+  test('a guard counts as registered from settings.local.json too; a missing settings file or one unregistered guard is named (#118)', () => {
+    const dir = checkout(npmRoot, '.claude/hooks/kit');
+    for (const g of ['guard-shopify-cli.sh', 'guard-migrations.sh']) fs.writeFileSync(path.join(dir, '.claude', 'hooks', 'kit', g), `#!/usr/bin/env bash\n# shopify-app-kit v${KIT_VERSION}\nexit 0\n`);
+    const run = () => runDoctor({ manifest: undefined, cwd: dir, extraEnv: { CLAUDE_PROJECT_DIR: dir } }).stdout;
+    assert.match(run(), /Drift: neither .* registers guard-migrations\.sh guard-shopify-cli\.sh under PreToolUse/, 'no settings file at all');
+    const cmd = (g) => ({ type: 'command', command: `bash "$CLAUDE_PROJECT_DIR/.claude/hooks/kit/${g}"` });
+    fs.writeFileSync(path.join(dir, '.claude', 'settings.local.json'), JSON.stringify({ hooks: { PreToolUse: [{ matcher: 'Bash', hooks: [cmd('guard-shopify-cli.sh')] }] } }));
+    assert.match(run(), /registers guard-migrations\.sh under PreToolUse/);
+    fs.writeFileSync(path.join(dir, '.claude', 'settings.json'), JSON.stringify({ hooks: { PreToolUse: [{ matcher: 'Bash', hooks: [cmd('guard-migrations.sh')] }] } }));
+    assert.doesNotMatch(run(), /registers guard-/);
+  });
+
+  test('reports kit.version and a kit $schema ref behind the installed kit, and a string deploy.protectedWorkflows (#118)', () => {
+    const url = (ref) => `https://raw.githubusercontent.com/o/shopify-app-kit/${ref}/schemas/shopify-app.v1.schema.json`;
+    const behind = runDoctor({ manifest: variant(npmRoot, (m) => { m.$schema = url('v0.0.1'); }) }).stdout;
+    assert.ok(behind.includes(`Drift: the manifest's kit.version is 0.1.0 but the installed kit is v${KIT_VERSION}; run /shopify-app-kit:sync.`), behind);
+    assert.ok(behind.includes(`Drift: the manifest's $schema points at v0.0.1, not v${KIT_VERSION}; /shopify-app-kit:sync repoints it.`), behind);
+    assert.match(runDoctor({ manifest: variant(npmRoot, (m) => { m.$schema = url('main'); }) }).stdout, /\$schema points at main,/);
+    const current = runDoctor({ manifest: variant(npmRoot, (m) => { m.kit.version = KIT_VERSION; m.$schema = url(`v${KIT_VERSION}`); }) }).stdout;
+    assert.doesNotMatch(current, /kit\.version is|\$schema points/);
+    assert.doesNotMatch(runDoctor({ manifest: variant(npmRoot, (m) => { m.$schema = 'x'; }) }).stdout, /\$schema points/, 'a $schema that is not a kit URL is left alone');
+    const str = runDoctor({ manifest: variant(npmRoot, (m) => { m.deploy = { ...m.deploy, protectedWorkflows: 'deploy.yml' }; }) }).stdout;
+    assert.match(str, /- deploy\.protectedWorkflows must be an array of strings/);
   });
 
   test('reports a protected-branch guard registered for Bash but not for the GitHub MCP tools', () => {
@@ -797,6 +822,7 @@ describe('doctor.sh', () => {
       fs.writeFileSync(path.join(dir, '.github', 'workflows', 'audit.yml'), "name: audit\non:\n  schedule:\n    # weekly\n    - cron: '41 6 * * 1'\n  workflow_dispatch:\n");
       fs.writeFileSync(path.join(dir, '.github', 'workflows', 'nightly.yml'), 'name: nightly\non:\n  schedule:\n    - cron: "17 3 * * *"\n');
       fs.writeFileSync(path.join(dir, '.github', 'workflows', 'monthly.yaml'), 'on:\n  schedule:\n    - cron: 23 6 3 * *\n');
+      fs.writeFileSync(path.join(dir, '.github', 'workflows', 'weekdays.yml'), "on:\n  schedule:\n    - cron: '5 7 * * 1-5'\n");
       fs.writeFileSync(path.join(dir, '.github', 'workflows', 'deploy.yml'), 'name: Deploy\non: workflow_dispatch\n');
       return dir;
     }
@@ -805,14 +831,16 @@ describe('doctor.sh', () => {
 
     test('prints one line per scheduled workflow with the age of its last successful run, warning past twice the cadence', () => {
       const dir = scheduledRepo();
-      const r = run(dir, { runs: { 'audit.yml': iso(3), 'nightly.yml': iso(5), 'monthly.yaml': iso(40) } });
+      const r = run(dir, { runs: { 'audit.yml': iso(3), 'nightly.yml': iso(5), 'weekdays.yml': iso(3), 'monthly.yaml': iso(40) } });
       assert.equal(r.status, 0, r.stderr);
       const lines = scheduleLines(r);
-      assert.equal(lines.length, 3, r.stdout);
+      assert.equal(lines.length, 4, r.stdout);
       // .yml files first, then .yaml, each alphabetical (the glob order).
       assert.equal(lines[0], 'Schedule: audit.yml (weekly) last succeeded 3 days ago.');
-      assert.match(lines[1], /^Schedule: nightly\.yml \(daily\) last succeeded 5 days ago, more than twice its cadence; dispatch it \(gh workflow run nightly\.yml\) and check it is enabled: GitHub disables schedules after 60 idle days\.$/);
-      assert.equal(lines[2], 'Schedule: monthly.yaml (monthly) last succeeded 40 days ago.');
+      assert.match(lines[1], /^Schedule: nightly\.yml \(daily\) last succeeded 5 days ago, more than twice its cadence; dispatch it \(gh workflow run nightly\.yml\) and check it is enabled: GitHub disables a public repository's schedules after 60 idle days\.$/);
+      // A weekday cron is not weekly: its cadence is the longest gap between its days (Friday to Monday, 3) (#118).
+      assert.equal(lines[2], 'Schedule: weekdays.yml (days 1-5) last succeeded 3 days ago.');
+      assert.equal(lines[3], 'Schedule: monthly.yaml (monthly) last succeeded 40 days ago.');
       assert.doesNotMatch(r.stdout, /deploy\.yml/);
       assert.match(r.stdout, /OK \(schema v1/);
       assert.equal(r.stderr, '');
@@ -820,11 +848,12 @@ describe('doctor.sh', () => {
 
     test('a weekly workflow at 15 days and a monthly at 61 days warn; a workflow with no successful run is called out', () => {
       const dir = scheduledRepo();
-      const r = run(dir, { runs: { 'audit.yml': iso(15), 'monthly.yaml': iso(61) } });
+      const r = run(dir, { runs: { 'audit.yml': iso(15), 'weekdays.yml': iso(7), 'monthly.yaml': iso(61) } });
       const lines = scheduleLines(r);
       assert.match(lines[0], /^Schedule: audit\.yml \(weekly\) last succeeded 15 days ago, more than twice its cadence/);
-      assert.equal(lines[1], 'Schedule: nightly.yml (daily) has no successful run on record; dispatch it (gh workflow run nightly.yml) and check it is enabled: GitHub disables schedules after 60 idle days.');
-      assert.match(lines[2], /^Schedule: monthly\.yaml \(monthly\) last succeeded 61 days ago, more than twice its cadence/);
+      assert.equal(lines[1], 'Schedule: nightly.yml (daily) has no successful run on record; dispatch it (gh workflow run nightly.yml) and check it is enabled: GitHub disables a public repository\'s schedules after 60 idle days.');
+      assert.match(lines[2], /^Schedule: weekdays\.yml \(days 1-5\) last succeeded 7 days ago, more than twice its cadence/);
+      assert.match(lines[3], /^Schedule: monthly\.yaml \(monthly\) last succeeded 61 days ago, more than twice its cadence/);
     });
 
     test('is silent without gh, prints one line when gh cannot list runs, and says nothing in a repo without schedules', () => {

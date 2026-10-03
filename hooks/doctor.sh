@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shopify-app-kit v0.17.3
+# shopify-app-kit v0.17.4
 # hooks/doctor.sh: SessionStart briefing for a consumer repo. Validates .claude/shopify-app.json structurally
 # (required keys, enums, patterns of schema v1), prints one paragraph of facts to stdout, reports vendored-hook
 # drift and a kit.routines entry that is not a consumer routine this kit ships, checks the two companions (the
@@ -62,6 +62,7 @@ problems="$(jq -r --argjson rules "$rules" '
   + prob((.packageManagers | isobj) and all(.packageManagers[]; . == "npm" or . == "pnpm"); "packageManagers must map directories to npm | pnpm")
   + prob((.apiVersion == null) or (.apiVersion.expected | isstr and test("^20[0-9][0-9]-(01|04|07|10)$")); "apiVersion.expected must look like 2026-07")
   + prob((.database == null) or (.database.provider | isstr); "database.provider must be a string")
+  + prob((.deploy.protectedWorkflows == null) or (.deploy.protectedWorkflows | strarr); "deploy.protectedWorkflows must be an array of strings (a string reads as no protected workflow)")
   + (if $rules.keys == null then [] else ((keys - $rules.keys) | map("unknown top-level key: " + .)) end)
   | .[]
 ' "$manifest" 2>&1)"
@@ -76,6 +77,11 @@ else
   kv="$(mf '.kit.version // "null"')"
   echo "shopify-app-kit doctor (v$KIT_VERSION): $rel OK (schema v1, kit.version $kv)."
 fi
+# The manifest records the kit it was synced with, and its optional $schema names a kit ref; sync moves both.
+kv="$(mf '((.kit | objects) // {}).version // empty')"
+[ -n "$kv" ] && [ "$kv" != "$KIT_VERSION" ] && echo "Drift: the manifest's kit.version is $kv but the installed kit is v$KIT_VERSION; run /shopify-app-kit:sync."
+sref="$(mf '."$schema" // "" | strings | capture("shopify-app-kit/(?<r>[^/]+)/schemas/").r // empty' 2>/dev/null)"
+[ -n "$sref" ] && [ "$sref" != "v$KIT_VERSION" ] && echo "Drift: the manifest's \$schema points at $sref, not v$KIT_VERSION; /shopify-app-kit:sync repoints it."
 
 mf '
   def s: if . == null then "-" else tostring end;
@@ -95,7 +101,6 @@ mf '
 
 # Vendored-hook drift: each .claude/hooks/kit/*.sh header should match kit.version; a vendored guard the kit no
 # longer ships is stale, and one the kit marks `# Deprecated:` (line 3 of the plugin's copy) is leaving.
-kv="$(mf '((.kit | objects) // {}).version // empty')"
 hookdir="$root/.claude/hooks/kit"
 plugin_hooks="$(dirname "${BASH_SOURCE[0]}")"
 if [ -d "$hookdir" ]; then
@@ -118,9 +123,15 @@ if [ -d "$hookdir" ]; then
         fi ;;
     esac
   done
-  if [ -f "$root/.claude/settings.json" ] && ! grep -q 'hooks/kit/guard-' "$root/.claude/settings.json" 2>/dev/null; then
-    echo "Drift: .claude/settings.json does not register .claude/hooks/kit/guard-*.sh under PreToolUse; the vendored guards will not fire. /shopify-app-kit:sync prints the snippet."
-  elif [ -f "$root/.claude/hooks/kit/guard-protected-branch.sh" ] && ! grep -q '"mcp__\.\*github' "$root/.claude/settings.json" 2>/dev/null; then
+  # A guard registered in either settings file fires; one registered in neither never does.
+  settings="$(cat "$root/.claude/settings.json" "$root/.claude/settings.local.json" 2>/dev/null)"
+  unreg=""
+  for f in "$hookdir"/guard-*.sh; do
+    [ -f "$f" ] && ! grep -q "hooks/kit/${f##*/}" <<<"$settings" && unreg="$unreg ${f##*/}"
+  done
+  if [ -n "$unreg" ]; then
+    echo "Drift: neither .claude/settings.json nor settings.local.json registers$unreg under PreToolUse; those guards will not fire. /shopify-app-kit:sync prints the snippet."
+  elif [ -f "$hookdir/guard-protected-branch.sh" ] && ! grep -q '"mcp__\.\*github' <<<"$settings"; then
     echo "Drift: .claude/settings.json does not register guard-protected-branch.sh for the GitHub MCP tools (matcher mcp__.*github.*), so an MCP push, merge or workflow run is unguarded. /shopify-app-kit:sync prints the snippet."
   fi
 elif [ -n "$kv" ]; then
@@ -161,7 +172,7 @@ if command -v claude >/dev/null 2>&1; then
   fi
 fi
 
-# Scheduled workflows: GitHub disables schedule: triggers in a repository idle for 60 days, silently. When gh is
+# Scheduled workflows: GitHub disables schedule: triggers in a public repository idle for 60 days, silently. When gh is
 # on PATH, one line per workflow under .github/workflows/ that carries schedule:, with the age of its last
 # successful run; a warning when that age exceeds twice the cadence read from the cron line. Silent without gh;
 # one line when gh cannot list runs (not logged in). Never blocks.
@@ -173,7 +184,16 @@ if [ -d "$wfdir" ] && command -v gh >/dev/null 2>&1; then
     file="$(basename "$wf")"
     cron="$(sed -n "s/^[[:space:]]*-[[:space:]]*cron:[[:space:]]*['\"]\{0,1\}\([^'\"#]*[^'\"# ]\).*/\1/p" "$wf" | head -1)"
     read -r _cmin chour cdom _cmon cdow <<<"$cron"
-    if [ -n "${cdow:-}" ] && [ "$cdow" != "*" ]; then cadence="weekly"; days=7
+    if [ -n "${cdow:-}" ] && [ "$cdow" != "*" ]; then
+      # The longest gap between the days the field names (0-7, ranges, lists); one day is weekly.
+      days=7; cadence="weekly"
+      if [[ "$cdow" =~ ^[0-7]([-,][0-7])*$ ]]; then
+        on=""; for part in ${cdow//,/ }; do i=${part%-*}; while [ "$i" -le "${part#*-}" ]; do on="$on$((i % 7))"; i=$((i + 1)); done; done
+        gap=0; last=""; for i in 0 1 2 3 4 5 6 7 8 9 10 11 12 13; do
+          case "$on" in *$((i % 7))*) [ -n "$last" ] && [ $((i - last)) -gt "$gap" ] && gap=$((i - last)); last=$i ;; esac
+        done
+        [ "$gap" -gt 0 ] && [ "$gap" -lt 7 ] && { days=$gap; cadence="days $cdow"; }
+      fi
     elif [ -n "${cdom:-}" ] && [ "$cdom" != "*" ]; then cadence="monthly"; days=30
     elif [ -n "${chour:-}" ] && [ "$chour" != "*" ]; then cadence="daily"; days=1
     else cadence="hourly"; days=1; fi
@@ -182,14 +202,14 @@ if [ -d "$wfdir" ] && command -v gh >/dev/null 2>&1; then
       break
     fi
     if [ -z "$last" ]; then
-      echo "Schedule: $file ($cadence) has no successful run on record; dispatch it (gh workflow run $file) and check it is enabled: GitHub disables schedules after 60 idle days."
+      echo "Schedule: $file ($cadence) has no successful run on record; dispatch it (gh workflow run $file) and check it is enabled: GitHub disables a public repository's schedules after 60 idle days."
       continue
     fi
     age="$(jq -rn --arg t "$last" '($t | sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601) as $s | ((now - $s) / 86400) | floor' 2>/dev/null || true)"
     if [ -z "$age" ]; then
       echo "Schedule: $file ($cadence) last succeeded at $last."
     elif [ "$age" -gt $((days * 2)) ]; then
-      echo "Schedule: $file ($cadence) last succeeded $age days ago, more than twice its cadence; dispatch it (gh workflow run $file) and check it is enabled: GitHub disables schedules after 60 idle days."
+      echo "Schedule: $file ($cadence) last succeeded $age days ago, more than twice its cadence; dispatch it (gh workflow run $file) and check it is enabled: GitHub disables a public repository's schedules after 60 idle days."
     else
       echo "Schedule: $file ($cadence) last succeeded $age days ago."
     fi

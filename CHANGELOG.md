@@ -5,6 +5,32 @@ vendored hook carries it on line 2 (`# shopify-app-kit vX.Y.Z`). A version that 
 `### Deprecated`; the next minor deletes it and lists it under `### Removed` (`kit-dev`: "Remove a skill, agent,
 hook, workflow or routine").
 
+## 0.17.4
+
+Rules that contradicted each other, and the sync and doctor gaps a review of 0.17.1 found (#118, part one; the
+routine fixes follow in their own release).
+
+- Billing: the test-flag and `app_subscriptions/update` checks in `review-correctness`, the release skill,
+  `billing-live-posture.md` and release-readiness's billing dimension apply under `billing.method` `billing-api`
+  only. A compliance handler that only returns 200 is P0 in `review-correctness`, as in the webhooks reference.
+- `issue-filing`: R9's `bug` + `p1` is for a failed CI workflow; a routine's issue carries its prompt's priority
+  and, per R8, an ROI bucket. R7 acts on a `decision:` comment only from an author with write access. Step 1
+  passes `--file .github/labels.json` when the repo keeps its own label set.
+- `kit-dev`: a routine prompt edit gets no CHANGELOG line, as `.claude/rules/kit.md` says. The 60-day schedule
+  shutdown is stated for public repositories (doctor, `ci-posture.md`, lesson ci-4, two workflow templates).
+- `sync`: line 2 of every vendored hook is checked with `awk 'FNR==2'`; the manifest is edited in place and its
+  `$schema` repointed at the tag; the smoke test has allowed and MCP cases; the commit goes on a branch with a PR.
+- `doctor.sh` reports `kit.version` or a kit `$schema` ref behind the installed kit, each vendored guard that
+  neither `settings.json` nor `settings.local.json` registers (also when neither file exists), and a string
+  `deploy.protectedWorkflows`; a weekday cron's cadence is its longest gap between days, not weekly.
+- Consumers: the fixes arrive with the plugin update; `/shopify-app-kit:sync` moves the vendored hook headers and,
+  per its new step 4, `$schema`. The doctor now reports a `kit.version` that lags the plugin.
+
+### Budget
+
+`hooks/` 1360 → 1370 and `test/` 3360 → 3390 for the doctor's new checks and their tests (#118). `CHANGELOG.md` 900 → 1000: these sections are the
+consumers' upgrade notes and the release workflow publishes each one, so the file only grows.
+
 ## 0.17.3
 
 The review workflows no longer return a clean verdict that their own evidence contradicts (#117).

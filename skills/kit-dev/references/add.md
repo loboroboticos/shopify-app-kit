@@ -91,5 +91,5 @@ R7, never dispatches a protected workflow, and opens at most one PR per run. Add
 `routines/REGISTRY.md` (cron minute off the hour and distinct from the others; say in the row which products run
 it), and extend `test/routines.test.mjs` (the file list and the boundary phrases).
 Adding, removing or renaming a routine bumps the version (CI enforces it): the doctor checks `kit.routines` against
-the `routines/` of the installed version, which only a new version updates. A prompt edit alone needs no bump; the
-CHANGELOG still gets a line.
+the `routines/` of the installed version, which only a new version updates. A prompt edit alone needs no bump and no
+CHANGELOG line (`.claude/rules/kit.md`); its PR says which routines to re-paste.

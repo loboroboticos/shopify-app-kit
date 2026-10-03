@@ -34,7 +34,7 @@ it is never exercised until the next unrelated change. Every such workflow lists
 
 ## Scheduled workflows die after 60 days of inactivity
 
-The platform disables `schedule:` triggers in a repository with no commits for 60 days, without a notification
+The platform disables `schedule:` triggers in a public repository with no commits for 60 days, without a notification
 that anyone reads. A quiet repository stops reconciling billing and stops probing its own health.
 
 Rule: an ops ritual (a monthly checklist in the ops doc) lists every scheduled workflow and its last run, and a
