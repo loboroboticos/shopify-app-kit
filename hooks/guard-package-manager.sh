@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shopify-app-kit v0.17.1
+# shopify-app-kit v0.17.2
 # hooks/guard-package-manager.sh: PreToolUse(Bash) guard that keeps each directory on the package manager
 # .claude/shopify-app.json maps it to (packageManagers: { "<dir>": "npm" | "pnpm" }, "." = the consumer root).
 #
@@ -86,11 +86,17 @@ on_command() {
       ensure_manifest
       check_pm pnpm "$dir" "$@" ;;
     npm)
-      sub="${1:-}"
+      # The subcommand after npm's global options (npm --silent install, npm -w pkg install); npm's aliases and
+      # misspellings of the lockfile-writing commands count.
+      kit_pm_parse npm "$@"
+      sub="$kit_pm_sub"
       case "$sub" in
-        install | i | add | ci | update | up | uninstall | remove | rm | un | run | run-script)
+        install | i | in | ins | inst | insta | instal | isnt | isnta | isntal | isntall | add | ci | clean-install | ic \
+          | install-clean | isntall-clean | install-test | it | install-ci-test | cit | update | up | upgrade | udpate \
+          | uninstall | remove | rm | r | un | unlink | link | ln | dedupe | ddp | prune | run | run-script)
           ensure_manifest
           check_pm npm "$dir" "$@" ;;
+        audit) if [ "${kit_pm_rest[0]:-}" = fix ]; then ensure_manifest; check_pm npm "$dir" "$@"; fi ;;
       esac ;;
   esac
   return 0

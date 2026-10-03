@@ -103,6 +103,11 @@ const cases = [
   { fixture: npmRoot, cmd: 'shopify app deploy -c=example-dev', exit: 2, stderr: /wrong config/ },
   { fixture: npmRoot, cmd: 'git status && npx shopify app deploy', exit: 2, stderr: /app deploy without --config/ },
   { fixture: npmRoot, cmd: 'echo hi; npm run deploy', exit: 2, stderr: /npm run deploy/ },
+  // #116: package-manager runners, their options, a shopify script and the colon form
+  ...['pnpm exec shopify app deploy', 'npm exec -- shopify app deploy', 'npm run shopify app deploy', 'npx -p @shopify/cli shopify app deploy', 'yarn shopify app deploy', 'bun x shopify app deploy', 'shopify app:deploy'].map((cmd) => ({ fixture: npmRoot, cmd, exit: 2, stderr: /app deploy without --config/ })),
+  { fixture: npmRoot, cmd: 'npm --prefix web run deploy', exit: 2, stderr: /npm run deploy expands to a bare shopify app deploy/ },
+  { fixture: npmRoot, cmd: 'pnpm --filter web run deploy', exit: 2, stderr: /pnpm run deploy expands/ },
+  { fixture: npmRoot, cmd: 'pnpm exec shopify app deploy --config example', exit: 0 },
   { fixture: MISSING, cmd: 'npx shopify app deploy --config x', exit: 2, stderr: /manifest is missing or unreadable/ },
   { fixture: MISSING, cmd: 'npm run deploy', exit: 2, stderr: /manifest/ },
 
@@ -192,7 +197,7 @@ case " $* " in
     wf=""; while [ $# -gt 0 ]; do [ "$1" = "--workflow" ] && wf="\${2:-}"; shift; done
     printf '%s' "\${FAKE_GH_RUNS:-null}" | jq -r --arg w "$wf" '(. // {})[$w] // empty' ;;
   *' api '*' --jq .path '*)
-    printf '%s' "\${FAKE_GH_PATHS:-null}" | jq -e -r --arg e "$2" '(. // {})[$e] // empty' 2>/dev/null || exit 1 ;;
+    printf '%s' "\${FAKE_GH_PATHS:-null}" | jq -e -r --arg e "$2" '(. // {})[$e] // empty' 2>/dev/null || { echo '{"message":"Not Found","status":"404"}'; exit 1; } ;;
   *) exit 1 ;;
 esac
 `, { mode: 0o755 });
@@ -206,6 +211,10 @@ const onMain = fs.mkdtempSync(path.join(os.tmpdir(), 'shopify-app-kit-on-main-')
 const onBeta = fs.mkdtempSync(path.join(os.tmpdir(), 'shopify-app-kit-on-beta-'));
 spawnSync('git', ['init', '-q', '-b', 'main', onMain]);
 spawnSync('git', ['init', '-q', '-b', 'beta', onBeta]);
+// Feature checkouts whose config sends the push to main: push.default=upstream with main upstream, and a push refspec.
+const configured = (kvs) => { const d = fs.mkdtempSync(path.join(os.tmpdir(), 'shopify-app-kit-feat-')); spawnSync('git', ['init', '-q', '-b', 'feat', d]); for (const kv of kvs) spawnSync('git', ['-C', d, 'config', ...kv]); return d; };
+const toUpstream = configured([['branch.feat.remote', 'origin'], ['branch.feat.merge', 'refs/heads/main'], ['push.default', 'upstream']]);
+const toRefspec = configured([['remote.origin.push', 'HEAD:refs/heads/main']]);
 const releaseTrain = path.join(fixtures, 'release-train-app.json');
 
 function runGuard(hook, c) {
@@ -293,6 +302,38 @@ const protectedCases = [
   { fixture: MISSING, cmd: 'ls', exit: 0 },
   { fixture: MISSING, cmd: 'npm test', exit: 0 },
 
+  // #116: forms the splitter, the wrappers, the push config or the gh parsing used to miss
+  { fixture: npmRoot, cmd: 'tr a b <<< x\ngit push origin main', exit: 2, stderr: /protected branch \(main\)/ },
+  { fixture: npmRoot, cmd: 'echo "see <<EOF"\ngit push origin main', exit: 2, stderr: /protected branch \(main\)/ },
+  { fixture: npmRoot, cmd: 'bash <<EOF\ngit push origin main\nEOF', exit: 2, stderr: /protected branch \(main\)/ },
+  { fixture: npmRoot, cmd: 'git \\\npush origin main', exit: 2, stderr: /protected branch \(main\)/ },
+  ...['bash -c "git push origin main"', "sh -lc 'git push origin main'", 'eval "git push origin main"', 'sudo -u me git push origin main', 'env -i git push origin main', 'timeout 60 git push origin main', 'nice -n 5 git push origin main', 'xargs -n 1 git push origin main'].map((cmd) => ({ fixture: npmRoot, cmd, exit: 2, stderr: /protected branch \(main\)/ })),
+  { fixture: npmRoot, cmd: 'git push origin --branches', exit: 2, stderr: /--branches pushes main/ },
+  { fixture: npmRoot, cmd: "git push origin 'refs/heads/*:refs/heads/*'", exit: 2, stderr: /wildcard refspec/ },
+  { fixture: npmRoot, cmd: 'B=main; git push origin "$B"', exit: 2, stderr: /not a literal branch/ },
+  { fixture: npmRoot, cmd: 'git -c push.default=upstream push origin feat', exit: 2, stderr: /changes where a push goes/ },
+  { fixture: npmRoot, cmd: 'git -c remote.origin.push=HEAD:refs/heads/main push origin', exit: 2, stderr: /changes where a push goes/ },
+  { fixture: npmRoot, cmd: 'git -c alias.ship=push ship origin main', exit: 2, stderr: /alias that pushes/ },
+  { fixture: npmRoot, cmd: 'git push origin', cwd: toUpstream, exit: 2, stderr: /goes to its upstream main \(push\.default=upstream\)/ },
+  { fixture: npmRoot, cmd: 'git push origin feat', cwd: toUpstream, exit: 2, stderr: /goes to its upstream main/ },
+  { fixture: npmRoot, cmd: 'git push origin', cwd: toRefspec, exit: 2, stderr: /configured push refspec HEAD:refs\/heads\/main into main/ },
+  { fixture: npmRoot, cmd: 'git push origin feat:feat', cwd: toUpstream, exit: 0 },
+  { fixture: npmRoot, cmd: 'gh pr edit 12 -Bmain', exit: 2, stderr: /retargets a PR at a protected branch/ },
+  { fixture: npmRoot, cmd: 'gh pr edit 12 -B=main', exit: 2, stderr: /retargets a PR at a protected branch/ },
+  { fixture: npmRoot, cmd: 'gh workflow run 4242', paths: { 'repos/{owner}/{repo}/actions/workflows/4242': '.github/workflows/deploy.yml' }, exit: 2, stderr: /production deploy \(deploy\.yml\)/ },
+  { fixture: npmRoot, cmd: 'gh workflow run 4242', exit: 2, stderr: /workflow id 4242: gh could not map it/ },
+  { fixture: npmRoot, cmd: 'gh run rerun 99 -R o/r', paths: { 'repos/o/r/actions/runs/99': '.github/workflows/deploy.yml' }, exit: 2, stderr: /gh run rerun of a production deploy run/ },
+  { fixture: npmRoot, cmd: 'gh run cancel 99', exit: 2, stderr: /run 99: its workflow could not be resolved/ },
+  { fixture: npmRoot, cmd: 'gh run rerun 7 -R o/r', paths: { 'repos/o/r/actions/runs/7': '.github/workflows/ci.yml' }, exit: 0 },
+  { fixture: npmRoot, cmd: 'gh api -X POST repos/o/r/actions/workflows/deploy.yml/dispatches -f ref=main', exit: 2, stderr: /workflow dispatch of a production deploy/ },
+  { fixture: npmRoot, cmd: 'gh api repos/o/r/pulls/12 -X PATCH -f base=main', exit: 2, stderr: /retargets a PR at a protected branch \(main\)/ },
+  { fixture: npmRoot, cmd: 'gh api repos/o/r/merges --raw-field=base=main -f head=beta', exit: 2, stderr: /\/merges into main/ },
+  { fixture: npmRoot, cmd: 'gh api -X PUT repos/o/r/contents/a.md -f message=m -f content=eA== -f branch=main', exit: 2, stderr: /writes a file to main/ },
+  { fixture: npmRoot, cmd: 'gh api -X POST repos/o/r/git/refs -f ref=refs/heads/main -f sha=abc', exit: 2, stderr: /creates or moves refs\/heads\/main/ },
+  { fixture: npmRoot, cmd: "gh api graphql -f query='mutation { enablePullRequestAutoMerge(input: {}) { clientMutationId } }'", exit: 2, stderr: /enablePullRequestAutoMerge/ },
+  { fixture: npmRoot, cmd: 'gh api graphql -F query=@merge.graphql', exit: 2, stderr: /query in a file/ },
+  { fixture: npmRoot, cmd: 'gh api -X PUT repos/o/r/contents/a.md -f message=m -f content=eA== -f branch=beta', exit: 0 },
+
   // ---- release-train fixture: protected main + release, default develop, fly-deploy.yml protected
   { fixture: releaseTrain, cmd: 'git push origin release', exit: 2, stderr: /ships to main, release\. Target develop instead/ },
   { fixture: releaseTrain, cmd: 'git push origin main', exit: 2, stderr: /Target develop instead; Claude may open a release -> main promotion PR/ },
@@ -328,6 +369,11 @@ const mcpCases = [
   { fixture: npmRoot, tool: gh('actions_run_trigger'), input: { ...repo, method: 'cancel_workflow_run', run_id: 99 }, exit: 2, stderr: /cancel_workflow_run of run 99: its workflow could not be resolved/ },
   { fixture: npmRoot, tool: 'mcp__plugin_github_github__push_files', input: { ...repo, branch: 'main' }, exit: 2, stderr: /push_files writes to a protected branch/ },
   { fixture: MISSING, tool: gh('push_files'), input: { ...repo, branch: 'beta' }, exit: 2, stderr: /manifest is missing or unreadable/ },
+
+  // #116: a tool_input key cannot stand in for the tool's name, and the server name matches in any case
+  { fixture: npmRoot, tool: gh('push_files'), input: { ...repo, branch: 'main', files: [], message: 'm', tool_name: 'Bash' }, exit: 2, stderr: /push_files writes to a protected branch \(main\)/ },
+  { fixture: npmRoot, tool: 'mcp__GitHub__push_files', input: { ...repo, branch: 'main' }, exit: 2, stderr: /push_files writes to a protected branch/ },
+  { fixture: npmRoot, tool: gh('actions_run_trigger'), input: { ...repo, method: 'rerun_workflow_run' }, exit: 2, stderr: /names no run/ },
 
   { fixture: npmRoot, tool: gh('push_files'), input: { ...repo, branch: 'beta', files: [{ path: 'a', content: 'git push origin main' }], message: 'm' }, exit: 0 },
   { fixture: npmRoot, tool: gh('create_branch'), input: { ...repo, branch: 'claude/x', from_branch: 'main' }, exit: 0 },
@@ -421,6 +467,10 @@ const pmCases = [
   { fixture: pnpmRoot, cmd: 'pnpm run build', exit: 0 },
   { fixture: pnpmRoot, cmd: 'npx shopify app dev', exit: 0 },
   { fixture: pnpmRoot, cmd: 'npm install', cwd: path.join(consumer, 'web'), exit: 0 },
+  // #116: npm's global options before the subcommand, and its aliases of the lockfile-writing commands
+  ...['npm --silent install', 'npm --prefix . install', 'npm -w x install', 'npm clean-install', 'npm in', 'npm isntall', 'npm install-test', 'npm audit fix', 'npm dedupe', 'npm link'].map((cmd) => ({ fixture: pnpmRoot, cmd, exit: 2, stderr: /npm in a directory the manifest maps to pnpm/ })),
+  { fixture: pnpmRoot, cmd: 'npm view react version', exit: 0 },
+  { fixture: pnpmRoot, cmd: 'npm audit', exit: 0 },
 ];
 
 describe('guard-package-manager.sh', () => guardCases('guard-package-manager.sh', pmCases));
@@ -495,6 +545,11 @@ const migrationCases = [
   { fixture: npmRoot, cmd: 'git commit -m "docs: say why `prisma migrate reset` and `db push --force-reset` are blocked"', exit: 0 },
   { fixture: npmRoot, cmd: 'grep -rn "migrate reset" .claude/rules/prisma.md', exit: 0 },
   { fixture: npmRoot, cmd: 'echo "DROP DATABASE never" && npx prisma migrate status', exit: 0 },
+  // #116: runner options and their values, a prisma script, and SQL spaced by more than one blank
+  ...['pnpm --filter web exec prisma migrate reset --force', 'pnpm -C web exec prisma migrate reset --force', 'npx -p prisma prisma migrate reset --force', 'npm run prisma -- migrate reset --force'].map((cmd) => ({ fixture: npmRoot, cmd, exit: 2, stderr: /migrate reset drops and recreates/ })),
+  { fixture: npmRoot, cmd: 'echo "DROP  DATABASE x" | npx prisma db execute --stdin', exit: 2, stderr: /DROP DATABASE/ },
+  { fixture: npmRoot, cmd: 'echo "DROP\tSCHEMA s" | npx prisma db execute --stdin', exit: 2, stderr: /DROP SCHEMA/ },
+  { fixture: npmRoot, cmd: 'pnpm --filter web exec prisma migrate status', exit: 0 },
   { fixture: MISSING, cmd: 'echo "prisma migrate reset"', exit: 0 },
   { fixture: MISSING, cmd: 'ls', exit: 0 },
 ];
