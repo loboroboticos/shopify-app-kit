@@ -205,8 +205,12 @@ const sorted = raw.slice().sort((a, b) => (a.file || '~').localeCompare(b.file |
 const merged = []
 for (const f of sorted) {
   const prev = merged[merged.length - 1]
-  const sameSpot = prev && f.file && prev.file === f.file && Math.abs((f.line || 0) - (prev.line || 0)) <= LINE_FUZZ
-  const sameTopic = prev && !f.file && !prev.file && norm(f.section || f.claim) === norm(prev.section || prev.claim) && (!TOPIC_NEEDS_SAME_CLAIM || norm(f.claim) === norm(prev.claim))
+  // Two blockers or majors merge only when they make the same claim: the skeptic judges the entry's lead claim, and a
+  // refutation must never carry a different serious defect down with it (#117). A serious finding still absorbs a
+  // nearby minor or note, which only leads when nothing serious is there.
+  const mergeable = prev && (norm(f.claim) === norm(prev.claim) || RANK[f.severity] > RANK.major || RANK[prev.severity] > RANK.major)
+  const sameSpot = mergeable && f.file && prev.file === f.file && Math.abs((f.line || 0) - (prev.line || 0)) <= LINE_FUZZ
+  const sameTopic = mergeable && !f.file && !prev.file && norm(f.section || f.claim) === norm(prev.section || prev.claim) && (!TOPIC_NEEDS_SAME_CLAIM || norm(f.claim) === norm(prev.claim))
   if (sameSpot || sameTopic) {
     if (RANK[f.severity] < RANK[prev.severity]) { prev.severity = f.severity; prev.claim = f.claim; prev.fix = f.fix }
     mergeExtra(prev, f)
@@ -232,7 +236,9 @@ const verdicts = await parallel(toVerify.map((f, i) => () =>
   agent(`Try to refute this plan-review finding (plan source: ${scope.source}). You are read-only: read the plan, the manifest
 and the cited files, run only tooling that writes nothing, never modify a file, never create a branch, stash or worktree.
 
-Finding [${f.severity}] ${f.file ? `${f.file}:${f.line}` : f.section} — ${f.claim}
+Finding [${f.severity}] ${f.file ? `${f.file}:${f.line}` : f.section} — ${f.claim}${f.claims.length > 1 ? `
+Merged here (nearby or same-section findings; each is its own claim):
+${f.claims.map((c) => `- ${c}`).join('\n')}` : ''}
 Raised by: ${f.reviewers.join(', ')}
 Evidence: ${f.evidence}
 Proposed fix: ${f.fix}
@@ -240,9 +246,9 @@ Proposed fix: ${f.fix}
 The plan:
 ${indent(scope.plan.slice(0, 8000))}
 
-Return refuted=true only when you can show, with evidence from the plan, the manifest or the checkout, that the
-claim is wrong, already addressed by the plan, or outside its scope. Return refuted=false when it stands, even
-partly. Either way give the reason and the severity you would assign (blocker | major | minor | note).`,
+Return refuted=true only when you can show, with evidence from the plan, the manifest or the checkout, that every
+claim listed is wrong, already addressed by the plan, or outside its scope. Return refuted=false when any claim
+stands, even partly. Either way give the reason and the severity you would assign (blocker | major | minor | note).`,
     { label: `verify:${norm(f.section || 'whole plan').replace(/ /g, '-').slice(0, 30)}#${i + 1}`, phase: 'Verify', schema: VERDICT_SCHEMA })))
 
 // @shared skeptic-apply
