@@ -5,6 +5,28 @@ vendored hook carries it on line 2 (`# shopify-app-kit vX.Y.Z`). A version that 
 `### Deprecated`; the next minor deletes it and lists it under `### Removed` (`kit-dev`: "Remove a skill, agent,
 hook, workflow or routine").
 
+## 0.17.5
+
+The routine steps that could not run as written, the rest of #118. Re-paste `graphify-refresh`, `kit-health`,
+`nuclear-review`, `kit-tidy` and `triage`.
+
+- The graph branch is `graph`: `graph/` is not a valid branch name, so `graphify-refresh` could never push it
+  (the routine, README, REGISTRY, doctor, `companion.md`, lesson kit-2, the `.claudeignore` template).
+- `kit-health` step 3b clones the persona repository with `--filter=blob:none`, so the recorded commit is in
+  the clone; its summary line names the count and commit without quoting placeholders, which a paste drops.
+- `review` takes a commit or the empty tree as its base and diffs it two-dot. `nuclear-review` passes one (the
+  empty tree monthly, the oldest merge's first parent weekly) and keeps its "last full review" in its own
+  queue-issue comments, `nuclear-review: full <sha>`, instead of a tag it could not write.
+- `kit-tidy` creates its branch before anything else (no guard hook loads with several repositories attached),
+  keeps drafts under `/tmp`, stages files by name, and leaves a stale hook header to a step 1 issue.
+- `triage` lists orphan labels instead of deleting them, finds the queue issue by title (no MCP tool can pin
+  one), and applies a `decision:` comment only from an author with push permission.
+- Consumers: re-paste the five routines from their `## Prompt`; the `graph` branch is new, nothing to rename.
+
+### Budget
+
+`test/` 3390 → 3415 for the test that each routine step can run as written (#118).
+
 ## 0.17.4
 
 Rules that contradicted each other, and the sync and doctor gaps a review of 0.17.1 found (#118, part one; the

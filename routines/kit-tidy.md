@@ -9,9 +9,9 @@ opens one PR per run for the purely mechanical drift a test already defines as w
   and the GitHub MCP tools; for the portfolio step, each consumer repository attached to the routine beside the kit.
 - **Tools:** `npm test`, the three `claude plugin validate` commands, git (read, plus one branch for the PR),
   `test/budget.json`, each attached consumer's manifest (read only), issues and comments.
-- **May touch:** new `kit-tidy:` issues (one of them `kit-tidy: deprecation candidates`), comments on open ones, one PR per run to `main` limited to mechanical
-  drift (a drifted enumeration a mirror test names, a stale `# shopify-app-kit v` header, a README row for a file
-  that exists).
+- **May touch:** new `kit-tidy:` issues (one of them `kit-tidy: deprecation candidates`), comments on open ones,
+  one PR per run to `main` limited to mechanical drift (a drifted enumeration a mirror test names, a README row for
+  a file that exists).
 - **Never:** pushes to `main`; deletes a file; edits a lesson row; changes a hook body, a schema or a test's
   assertion; closes a `human:*` issue; relabels `human:*` to `agent:*` except per R7; names a consumer, a store or
   a business anywhere (products are their `kit.portfolioId` only).
@@ -28,13 +28,16 @@ Ground rules, before anything else:
    names one. Read `labels.json`; its `ladder` array is the executor order.
 2. This routine never closes a `human:*` issue and never relabels a `human:*` issue to `agent:*` or
    `code only` (rule R7 of the kit's issue-filing skill, whose `references/rules.md` you follow when filing).
-3. At most one PR per run, from a branch, to `main`; it never pushes to `main`. The PR carries only mechanical
-   drift (step 6) and its body names the test that defines each fix. Never a deletion, a lesson row, a hook body,
-   a schema or a test assertion: those are issues for a maintainer.
+3. No guard hook runs here (with more than one repository attached, no `.claude/settings.json` loads), so these
+   rules are the only guard. First `git switch -c kit-tidy/<today> origin/main`; this routine never pushes to `main`,
+   only `git push origin HEAD:refs/heads/kit-tidy/<today>`. At most one PR per run, to `main`, carrying only
+   mechanical drift (step 6), its body naming the test per fix. Never a deletion, a lesson row, a hook or its
+   `# shopify-app-kit v` header, a schema or a test assertion: those are issues for a maintainer.
 4. Secrets and private names never appear in an issue, a comment or a PR: no store handle, business name,
-   product name, owner login or consumer repository. A product is its `kit.portfolioId`. Before writing any
-   issue, run `node --test test/no-repo-literals.test.mjs` over your draft text saved as a scratch file inside
-   the checkout, and report a hit by its hash only.
+   product name, owner login or consumer repository. A product is its `kit.portfolioId`. Keep drafts under
+   `/tmp`, never in the checkout. Before writing any issue, comment or PR, copy the draft into a new folder in
+   the checkout, run `node --test test/no-repo-literals.test.mjs`, delete the folder at once, and report a hit
+   by its hash only.
 5. Read `.claude/rules/kit.md` first: it states the posture every finding is judged against.
 
 Step 1, the suite. Run `npm test` and the three `claude plugin validate` commands `.claude/rules/kit.md` lists.
@@ -64,9 +67,11 @@ yet cover: one issue per family across every file, `code only`, `p3`, with a tab
 and line, the sentence quoted, the test or constant it restates). Never one issue per file.
 
 Step 6, mechanical drift, the one PR. Anything a mirror or parity test names as wrong on `main` where the fix
-is exactly what the test's message says (a drifted enumeration, a stale `# shopify-app-kit v` header, a README
-row missing for a file that exists): fix it on a branch, run the suite, open one PR titled
-`kit-tidy: <what drifted>` whose body names the test per fix. Nothing else rides it. No such drift: no PR.
+is exactly what the test's message says (a drifted enumeration, a README row missing for a file that exists):
+fix it on the ground-rule-3 branch, stage each fixed file by name (`git add <file>`, never `-A`), run the suite, open
+one PR titled `kit-tidy: <what drifted>` whose body names the test per fix. Nothing else rides it. No such
+drift: no PR. A stale `# shopify-app-kit v` header is not mechanical: it is a version bump left half done, which
+needs a CHANGELOG line, so it is a step 1 issue.
 
 Step 7, the portfolio. The routine carries each consumer repository beside the kit (the one routine made with more
 than one, since it loads no plugin), and this session reads only those. For each attached repository other than the

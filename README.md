@@ -130,7 +130,7 @@ the platform does (Admin API docs and schema search, the CLI reference, the pre-
 the kit answers what this repo's manifest requires, and a kit skill calls the companion for platform facts and
 says "unverified" without it. [graphify](https://github.com/Graphify-Labs/graphify) (MIT) is a pip package and
 skill that turns the checkout into a queryable graph; the `graphify-refresh` routine keeps it current on the
-`graph/` branch.
+`graph` branch.
 
 ```bash
 claude plugin install shopify-ai-toolkit@claude-plugins-official
@@ -139,7 +139,7 @@ pip install graphifyy==0.9.65 && graphify install     # or: uv tool install grap
 
 In a consumer scaffolded from `templates/`, `.claude/hooks/kit-bootstrap.sh` installs both in a remote session
 and writes the Shopify companion's telemetry opt-out; the doctor notes a missing companion and never blocks. The
-split, where the kit's skills call each companion, the `graph/` branch convention and the opt-out are in
+split, where the kit's skills call each companion, the `graph` branch convention and the opt-out are in
 `skills/doctor/references/companion.md`.
 
 ## The manifest contract
@@ -321,7 +321,7 @@ body says what closing it needs. Scheduled Claude Code Routines are the workforc
   the week's merged diff, findings filed as issues, never a PR), `pr-steward` (daily: agent-owned PRs driven to
   green, never merged), `kit-health` (monthly: the doctor, the kit version against the latest tag, the API
   version's support window, library majors across the portfolio), `graphify-refresh` (weekly: `graphify-out/`
-  on the `graph/` branch), `dependency-wave` (weekly: High/Critical advisories and deferred majors in one
+  on the `graph` branch), `dependency-wave` (weekly: High/Critical advisories and deferred majors in one
   issue), `dev-parity` (weekly, only where the manifest has a beta target and a dev config: the paired configs,
   the beta deploys, each host's readiness, the monthly human checklist), `kit-tidy` (weekly, on the kit itself:
   duplicated prose, things nothing reads, the size trend, docs that restate a test, the portfolio's kit

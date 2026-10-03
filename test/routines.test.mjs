@@ -8,6 +8,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { kitRoot } from './lib/fs.mjs';
 import { frontmatter } from './lib/frontmatter.mjs';
 
@@ -100,7 +101,7 @@ describe('routines/', () => {
     const health = read('kit-health.md');
     for (const s of ['/shopify-app-kit:doctor', 'git ls-remote --tags', 'shopify-dev', '3 months', 'kit.portfolioId', "latest failed job's log", 'not only the title prefix']) assert.ok(health.includes(s), `kit-health: ${s}`);
     const graph = read('graphify-refresh.md');
-    for (const s of ['graph/', '--force-with-lease', 'graphify-out/', '.claudeignore', 'nothing merged since']) assert.ok(graph.includes(s), `graphify-refresh: ${s}`);
+    for (const s of ['`graph` branch', '--force-with-lease', 'graphify-out/', '.claudeignore', 'nothing merged since']) assert.ok(graph.includes(s), `graphify-refresh: ${s}`);
     assert.doesNotMatch(graph, /force-with-lease origin (main|master)\b/);
     const deps = read('dependency-wave.md');
     for (const s in { '--audit-level=high': 1, 'dependabot.yml': 1, 'semver-major': 1, '`dependencies`, `agent:ci`': 1 }) assert.ok(deps.includes(s), `dependency-wave: ${s}`);
@@ -109,6 +110,32 @@ describe('routines/', () => {
     assert.doesNotMatch(parity, /\b(closes|fixes|resolves) #/i, 'dev-parity: no closing keyword');
     const tidy = read('kit-tidy.md');
     for (const s of ['Step 1, the suite', 'Step 2, duplicated prose', 'Step 3, things nothing reads', 'Step 4, the size trend', 'Step 5, docs that restate a test', 'Step 6, mechanical drift', 'Step 7, the portfolio', 'Step 8, deprecation candidates', 'this routine deprecates\nnothing', 'At most one PR per run', 'Never a deletion', 'no-repo-literals', 'kit-tidy: <the finding in six words>', 'that title prefix', 'never with a closing']) assert.ok(tidy.includes(s), `kit-tidy: ${s}`);
+  });
+
+  test('every routine step can run as written (#118)', () => {
+    // A branch the kit names is one git can create: `graph/` never was.
+    const named = ['README.md', 'routines', 'skills', 'templates', 'hooks'].flatMap((p) => {
+      const at = path.join(kitRoot, p);
+      return fs.statSync(at).isDirectory() ? fs.readdirSync(at, { recursive: true }).map((f) => path.join(at, f)).filter((f) => fs.statSync(f).isFile()) : [at];
+    }).flatMap((f) => [...fs.readFileSync(f, 'utf8').matchAll(/`([^`<\s]+)` branch\b/g)].map((m) => m[1]));
+    assert.ok(named.includes('graph'));
+    for (const b of new Set(named)) assert.equal(spawnSync('git', ['check-ref-format', '--branch', b]).status, 0, `\`${b}\` is not a valid branch name`);
+    // A placeholder inside double quotes does not survive the paste into a routine.
+    for (const f of files) assert.doesNotMatch(read(f).split('## Prompt')[1], /"<|>"/, `${f}: a quoted <placeholder>`);
+    // The review skill takes the commit or empty tree nuclear-review passes, and the routine's memory is its own comments.
+    const review = fs.readFileSync(path.join(kitRoot, 'skills', 'review', 'SKILL.md'), 'utf8');
+    assert.match(review, /argument-hint: ".*commit\]"/);
+    assert.ok(review.includes("git rev-parse --verify '<arg>^{tree}'") && review.includes('`git diff <base> HEAD`'));
+    const nuclear = read('nuclear-review.md');
+    for (const s of ['`nuclear-review: full <sha>`', 'git hash-object -t tree /dev/null', '`<merge>^1`']) assert.ok(nuclear.includes(s), `nuclear-review: ${s}`);
+    // No routine relies on a pin the GitHub MCP tools cannot set, or deletes a label sync-labels.mjs never deletes.
+    for (const f of files) assert.doesNotMatch(read(f), /pinned queue|pinned "Maintainer|Create it \(pinned|delete labels/, f);
+    const triage = read('triage.md');
+    assert.ok(triage.includes('never deletes a label') && triage.includes('with push permission'), 'triage: orphans listed, decisions from writers only');
+    // kit-tidy branches first, keeps drafts out of the checkout and leaves hook headers to a versioned PR.
+    const tidy = read('kit-tidy.md');
+    for (const s of ['git switch -c kit-tidy/<today> origin/main', 'Keep drafts under\n   `/tmp`', 'delete the folder at once', 'never `-A`', 'header is not mechanical']) assert.ok(tidy.includes(s), `kit-tidy: ${s}`);
+    assert.ok(read('kit-health.md').includes('--filter=blob:none'), 'kit-health: the clone holds the recorded commit');
   });
 
   test('every portfolio discovery reads the repositories attached to the routine, whatever the owner (#107)', () => {

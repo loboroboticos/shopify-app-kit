@@ -42,7 +42,7 @@ present) pinned to the release the doctor names. Its `/graphify .` gives a sessi
 in far fewer tokens than reading it.
 
 The kit covers what graphify does not: the `graphify-refresh` routine rebuilds the graph weekly and commits
-`graphify-out/` on the `graph/` branch only (force-with-lease on that branch, never the default branch), so
+`graphify-out/` on the `graph` branch only (force-with-lease on that branch, never the default branch), so
 every session can start from a current map; `graphify-out/` is listed in the templates' `.claudeignore` and
 belongs in the consumer's `.gitignore`, so a local rebuild neither lands on the default branch nor invalidates
 the prompt cache. The doctor prints one line when the skill is absent; the routine skips when it is.

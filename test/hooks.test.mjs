@@ -791,7 +791,7 @@ describe('doctor.sh', () => {
       assert.equal(r.status, 0, r.stderr);
       const lines = r.stdout.split('\n').filter((l) => l.startsWith('Companion:'));
       assert.equal(lines.length, 1, r.stdout);
-      assert.equal(lines[0], `Companion: graphify is not installed; run: pip install graphifyy==${GRAPHIFY_VERSION} && graphify install (the graphify-refresh routine builds graphify-out/ on the graph/ branch with it).`);
+      assert.equal(lines[0], `Companion: graphify is not installed; run: pip install graphifyy==${GRAPHIFY_VERSION} && graphify install (the graphify-refresh routine builds graphify-out/ on the graph branch with it).`);
       assert.match(GRAPHIFY_VERSION, /^\d+\.\d+\.\d+$/);
     });
 
