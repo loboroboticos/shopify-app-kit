@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shopify-app-kit v0.17.6
+# shopify-app-kit v0.17.7
 # hooks/guard-package-manager.sh: PreToolUse(Bash) guard that keeps each directory on the package manager
 # .claude/shopify-app.json maps it to (packageManagers: { "<dir>": "npm" | "pnpm" }, "." = the consumer root).
 #
@@ -27,7 +27,7 @@ if ! kit_has_jq; then
 fi
 
 kit_parse_input
-case "$cmd" in *pnpm* | *npm*) ;; *) exit 0 ;; esac
+case "$cmd_bare" in *pnpm* | *npm*) ;; *) exit 0 ;; esac
 
 RULE_CD="Which package manager applies depends on the directory; cd to a literal path first (per .claude/shopify-app.json packageManagers)."
 

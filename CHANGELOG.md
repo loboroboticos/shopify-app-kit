@@ -5,6 +5,39 @@ vendored hook carries it on line 2 (`# shopify-app-kit vX.Y.Z`). A version that 
 `### Deprecated`; the next minor deletes it and lists it under `### Removed` (`kit-dev`: "Remove a skill, agent,
 hook, workflow or routine").
 
+## 0.17.7
+
+The guards read a command as the shell does (#116). 0.17.6 cut every command at `;`, `&`, `|` and parentheses
+whatever the quoting: that blocked a commit message or PR body quoting a guarded command, and it let guarded commands
+through. Each case below exited 0 on 0.17.6 and now blocks; `test/hooks.test.mjs` carries every one.
+
+- `lib.sh` lexes the command with an awk program (any POSIX awk): quotes and escapes, `$( )`, backticks (inside double
+  quotes too, where they run), `<( )`, arithmetic, `case`, `[[ ]]`, arrays, comments, functions and heredocs (a body a
+  shell reads is lexed, a `cat`, `tee` or data command's is dropped, any other's is walked raw). It walks the script
+  of `bash -c`, `eval`, `npx -c` and a here-string a shell reads, and the guards' pre-filter ignores quotes.
+- Newly blocked: `gh pr edit 12 --title "a; b" --base main`, `gh api … -f body="x; y" -f base=main`,
+  `git push origin "$(echo main)"`, `` echo `git push origin main` ``, the body of `{ }`, `!`, `if`, `for`, `while` or a
+  function, `cat <<E"O"F` (read as `E`), `npx -c '…'`, `g\it push`, a GraphQL mutation naming the branch (as a whole
+  name, so `domain` no longer counts as `main`), and a `cd` that does not move the shell (behind `env` or `command`,
+  in a pipeline, in the background) followed by `pnpm` or `npm`.
+- No longer blocked: the prose of a data command (`echo`, `printf`, `git commit|tag|notes`, `gh pr|issue|release|api`)
+  written plainly: nothing before it, not piped on, no backtick, `${`, `$((` or `$'`, and no `eval`, `source`,
+  function or process substitution in the input. Claude Code's `"$(cat <<'EOF' … EOF)"` message form passes. Any
+  other command is walked as 0.17.6 split it as well, so it is never checked less.
+- Three cases flip to blocked: a double-quoted commit message whose backticks name a guarded command (bash runs it).
+- `$(git rev-parse --show-toplevel)`, `$(git branch --show-current)`, `$(git rev-parse --abbrev-ref HEAD)` and
+  `$(pwd)` resolve in the effective directory; any other substitution is not a literal.
+- Fails closed without awk, when awk fails or its output is cut short, and past 4 nested `bash -c` / `eval` /
+  `npx -c`; the doctor warns when awk is missing. The migrate-deploy reminder prints once per command.
+- An oracle test runs a corpus under bash and zsh with logging shims and checks that the guards refuse a command
+  that runs a refused call and pass the prose; a 200 KB heredoc and a 50 KB message stay well under a hook timeout.
+- Consumers: `/shopify-app-kit:sync`; install awk where it is missing (macOS and most Linux images ship one).
+
+### Budget
+
+`hooks/` 1370 → 1770 and `test/` 3415 → 3630: the lexer replaces a 40-line splitter whose quoting let guarded
+commands through, and the oracle that checks it against bash and zsh (#116).
+
 ## 0.17.6
 
 Skills name the repository root, not `$CLAUDE_PROJECT_DIR` in braces, and `triage` scopes the 60-day schedule

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shopify-app-kit v0.17.6
+# shopify-app-kit v0.17.7
 # hooks/guard-migrations.sh: PreToolUse(Bash) guard that keeps destructive Prisma database commands out of an agent
 # session, driven by .claude/shopify-app.json (paths.prisma, deploy.scaleToZeroBeforeMigrate, database.*).
 #
@@ -41,7 +41,7 @@ if ! kit_has_jq; then
 fi
 
 kit_parse_input
-case "$cmd" in *prisma*) ;; *) exit 0 ;; esac
+case "$cmd_bare" in *prisma*) ;; *) exit 0 ;; esac
 
 # Lowercased with every run of whitespace as one space, so DROP<two spaces or a tab>DATABASE still reads as one phrase.
 lower_cmd="$(printf '%s' "$cmd" | tr '[:upper:]' '[:lower:]' | tr -s '[:space:]' ' ')"
@@ -50,6 +50,7 @@ prisma_path=""
 provider=""
 shared_dev=""
 scale_to_zero=""
+reminded=0
 RULE=""
 
 # ensure_manifest: read the database facts the first time a guarded form is seen (lib.sh fails closed when the
@@ -95,7 +96,9 @@ check_prisma() {
           block "prisma db execute with a DROP DATABASE, DROP SCHEMA or TRUNCATE statement (${words[*]})" "$RULE" ;;
       esac ;;
     "migrate deploy")
-      if manifest_read_or_skip && [ "$scale_to_zero" = true ]; then
+      # once per command: a command the walker also reads raw (a quoted blank, a separator) arrives twice
+      if [ "$reminded" -eq 0 ] && manifest_read_or_skip && [ "$scale_to_zero" = true ]; then
+        reminded=1
         echo "shopify-app-kit/guard-migrations: deploy.scaleToZeroBeforeMigrate is true in .claude/shopify-app.json; scale the app to zero before prisma migrate deploy and back up after, or a running instance swallows webhook deliveries mid-migration (release skill: references/migrations-and-zero-downtime.md)."
       fi ;;
   esac

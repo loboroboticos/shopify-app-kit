@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shopify-app-kit v0.17.6
+# shopify-app-kit v0.17.7
 # hooks/guard-protected-branch.sh: PreToolUse(Bash and GitHub MCP) guard that keeps a session off the protected branches named in
 # .claude/shopify-app.json (branches.protected, branches.default, branches.promotion, deploy.protectedWorkflows).
 #
@@ -68,7 +68,7 @@ if ! kit_has_jq; then
 fi
 
 kit_parse_input
-[ -n "$mcp_verb" ] || case "$cmd" in *git* | *gh*) ;; *) exit 0 ;; esac
+[ -n "$mcp_verb" ] || case "$cmd_bare" in *git* | *gh*) ;; *) exit 0 ;; esac
 
 kit_require_manifest "$cwd"
 jq -e '(.branches.protected | type == "array") and (.branches.protected | length) > 0' "$manifest" >/dev/null 2>&1 \
@@ -287,9 +287,11 @@ check_gh_api() {
   done
   if [[ "$joined" == *" graphql "* ]]; then
     case "$joined" in *query=@* | *" --input "*) block "gh api graphql with the query in a file cannot be checked (fail closed)" "$RULE" ;; esac
+    # the branch as a whole name: the query is one word now, and "domain" names no branch
     for p in "${PROTECTED[@]}"; do
       case "$joined" in
-        *updatePullRequest*baseRefName*"$p"* | *createCommitOnBranch*"$p"* | *updateRef*"$p"*) block "gh api graphql mutation names a protected branch ($p)" "$RULE" ;;
+        *updatePullRequest*baseRefName*[!A-Za-z0-9._-]"$p"[!A-Za-z0-9._/-]* | *createCommitOnBranch*[!A-Za-z0-9._-]"$p"[!A-Za-z0-9._/-]* \
+          | *updateRef*[!A-Za-z0-9._-]"$p"[!A-Za-z0-9._/-]*) block "gh api graphql mutation names a protected branch ($p)" "$RULE" ;;
       esac
     done
   fi
