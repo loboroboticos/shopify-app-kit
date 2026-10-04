@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shopify-app-kit v0.17.6
+# shopify-app-kit v0.17.7
 # hooks/guard-shopify-cli.sh: PreToolUse(Bash) guard for Shopify CLI commands, driven by .claude/shopify-app.json.
 #
 #   shopify app dev [clean]     per shopifyCli.devPolicy      (config-required: --config must equal configs.dev)
@@ -26,7 +26,7 @@ if ! kit_has_jq; then
 fi
 
 kit_parse_input
-case "$cmd" in *shopify* | *deploy*) ;; *) exit 0 ;; esac
+case "$cmd_bare" in *shopify* | *deploy*) ;; *) exit 0 ;; esac
 
 kit_require_manifest "$cwd"
 

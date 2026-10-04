@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shopify-app-kit v0.17.6
+# shopify-app-kit v0.17.7
 # hooks/doctor.sh: SessionStart briefing for a consumer repo. Validates .claude/shopify-app.json structurally
 # (required keys, enums, patterns of schema v1), prints one paragraph of facts to stdout, reports vendored-hook
 # drift and a kit.routines entry that is not a consumer routine this kit ships, checks the two companions (the
@@ -98,6 +98,7 @@ mf '
   + (((.kit | objects) // {}) as $k | if $k.portfolioId == null then "" else "Portfolio: \($k.portfolioId); routines: \((($k.routines // []) | if type == "array" then map(tostring) | join(", ") else "" end) as $r | if $r == "" then "none" else $r end). " end)
   + "Guard hooks read this manifest and fail closed when it is missing."
 '
+command -v awk >/dev/null 2>&1 || echo "awk is not installed, so the guard hooks refuse every git, gh, npm, pnpm, prisma and shopify command (fail closed). Install awk."
 
 # Vendored-hook drift: each .claude/hooks/kit/*.sh header should match kit.version; a vendored guard the kit no
 # longer ships is stale, and one the kit marks `# Deprecated:` (line 3 of the plugin's copy) is leaving.

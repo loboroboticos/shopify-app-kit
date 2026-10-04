@@ -2,7 +2,7 @@
 // fixture. Exit 2 means blocked (stderr must match), exit 0 means allowed. Zero dependencies (node:test).
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -124,7 +124,10 @@ const cases = [
   { fixture: npmRoot, cmd: 'cd scratch && shopify theme dev --theme 123', exit: 0 },
   { fixture: npmRoot, cmd: '(cd scratch && shopify theme dev) && ls', exit: 0 },
   { fixture: npmRoot, cmd: "cat > notes.md <<'EOF'\nshopify app deploy\nnpm run deploy\nEOF", exit: 0 },
-  { fixture: npmRoot, cmd: 'git commit -m "docs: mention `shopify app deploy` and `npm run deploy` in the runbook"', exit: 0 },
+  // #116: backticks inside double quotes run (bash and zsh); inside single quotes they are prose
+  { fixture: npmRoot, cmd: 'git commit -m "docs: mention `shopify app deploy` and `npm run deploy` in the runbook"', exit: 2, stderr: /app deploy without --config/ },
+  { fixture: npmRoot, cmd: "git commit -m 'docs: mention `shopify app deploy` and `npm run deploy` in the runbook'", exit: 0 },
+  { fixture: npmRoot, cmd: 'git commit -m "release: x; shopify app deploy runs from CI"', exit: 0 },
   { fixture: npmRoot, cmd: 'ls -la && git status', exit: 0 },
   { fixture: npmRoot, cmd: 'npm run build', exit: 0 },
   { fixture: npmRoot, cmd: 'npm run deploy:docs', exit: 0 },
@@ -215,6 +218,7 @@ spawnSync('git', ['init', '-q', '-b', 'beta', onBeta]);
 const configured = (kvs) => { const d = fs.mkdtempSync(path.join(os.tmpdir(), 'shopify-app-kit-feat-')); spawnSync('git', ['init', '-q', '-b', 'feat', d]); for (const kv of kvs) spawnSync('git', ['-C', d, 'config', ...kv]); return d; };
 const toUpstream = configured([['branch.feat.remote', 'origin'], ['branch.feat.merge', 'refs/heads/main'], ['push.default', 'upstream']]);
 const toRefspec = configured([['remote.origin.push', 'HEAD:refs/heads/main']]);
+const onFeat = configured([]);
 const releaseTrain = path.join(fixtures, 'release-train-app.json');
 
 function runGuard(hook, c) {
@@ -334,6 +338,41 @@ const protectedCases = [
   { fixture: npmRoot, cmd: 'gh api graphql -F query=@merge.graphql', exit: 2, stderr: /query in a file/ },
   { fixture: npmRoot, cmd: 'gh api -X PUT repos/o/r/contents/a.md -f message=m -f content=eA== -f branch=beta', exit: 0 },
 
+  // #116: the lexer follows the shell. A quoted separator or a $(…) no longer cuts a command short, so the flags after
+  // it stay the command's; substitutions, backticks, shell keywords and a runner's -c script are walked; quoted text is
+  // prose only for a data command (echo, printf, git commit|tag|notes, gh pr|issue|release|api) as written, unpiped.
+  ...['gh pr edit 12 --title "a; b" --base main', 'gh pr edit 12 --title "a && b" --base main', 'gh pr edit 12 --body "$(cat notes.md)" --base main'].map((cmd) => ({ fixture: npmRoot, cmd, exit: 2, stderr: /retargets a PR at a protected branch/ })),
+  ...['gh api repos/o/r/pulls/12 -X PATCH -f body="x; y" -f base=main', 'gh api -f body="$(cat x)" repos/o/r/pulls/12 -X PATCH -f base=main'].map((cmd) => ({ fixture: npmRoot, cmd, exit: 2, stderr: /retargets a PR at a protected branch \(main\)/ })),
+  ...['git push origin "$(echo main)"', 'git push origin $(echo main)', 'git push -u origin "$(git branch --show-current)"'].map((cmd) => ({ fixture: npmRoot, cmd, exit: 2, stderr: /not a literal branch/ })),
+  { fixture: npmRoot, cmd: 'git push -u origin "$(git branch --show-current)"', cwd: onMain, exit: 2, stderr: /protected branch \(main\)/ },
+  { fixture: npmRoot, cmd: 'git push -u origin "$(git branch --show-current)"', cwd: onFeat, exit: 0 },
+  ...['echo `git push origin main`', 'echo "`git push origin main`"', 'echo "`echo "x"; git push origin main; echo "y"`"', 'echo "$(echo `echo ")"`; git push origin main)"',
+    '{ git push origin main; }', '! git push origin main', 'if true; then git push origin main; fi', 'for b in x; do git push origin main; done', 'case x in x) git push origin main;; esac',
+    'cat <<E"O"F\nx\nEOF\ngit push origin main', "npx -c 'git push origin main'", "npx --call 'git push origin main'", "npx --call='git push origin main'",
+    'bash -c "echo hi; git push origin main"', 'sudo bash -c "x; git push origin main"', 'eval "echo a; git push origin main"', "echo hi # it's\ngit push origin main # that's",
+    "git commit -m a\\'b ; git push origin main ; echo c\\'d", 'git commit -m "x" && git push origin main', "git commit -m \"$(cat <<'EOF'\nfix: it's done\nEOF\n)\" ; git push origin main",
+    'git push origin main\necho "unterminated',
+    // not a data command, or not as written: a VAR=, a wrapper or a global option before it, piped on, a redirect to
+    // a high fd, ${…}, a backtick, printf -v, a function definition or a process substitution anywhere in the input
+    'GIT_EDITOR=vi git commit -m "x; git push origin main"', 'env git commit -m "x; git push origin main"', 'git -c core.editor=vi commit -m "x; git push origin main"',
+    'echo "x; git push origin main" | bash', 'echo "x; git push origin main" >&3', 'echo "${HOME}; git push origin main"', 'echo "a; git push origin main `date`"',
+    'printf -v x "a; git push origin main"', 'f() { :; }; echo "a; git push origin main"', 'echo "a; git push origin main" > >(cat)',
+    // any other command is also walked as 0.17.6 split it: a separator or a blank in its quotes, or the heredoc it reads
+    'grep -c "x; git push origin main" notes.md', `node -e "require('child_process').execSync('git push origin main')"`, "sudo -s 'git push origin main'",
+    "python3 - <<'EOF'\nimport os; os.system('git push origin main')\nEOF",
+  ].map((cmd) => ({ fixture: npmRoot, cmd, exit: 2, stderr: /protected branch \(main\)/ })),
+  ...['git commit -m "note; git push origin main is maintainer-only"', 'echo "a && git push origin main"', 'gh pr comment 3 --body "x; git push --all origin"',
+    "git commit -m \"$(cat <<'EOF'\nfix: x; git push origin main\nEOF\n)\"", "git commit -m \"$(cat <<'EOF'\nfix: it's done; git push origin main later\nEOF\n)\"",
+    "cat > notes.md <<'EOF'\nsee \"x; git push origin main\nEOF\ngit status", "gh pr edit 12 --body \"$(cat <<'EOF'\nretarget later with --base main\nEOF\n)\" --title x",
+    "printf '%s\\n' \"a | git push origin main\" > notes.md", 'echo "a\\" ; git push origin main ; echo \\"b"', 'gh api repos/o/r/issues/3/comments -f body="run git push origin main; then gh pr merge 12"',
+    `gh api graphql -f query='mutation { createCommitOnBranch(input: {branch: {branchName: "feat"}, message: {headline: "update the domain"}}) { commit { oid } } }'`,
+  ].map((cmd) => ({ fixture: npmRoot, cmd, exit: 0 })),
+  // the whole query is one word: a mutation that names a protected branch as a value or a variable is seen
+  ...[`gh api graphql -f query='mutation { createCommitOnBranch(input: {branch: {branchName: "main"}}) { commit { oid } } }'`,
+    `gh api graphql -f query='mutation($r: ID!) { updateRef(input: {refId: $r, name: "refs/heads/main"}) { ref { id } } }' -f r=x`,
+    `gh api graphql -f query='mutation($b: String!) { createCommitOnBranch(input: {branch: {branchName: $b}}) { commit { oid } } }' -f b=main`,
+  ].map((cmd) => ({ fixture: npmRoot, cmd, exit: 2, stderr: /graphql mutation names a protected branch \(main\)/ })),
+
   // ---- release-train fixture: protected main + release, default develop, fly-deploy.yml protected
   { fixture: releaseTrain, cmd: 'git push origin release', exit: 2, stderr: /ships to main, release\. Target develop instead/ },
   { fixture: releaseTrain, cmd: 'git push origin main', exit: 2, stderr: /Target develop instead; Claude may open a release -> main promotion PR/ },
@@ -435,6 +474,11 @@ const pmCases = [
   { fixture: npmRoot, cmd: 'cd web && npm run build', exit: 2, stderr: /maps to pnpm \(web: npm run build\)/ },
   { fixture: npmRoot, cmd: 'npm ci --prefix web', exit: 2, stderr: /maps to pnpm/ },
   { fixture: npmRoot, cmd: 'echo hi; pnpm install', exit: 2, stderr: /maps to npm/ },
+  // #116: a cd moves the shell only when the shell runs it: not behind a program that execs it, in the background,
+  // in a child shell, or in a pipeline (unknown: zsh runs a pipeline's last command in the current shell)
+  ...['env cd web && pnpm install', 'cd web & pnpm install', 'bash -c "cd web"; pnpm install'].map((cmd) => ({ fixture: npmRoot, cmd, exit: 2, stderr: /maps to npm/ })),
+  { fixture: npmRoot, cmd: 'cd web | true; pnpm install', exit: 2, stderr: /cannot be read from a literal path/ },
+  { fixture: npmRoot, cmd: 'cd "$(git rev-parse --show-toplevel)" && pnpm install', exit: 2, stderr: /cannot be read from a literal path/ },
   { fixture: MISSING, cmd: 'pnpm install', exit: 2, stderr: /manifest is missing or unreadable/ },
   { fixture: MISSING, cmd: 'npm install', exit: 2, stderr: /manifest/ },
 
@@ -454,7 +498,10 @@ const pmCases = [
   { fixture: npmRoot, cmd: 'npx prisma migrate dev', cwd: path.join(consumer, 'web'), exit: 0 },
   { fixture: npmRoot, cmd: 'npm --version', cwd: path.join(consumer, 'web'), exit: 0 },
   { fixture: npmRoot, cmd: "cat > notes.md <<'EOF'\npnpm install\nEOF", exit: 0 },
-  { fixture: npmRoot, cmd: 'git commit -m "docs: run `pnpm install` in web and `npm install` at the root"', exit: 0 },
+  { fixture: npmRoot, cmd: 'git commit -m "docs: run `pnpm install` in web and `npm install` at the root"', exit: 2, stderr: /maps to npm/ },
+  { fixture: npmRoot, cmd: "git commit -m 'docs: run `pnpm install` in web and `npm install` at the root'", exit: 0 },
+  // #116: a quoted ( or ), a word that looks like a splitter marker, and a case pattern do not move the subshell stack
+  ...['(cd web;__POP__;pnpm test)', '(cd web && grep -c "a)" x.txt && pnpm test)', '(cd web && case "$x" in a) true;; esac && pnpm test)', '{ cd web; pnpm install; }'].map((cmd) => ({ fixture: npmRoot, cmd, exit: 0 })),
   { fixture: npmRoot, cmd: 'ls -la && git status', exit: 0 },
   { fixture: MISSING, cmd: 'ls', exit: 0 },
   { fixture: MISSING, cmd: 'git commit -m "mention npm"', exit: 0 },
@@ -542,19 +589,171 @@ const migrationCases = [
   { fixture: npmRoot, cmd: "cat > notes.md <<'EOF'\nnpx prisma migrate reset\nprisma db push --force-reset\nEOF", exit: 0 },
   { fixture: npmRoot, cmd: 'echo "never run prisma migrate reset here"', exit: 0 },
   { fixture: npmRoot, cmd: 'echo "prisma db push --accept-data-loss is banned" >> README.md', exit: 0 },
-  { fixture: npmRoot, cmd: 'git commit -m "docs: say why `prisma migrate reset` and `db push --force-reset` are blocked"', exit: 0 },
+  { fixture: npmRoot, cmd: 'git commit -m "docs: say why `prisma migrate reset` and `db push --force-reset` are blocked"', exit: 2, stderr: /migrate reset drops and recreates/ },
+  { fixture: npmRoot, cmd: "git commit -m 'docs: say why `prisma migrate reset` and `db push --force-reset` are blocked'", exit: 0 },
   { fixture: npmRoot, cmd: 'grep -rn "migrate reset" .claude/rules/prisma.md', exit: 0 },
   { fixture: npmRoot, cmd: 'echo "DROP DATABASE never" && npx prisma migrate status', exit: 0 },
   // #116: runner options and their values, a prisma script, and SQL spaced by more than one blank
   ...['pnpm --filter web exec prisma migrate reset --force', 'pnpm -C web exec prisma migrate reset --force', 'npx -p prisma prisma migrate reset --force', 'npm run prisma -- migrate reset --force'].map((cmd) => ({ fixture: npmRoot, cmd, exit: 2, stderr: /migrate reset drops and recreates/ })),
   { fixture: npmRoot, cmd: 'echo "DROP  DATABASE x" | npx prisma db execute --stdin', exit: 2, stderr: /DROP DATABASE/ },
   { fixture: npmRoot, cmd: 'echo "DROP\tSCHEMA s" | npx prisma db execute --stdin', exit: 2, stderr: /DROP SCHEMA/ },
+  { fixture: npmRoot, cmd: 'echo "SELECT 1; DROP DATABASE x" | npx prisma db execute --stdin', exit: 2, stderr: /DROP DATABASE/ },
+  { fixture: npmRoot, cmd: "npm exec 'prisma migrate reset --force'", exit: 2, stderr: /migrate reset drops and recreates/ },
+  // #116: a redirection is not a separator, so the reminder prints once
+  { fixture: npmRoot, cmd: 'npx prisma migrate deploy 2>&1 | tee deploy.log', exit: 0, stdout: REMINDER },
+  { fixture: npmRoot, cmd: 'npx prisma migrate deploy --schema "web/my prisma/schema.prisma"', exit: 0, stdout: REMINDER },
   { fixture: npmRoot, cmd: 'pnpm --filter web exec prisma migrate status', exit: 0 },
   { fixture: MISSING, cmd: 'echo "prisma migrate reset"', exit: 0 },
   { fixture: MISSING, cmd: 'ls', exit: 0 },
 ];
 
 describe('guard-migrations.sh', () => guardCases('guard-migrations.sh', migrationCases));
+
+// ---------------------------------------------------------------------------------------------- the lexer
+// lib.sh lexes a command with awk into typed records ending in ".". No awk, an awk failure or output cut short
+// before "." fails closed; exit 3 (an unterminated quote) keeps the complete commands and adds the whole input raw.
+describe('the command lexer (lib.sh)', () => {
+  const stubAwk = (lines, rc) => {
+    const d = fs.mkdtempSync(path.join(consumer, 'bin-awk-'));
+    fs.writeFileSync(path.join(d, 'awk'), `#!/usr/bin/env bash\ncat >/dev/null\nprintf '%b' '${lines.join('\\n')}${lines.length ? '\\n' : ''}'\nexit ${rc}\n`, { mode: 0o755 });
+    return `${d}${path.delimiter}${process.env.PATH}`;
+  };
+  const run = (command, PATH) => runHook('guard-protected-branch.sh', { manifest: npmRoot, command, extraEnv: { PATH } });
+
+  test('without awk a guarded command fails closed and one no guard reads passes', () => {
+    let r = run('git push origin beta', sandboxPath([]));
+    assert.equal(r.status, 2, r.stderr); assert.match(r.stderr, /awk is not installed/);
+    r = run('ls', sandboxPath([]));
+    assert.equal(r.status, 0, r.stderr);
+  });
+
+  test('an awk failure or output cut short before its last record fails closed', () => {
+    let r = run('git status', stubAwk([], 2));
+    assert.equal(r.status, 2, r.stderr); assert.match(r.stderr, /lexer failed \(awk exit 2\)/);
+    r = run('git status', stubAwk(['c;git\\037status'], 0));
+    assert.equal(r.status, 2, r.stderr); assert.match(r.stderr, /cut short/);
+  });
+
+  test('exit 3 keeps the complete commands and walks the whole input raw', () => {
+    const r = run('git status', stubAwk(['c;git\\037status', 'w', 'r', 'ngit\\037push\\037origin\\037main', 'e', '.'], 3));
+    assert.equal(r.status, 2, r.stderr); assert.match(r.stderr, /protected branch \(main\)/);
+  });
+
+  test('a read-only substitution resolves in the effective directory', () => {
+    const dir = checkout(npmRoot, 'web');
+    spawnSync('git', ['init', '-q', '-b', 'feat', dir]);
+    const pm = (command) => runHook('guard-package-manager.sh', { manifest: undefined, command, cwd: path.join(dir, 'web'), extraEnv: { CLAUDE_PROJECT_DIR: dir } });
+    let r = pm('cd "$(git rev-parse --show-toplevel)" && npm run build');
+    assert.equal(r.status, 0, r.stderr);
+    r = pm('cd "$(git rev-parse --show-toplevel)" && pnpm install');
+    assert.equal(r.status, 2, r.stderr); assert.match(r.stderr, /maps to npm/);
+  });
+
+  test('a 200 KB heredoc body and a 50 KB message take each guard well under its timeout (a timeout fails open)', () => {
+    const prose = 'note: git push origin main; `pnpm install` and $(npx prisma migrate reset) | shopify app deploy && y\n';
+    const body = prose.repeat(Math.ceil(200000 / prose.length));
+    for (const command of [`git commit -F - <<'EOF'\n${body}EOF`, `gh pr create --title t --body "$(cat <<'EOF'\n${body}EOF\n)"`, `git commit -m "${'x'.repeat(50000)}; git push origin main"`]) {
+      for (const hook of ['guard-protected-branch.sh', 'guard-package-manager.sh', 'guard-migrations.sh', 'guard-shopify-cli.sh']) {
+        const t = Date.now();
+        const r = runHook(hook, { manifest: npmRoot, command });
+        assert.equal(r.status, 0, `${hook}: ${r.stderr}`);
+        assert.ok(Date.now() - t < 10000, `${hook} took ${Date.now() - t} ms on ${command.slice(0, 40)}`);
+      }
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------------------------- the lexer, against the shell
+// The oracle: every command runs for real under bash -c (and zsh -c where zsh is installed) in a throwaway checkout
+// where git, gh, npm, pnpm, npx, prisma and shopify are shims that log their argv and directory. When a logged call
+// would be refused on its own, the whole command must be refused; a prose command must run nothing that would be,
+// and pass. A shim's own inner command (npx -c ...) does not run, so those forms are checked in the tables above.
+describe('the command lexer against the shell', () => {
+  const P = 'git push origin main';
+  const risky = [
+    P, `{ ${P}; }`, `! ${P}`, `if true; then ${P}; fi`, `for b in x; do ${P}; done`, `while true; do ${P}; break; done`, `case x in x) ${P};; esac`,
+    `case x in (a|x) ${P};; esac`, `case x in x) true;& y) ${P};; esac`, `(${P})`, `$(${P})`, `\`${P}\``, `echo "$(${P})"`, `echo "\`${P}\`"`,
+    `x=$(${P})`, `arr=($(${P}))`, `arr=( "a;b" c ); ${P}`, `[[ x =~ ^(a|x)$ ]] && ${P}`, `(( $(${P}) ))`, `: \${x:=$(${P})}`, `echo $[1+1]; ${P}`,
+    `cat <(${P})`, `echo x > >(${P})`, `cat <<EOF\n$(${P})\nEOF`, `cat <<EOF\n\`${P}\`\nEOF`, `bash -c '${P}'`, `sh -c "cd web; ${P}"`, `eval '${P}'`,
+    `bash <<'EOF'\n${P}\nEOF`, `bash <<< '${P}'`, `cat <<'EOF' | bash\n${P}\nEOF`, `g\\it push origin main`, `"g"it push origin main`, `git push origin m\\ain`,
+    `git push origin ma$'i'n`, `git push origin "m"'a'"in"`, `GIT_X=1 ${P}`, `env ${P}`, `nohup ${P}`, `time ${P}`, `command ${P}`, `timeout 10 ${P}`,
+    `git push \\\norigin main`, `echo hi # it's\n${P}`, `cat <<E"O"F\nx\nEOF\n${P}`, `cat <<-EOF\n\tx\n\tEOF\n${P}`, `cat <<A <<B\na\nA\nb\nB\n${P}`,
+    `cat <<EOF;${P}\nbody\nEOF`, `${P}\necho "x`, `true | ${P}`, `${P} 2>&1 | tee log`, `${P} &`, `echo "\`echo "x"; ${P}; echo "y"\`"`,
+    `echo "$(echo \`echo ")"\`; ${P})"`, `echo "x; ${P}" | bash`, `f() { ${P}; }; f`, `function f { ${P}; }; f`, `git commit -m "$(cat <<'EOF'\nmsg\nEOF\n)"; ${P}`,
+    `echo "a\\" ; ${P} ; echo \\"b"; ${P}`, `git push -u origin "$(git branch --show-current)"`, `git push origin "$(echo main)"`, `x=main; git push origin $x`,
+    `cd web; cd ..; pnpm install`, `(cd web) && pnpm install`, `cd web | true; pnpm install`, `true | cd web; pnpm install`, `cd web & pnpm install`,
+    `bash -c "cd web"; pnpm install`, `{ cd web; } | cat; pnpm install`, `command cd web; pnpm install`, `cd web && npm install`, `cd web && (cd .. && pnpm install)`,
+    `bash <<'EOF'\ncd web\nEOF\npnpm install`, `cd "$(git rev-parse --show-toplevel)" && pnpm install`, `cd "$(pwd)/web" && npm install`,
+    `npx shopify app deploy`, `npx prisma migrate reset`, `npx prisma migrate reset --force 2>&1 | tail -5`, `npx pri''sma migrate reset`, `pn\\pm install`,
+    `cat <<EOF\n$(cat <<'X'\nX\n)\nEOF\n${P}`, `cat <<< "${P}" | bash`, `{ true; } always { ${P}; }`,
+  ];
+  const prose = [
+    `git commit -m "note; ${P} is maintainer-only"`, `git commit -m "$(cat <<'EOF'\nfix: don't ${P}; it's maintainer-only\n\`pnpm install\` $(x)\nEOF\n)"`,
+    `echo "a && ${P}"`, `printf '%s\\n' "a | ${P}" > notes.md`, `gh pr comment 3 --body "x; git push --all origin"`, `git tag -a v1 -m "pnpm install; prisma migrate reset"`,
+    `gh api repos/o/r/issues/3/comments -f body="run ${P}; then gh pr merge 12"`, `cat > notes.md <<'EOF'\nsee "x; ${P}\nEOF\ngit status`,
+    `gh pr edit 12 --body "$(cat <<'EOF'\nretarget later with --base main\nEOF\n)" --title x`, `echo "a\\" ; ${P} ; echo \\"b"`, `git commit -F - <<'EOF'\n${P}\nEOF`,
+    `cat <<EOF\n${P}; npx prisma migrate reset\nEOF`, `echo '\`${P}\`'`, `git commit -m 'see \`${P}\`'`, `git commit -m "a" -m "b; ${P}"`, `echo "it's; ${P}"`,
+    `cd web && pnpm install && pnpm test`, `git commit -m "(a); ${P}" && git status`, `echo "a)"; git status`, `tee a.txt <<'EOF' >/dev/null\n${P}\nEOF`,
+    `cat <<'EOF' | grep -c x\n{"a": "${P}; x"}\nEOF`,
+  ];
+  const run = (cmd, args, opts) => new Promise((resolve) => {
+    const c = spawn(cmd, args, { ...opts, timeout: 20000 });
+    let stdout = '', stderr = '';
+    c.stdout.on('data', (d) => { stdout += d; }); c.stderr.on('data', (d) => { stderr += d; });
+    c.stdin.on('error', () => {}); c.stdin.end(opts.input ?? '');
+    c.on('close', (status) => resolve({ status, stdout, stderr }));
+  });
+  const pool = async (items, fn) => { let next = 0; await Promise.all(Array.from({ length: 8 }, async () => { while (next < items.length) await fn(items[next++]); })); };
+  const dir = checkout(npmRoot, 'web', 'logs');
+  spawnSync('git', ['init', '-q', '-b', 'feat', dir]);
+  const shims = fs.mkdtempSync(path.join(os.tmpdir(), 'shopify-app-kit-shims-'));
+  const shim = `#!/usr/bin/env bash\n{ printf '%s\\037%s' "$PWD" "\${0##*/}"; for a in "$@"; do printf '\\037%s' "$a"; done; printf '\\036'; } >>"$ORACLE_LOG"\n`
+    + `[ "\${0##*/}" = git ] && case "$1 \${2:-}" in "rev-parse "* | "branch --show-current") exec "${which('git')}" "$@" ;; esac\nexit 0\n`;
+  for (const p of ['git', 'gh', 'npm', 'pnpm', 'npx', 'yarn', 'bun', 'prisma', 'shopify']) fs.writeFileSync(path.join(shims, p), shim, { mode: 0o755 });
+  const shells = [['bash', '-c'], ...(which('zsh') ? [['zsh', '-fc']] : [])];
+  const hooks = ['guard-protected-branch.sh', 'guard-package-manager.sh', 'guard-shopify-cli.sh', 'guard-migrations.sh'];
+  const env = { ...process.env, CLAUDE_PROJECT_DIR: dir, PATH: `${fakeBin}${path.delimiter}${process.env.PATH}` };
+  delete env.SHOPIFY_APP_KIT_MANIFEST;
+  const refused = async (command, cwd) => {
+    for (const hook of hooks) {
+      const r = await run('bash', [path.join(hooksDir, hook)], { cwd: dir, env, input: JSON.stringify({ hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command }, cwd }) });
+      if (r.status !== 0) return `${hook}: ${r.stderr.split('\n')[0]}`;
+    }
+    return '';
+  };
+  const alone = new Map();
+  let logs = 0;
+  // ran(input): every call a shim logged, under every shell, that the guards would refuse on its own
+  const ran = async (input) => {
+    const out = [];
+    for (const [sh, flag] of shells) {
+      const log = path.join(dir, 'logs', String(++logs));
+      fs.writeFileSync(log, '');
+      await run(sh, [flag, input], { cwd: dir, env: { ...process.env, PATH: `${shims}${path.delimiter}${process.env.PATH}`, HOME: dir, ORACLE_LOG: log } });
+      for (const call of fs.readFileSync(log, 'utf8').split('\u001e').filter(Boolean)) {
+        const [cwd, ...argv] = call.split('\u001f');
+        if (!alone.has(call)) alone.set(call, await refused(argv.map((a) => `'${a.replace(/'/g, "'\\''")}'`).join(' '), cwd));
+        if (alone.get(call)) out.push(`${sh}: ${argv.join(' ')} (${alone.get(call)})`);
+      }
+    }
+    return out;
+  };
+
+  test('a command that runs a refused call is refused', async () => {
+    const misses = [];
+    await pool(risky, async (input) => { const r = await ran(input); if (r.length && !(await refused(input, dir))) misses.push(`${JSON.stringify(input)} ran ${r[0]}`); });
+    assert.deepEqual(misses, []);
+  });
+
+  test('a data command whose prose names a refused call runs nothing refused and passes', async () => {
+    const wrong = [];
+    await pool(prose, async (input) => {
+      const r = await ran(input), b = await refused(input, dir);
+      if (r.length || b) wrong.push(`${JSON.stringify(input)}: ${r[0] ?? b}`);
+    });
+    assert.deepEqual(wrong, []);
+  });
+});
 
 // ---------------------------------------------------------------------------------------------- doctor
 // A fake claude on PATH answers `claude plugin list` with $FAKE_CLAUDE_PLUGINS (same idiom as the fake gh), and HOME
@@ -607,6 +806,13 @@ describe('doctor.sh', () => {
     assert.match(r.stdout, /API version 2026-07/);
     // kit.version is set but nothing is vendored yet in the fake consumer
     assert.match(r.stdout, /Drift: .*hooks\/kit\/ does not exist/);
+    assert.doesNotMatch(r.stdout, /awk is not installed/);
+  });
+
+  test('warns when awk is missing: the guards then refuse every command they read', () => {
+    const r = runDoctor({ manifest: npmRoot, claude: false, gh: false });
+    assert.equal(r.status, 0, r.stderr);
+    assert.match(r.stdout, /awk is not installed, so the guard hooks refuse every git, gh, npm, pnpm, prisma and shopify command \(fail closed\)/);
   });
 
   test('prints expiring-token, billing-method and portfolio facts when the manifest carries them', () => {

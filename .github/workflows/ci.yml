@@ -63,8 +63,9 @@ jobs:
             exit 1
           fi
 
-  # A consumer on a stock Mac runs the guards with /bin/bash 3.2 and BSD sed. The runner's Homebrew bash would
-  # shadow /bin/bash, so it goes first on PATH and the step fails unless 3.2 is the bash the tests spawn.
+  # A consumer on a stock Mac runs the guards with /bin/bash 3.2, BSD sed and BSD awk, and its Bash tool may run commands
+  # under zsh (the lexer oracle runs both). The runner's Homebrew bash would shadow /bin/bash, so it goes first on PATH
+  # and the step fails unless 3.2 is the bash the tests spawn.
   hooks-bash-3-2:
     name: hook tests under macOS /bin/bash 3.2
     runs-on: macos-latest
@@ -75,10 +76,11 @@ jobs:
         with:
           node-version: 22
 
-      - name: test/hooks.test.mjs with /bin/bash 3.2 and BSD sed
+      - name: test/hooks.test.mjs with /bin/bash 3.2, BSD sed and awk, and zsh
         run: |
           mkdir -p "$RUNNER_TEMP/bash-3.2" && ln -sf /bin/bash "$RUNNER_TEMP/bash-3.2/bash"
           export PATH="$RUNNER_TEMP/bash-3.2:$PATH"
           bash -c 'case "$BASH_VERSION" in 3.2.*) echo "bash $BASH_VERSION" ;; *) echo "::error::expected bash 3.2, got $BASH_VERSION"; exit 1 ;; esac'
+          awk --version </dev/null 2>&1 | head -1 || true; zsh --version || true
           command -v jq >/dev/null || brew install jq
           node --test test/hooks.test.mjs
