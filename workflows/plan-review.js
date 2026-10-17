@@ -18,11 +18,12 @@ export const meta = {
 // session reports; nobody edits the plan or posts to the PR or issue.
 //
 // args: a string (a path to a markdown plan file, a PR number whose body is the plan, or "#<n>" / an issue number)
-//       or { plan, pr, issue, reviewers }
+//       or { plan, pr, issue, reviewers, models }
 //   plan       path to the plan file
 //   pr         a PR number; its body is the plan
 //   issue      an issue number; its body is the plan
 //   reviewers  restrict the roster to these agent names
+//   models     per-role model overrides: { scope, reviewer, skeptic, judgment }
 
 // @shared constants
 const SEVERITIES = ['blocker', 'major', 'minor', 'note']
@@ -49,6 +50,15 @@ const opts = (() => {
   }
   return args && typeof args === 'object' ? args : {}
 })()
+
+const SCOPE_MODEL = 'sonnet' // the scoping pass's default model
+// Every agent() names its model by role; args.models ({ scope, reviewer, skeptic, judgment }, model names) overrides any.
+// @shared models
+const JUDGMENT = new Set(['design-review-architecture', 'design-review-feasibility', 'design-review-product-intent', 'design-review-risk-governance', 'qa-review-divergence-hunter', 'qa-review-security-governance'])
+const MODELS = { scope: SCOPE_MODEL, reviewer: 'sonnet', skeptic: 'sonnet', judgment: 'opus' }
+for (const [k, v] of Object.entries(opts.models && typeof opts.models === 'object' ? opts.models : {})) if (k in MODELS && typeof v === 'string' && v) MODELS[k] = v
+const modelFor = (name) => (JUDGMENT.has(name) ? MODELS.judgment : MODELS.reviewer)
+// @end
 
 const SCOPE_SCHEMA = {
   type: 'object',
@@ -129,7 +139,7 @@ return them in the structured shape requested.
    never mentions but should.
 4. adrDir: \`docs.adrDir\` when set and the directory exists, else ""; adrs: the file names under it.
 5. notes: anything a reviewer should know (no manifest, gh missing, no plan found, truncation).`,
-  { label: 'scope', phase: 'Scope', effort: 'low', schema: SCOPE_SCHEMA })
+  { label: 'scope', phase: 'Scope', effort: 'low', model: MODELS.scope, schema: SCOPE_SCHEMA })
 
 if (!scope) throw new Error('scoping pass returned nothing; cannot find the plan')
 if (!scope.planFound || !scope.plan) {
@@ -176,7 +186,7 @@ rejected alternative). An empty findings list still needs the headline and the c
 // Review: a barrier is right here, because dedupe below needs every reviewer's findings at once.
 phase('Review')
 const reports = await parallel(selected.map((r) => () =>
-  agent(context, { agentType: `shopify-app-kit:${r.name}`, label: r.name, phase: 'Review', schema: FINDINGS_SCHEMA })
+  agent(context, { agentType: `shopify-app-kit:${r.name}`, label: r.name, phase: 'Review', model: modelFor(r.name), schema: FINDINGS_SCHEMA })
     .then((out) => ({ name: r.name, out }))))
 
 const ran = []
@@ -249,7 +259,7 @@ ${indent(scope.plan.slice(0, 8000))}
 Return refuted=true only when you can show, with evidence from the plan, the manifest or the checkout, that every
 claim listed is wrong, already addressed by the plan, or outside its scope. Return refuted=false when any claim
 stands, even partly. Either way give the reason and the severity you would assign (blocker | major | minor | note).`,
-    { label: `verify:${norm(f.section || 'whole plan').replace(/ /g, '-').slice(0, 30)}#${i + 1}`, phase: 'Verify', schema: VERDICT_SCHEMA })))
+    { label: `verify:${norm(f.section || 'whole plan').replace(/ /g, '-').slice(0, 30)}#${i + 1}`, phase: 'Verify', model: MODELS.skeptic, schema: VERDICT_SCHEMA })))
 
 // @shared skeptic-apply
 const refuted = []

@@ -8,9 +8,9 @@
 #                               destination, an implicit / HEAD / @ push from a checkout (honouring git -C) whose current
 #                               branch is protected, a push the repo's config sends to one (remote.<r>.push, push.default
 #                               upstream / matching), or a git -c that redirects a push or aliases one
-#   gh pr merge                 blocked when the PR's base is protected (resolved with gh pr view; unresolvable = blocked)
+#   gh pr merge                 blocked when the PR's base is protected (resolved with gh pr view, else REST; unresolvable = blocked)
 #   gh pr edit --base X         blocked when X is protected (--base X, --base=X, -B X, -BX)
-#   gh api                      blocked for pulls/<n>/merge into a protected base, base=<protected> on /merges or a PR,
+#   gh api                      blocked for pulls/<n>/merge, or a write to pulls/<n>/…auto_merge, into a protected base, base=<protected> on /merges or a PR,
 #                               writes to git/refs/heads/<protected>, ref= or branch= <protected> writes, a protected
 #                               workflow's dispatch or a rerun / cancel of its runs, a GraphQL merge or auto-merge, a
 #                               mutation naming a protected branch, and a GraphQL query read from a file
@@ -21,7 +21,7 @@
 #                               protected branch, update_pull_request base, merge_pull_request / enable_pr_auto_merge
 #                               into a protected base, actions_run_trigger run_workflow of a protected workflow and
 #                               rerun / cancel of its runs. A PR base, numeric workflow id or run's workflow is resolved
-#                               with gh; unresolvable = blocked. Every other MCP tool passes.
+#                               with gh (a PR base through REST when gh pr view fails); unresolvable = blocked. Every other MCP tool passes.
 #
 # Allowed on purpose: gh pr create --base <protected> (a promotion PR), pushes to the default or a feature branch,
 # git status/commit/log, gh api reads, gh workflow run of any other workflow. Anything the guard cannot read
@@ -110,8 +110,28 @@ is_protected_workflow() {
 # on_protected DIR: is the checkout at DIR on a protected branch?
 on_protected() { is_protected "$(git -C "$1" symbolic-ref --quiet --short HEAD 2>/dev/null)"; }
 
-# pr_base [SELECTOR] [-R REPO]: the PR's base branch as gh resolves it from the command's cwd, or nothing.
-pr_base() { local b; b="$( (cd "$cwd" 2>/dev/null && gh pr view "$@" --json baseRefName --jq .baseRefName 2>/dev/null) )" || b=""; printf '%s' "$b"; }
+# gh_jq ENDPOINT FILTER: a gh api read from the command's cwd, filtered; a failed call is nothing, never its error body.
+gh_jq() { local o; o="$( (cd "$cwd" 2>/dev/null && gh api "$1" --jq "$2" 2>/dev/null) )" || o=""; printf '%s' "$o"; }
+
+# pr_base [SELECTOR] [-R REPO]: the PR's base branch, or nothing. gh pr view first; when it fails (a cloud session's
+# proxy refuses GraphQL with a 403), REST: a number or PR URL through pulls/<n>, a branch or no selector (the current
+# branch) through the one open PR with that head, on -R REPO or the origin remote's repository.
+pr_base() {
+  local b sel="" r="" n="" br=""
+  b="$( (cd "$cwd" 2>/dev/null && gh pr view "$@" --json baseRefName --jq .baseRefName 2>/dev/null) )" || b=""
+  if [ -z "$b" ]; then
+    while [ $# -gt 0 ]; do case "$1" in -R) r="${2:-}"; shift ;; *) sel="${1#\#}" ;; esac; shift; done
+    case "$r" in */*/*) r="${r#*/}" ;; esac
+    if [[ "$sel" =~ ^https?://[^/]+/([^/]+/[^/]+)/pull/([0-9]+) ]]; then r="${BASH_REMATCH[1]}"; n="${BASH_REMATCH[2]}"
+    elif [[ "$sel" =~ ^[0-9]+$ ]]; then n="$sel"
+    else br="${sel:-$(git -C "$cwd" symbolic-ref --quiet --short HEAD 2>/dev/null)}"; fi
+    [ -n "$r" ] || r='{owner}/{repo}'
+    case "$br" in "") ;; *:*) ;; *) br="${r%%/*}:$br" ;; esac
+    if [ -n "$n" ]; then b="$(gh_jq "repos/$r/pulls/$n" .base.ref)"
+    elif [ -n "$br" ]; then b="$(gh_jq "repos/$r/pulls?state=open&head=$br" 'if length == 1 then .[0].base.ref else empty end')"; fi
+  fi
+  printf '%s' "$b"
+}
 
 # check_git_push DIR ARGS...: DIR is the checkout the push runs from ("" when it cannot be read literally).
 check_git_push() {
@@ -261,6 +281,21 @@ check_gh_api() {
     base="$(pr_base "$n" ${repo[@]+"${repo[@]}"})"
     [ -n "$base" ] || block "gh api merge of PR #$n: its base branch could not be resolved (fail closed)" "$RULE"
     if is_protected "$base"; then block "gh api merge of PR #$n into $base" "$RULE"; fi
+  fi
+  # A write (PUT, POST or PATCH; -f and friends without -X mean POST) to pulls/<n>/…auto_merge is a merge of PR n.
+  local re_auto='pulls/([0-9]+)/([^[:space:]?]*/)?auto_merge([[:space:]?]|$)' re_method='[[:space:]](-X|--method)[[:space:]=]*([A-Za-z]+)' am=0
+  if [[ "$joined" =~ $re_auto ]]; then
+    n="${BASH_REMATCH[1]}"
+    shopt -s nocasematch
+    if [[ "$joined" =~ $re_method ]]; then case "${BASH_REMATCH[2]}" in put | post | patch) am=1 ;; esac
+    elif [[ "$joined" =~ [[:space:]](-f|-F|--field|--raw-field|--input)[[:space:]] ]]; then am=1; fi
+    shopt -u nocasematch
+  fi
+  if [ "$am" -eq 1 ]; then
+    if [[ "$joined" =~ $re_repo ]]; then repo=(-R "${BASH_REMATCH[1]}"); fi
+    base="$(pr_base "$n" ${repo[@]+"${repo[@]}"})"
+    [ -n "$base" ] || block "gh api auto-merge of PR #$n: its base branch could not be resolved (fail closed)" "$RULE"
+    if is_protected "$base"; then block "gh api auto-merge of PR #$n into $base" "$RULE"; fi
   fi
   local re_dispatch='actions/workflows/([^/[:space:]]+)/dispatches' re_run='actions/runs/([0-9]+)/(rerun|rerun-failed-jobs|cancel|force-cancel)'
   local re_pull='pulls/[0-9]+([[:space:]?]|$)' re_contents='/contents/' write=0

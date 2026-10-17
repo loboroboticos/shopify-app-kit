@@ -17,11 +17,12 @@ export const meta = {
 // merged findings and a checklist block for the promotion PR body (the release checklist, pre-ticked
 // where a dimension passed). The launching session reports; nobody opens or posts to the PR from here.
 //
-// args (all optional): { base, head, pr, dimensions }
+// args (all optional): { base, head, pr, dimensions, models }
 //   base        review this branch as the promotion target instead of branches.promotion.to
 //   head        review this branch as the promotion source instead of branches.promotion.from
 //   pr          a PR number; its body is read for acknowledgements
 //   dimensions  restrict the run to these dimension names
+//   models      per-role model overrides: { scope, reviewer, skeptic, judgment }
 
 // @shared constants
 const SEVERITIES = ['blocker', 'major', 'minor', 'note']
@@ -43,6 +44,15 @@ const DIMENSIONS = [
 ]
 
 const opts = args && typeof args === 'object' ? args : {}
+
+const SCOPE_MODEL = 'haiku' // the scoping pass's default model
+// Every agent() names its model by role; args.models ({ scope, reviewer, skeptic, judgment }, model names) overrides any.
+// @shared models
+const JUDGMENT = new Set(['design-review-architecture', 'design-review-feasibility', 'design-review-product-intent', 'design-review-risk-governance', 'qa-review-divergence-hunter', 'qa-review-security-governance'])
+const MODELS = { scope: SCOPE_MODEL, reviewer: 'sonnet', skeptic: 'sonnet', judgment: 'opus' }
+for (const [k, v] of Object.entries(opts.models && typeof opts.models === 'object' ? opts.models : {})) if (k in MODELS && typeof v === 'string' && v) MODELS[k] = v
+const modelFor = (name) => (JUDGMENT.has(name) ? MODELS.judgment : MODELS.reviewer)
+// @end
 
 const SCOPE_SCHEMA = {
   type: 'object',
@@ -154,7 +164,7 @@ and return them in the structured shape requested.
 6. refsResolved: true only when \`git rev-parse --verify\` succeeded on both headRef and baseRef and the diff ran;
    false when either ref is missing or the diff failed (an empty changedFiles then means "unknown", not "nothing").
 7. notes: anything a dimension should know (no manifest, gh missing, a ref that would not fetch, an empty range).`,
-  { label: 'scope', phase: 'Scope', effort: 'low', schema: SCOPE_SCHEMA })
+  { label: 'scope', phase: 'Scope', effort: 'low', model: MODELS.scope, schema: SCOPE_SCHEMA })
 
 if (!scope) throw new Error('scoping pass returned nothing; cannot choose a range or the dimensions')
 if (!scope.manifestFound) {
@@ -251,7 +261,7 @@ ${scope.prodHandle || '<handle>'}-<N> and must be verified in an asset URL after
 phase('Dimensions')
 const launched = selected.filter((d) => d.name)
 const reports = await parallel(launched.map((d) => () =>
-  agent(common + PROMPTS[d.dimension], { agentType: `shopify-app-kit:${d.name}`, label: d.dimension, phase: 'Dimensions', schema: FINDINGS_SCHEMA })
+  agent(common + PROMPTS[d.dimension], { agentType: `shopify-app-kit:${d.name}`, label: d.dimension, phase: 'Dimensions', model: modelFor(d.name), schema: FINDINGS_SCHEMA })
     .then((out) => ({ dimension: d.dimension, out }))))
 
 const dimensions = []
@@ -330,7 +340,7 @@ PR body: ${scope.prBody ? scope.prBody.slice(0, 2000) : '(none)'}
 Return refuted=true only when you can show, with evidence from the checkout or the PR body, that every claim
 listed is wrong, already handled or acknowledged, or outside this range (pre-existing and untouched). Return
 refuted=false when any claim stands, even partly. Either way give the reason and the severity you would assign (blocker | major | minor | note).`,
-    { label: `verify:${f.file ? f.file.split('/').pop() : f.section}#${i + 1}`, phase: 'Verify', schema: VERDICT_SCHEMA })))
+    { label: `verify:${f.file ? f.file.split('/').pop() : f.section}#${i + 1}`, phase: 'Verify', model: MODELS.skeptic, schema: VERDICT_SCHEMA })))
 
 // @shared skeptic-apply
 const refuted = []
