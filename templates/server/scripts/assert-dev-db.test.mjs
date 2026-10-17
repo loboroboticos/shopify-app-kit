@@ -3,6 +3,11 @@
 // silently passes is worse than none.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { fingerprint, describe, checkDevDatabase } from './assert-dev-db.mjs';
 
 // Same host and database, different credentials: the case a hostname check cannot tell apart. Joined from parts
@@ -42,5 +47,32 @@ test('never puts the connection string or a password in a message', () => {
   for (const pinned of [undefined, fingerprint(DEV), '0badcafe']) {
     const { message } = checkDevDatabase({ url: PROD, pinned });
     assert.ok(!message.includes('prod-pass') && !message.includes(PROD));
+  }
+});
+
+// The CLI, spawned: exit 0, 1 and 2 as documented, and the same refusal through a symlink (never a silent 0).
+const script = fileURLToPath(new URL('./assert-dev-db.mjs', import.meta.url));
+const cli = (file, env) => {
+  const clean = Object.fromEntries(Object.entries(process.env).filter(([k]) => k !== 'DATABASE_URL' && k !== 'DEV_DATABASE_FINGERPRINT'));
+  return spawnSync(process.execPath, [file], { encoding: 'utf8', env: { ...clean, ...env } });
+};
+
+test('the CLI exits 0 on a matching pin, 1 without DATABASE_URL, 2 without or under a stale pin', () => {
+  assert.equal(cli(script, { DATABASE_URL: DEV, DEV_DATABASE_FINGERPRINT: fingerprint(DEV) }).status, 0);
+  assert.equal(cli(script, {}).status, 1);
+  assert.equal(cli(script, { DATABASE_URL: DEV }).status, 2);
+  assert.equal(cli(script, { DATABASE_URL: PROD, DEV_DATABASE_FINGERPRINT: fingerprint(DEV) }).status, 2);
+});
+
+test('the CLI still refuses when invoked through a symlink', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'assert-dev-db-'));
+  const link = path.join(dir, 'assert-dev-db.mjs');
+  fs.symlinkSync(script, link);
+  try {
+    const r = cli(link, {});
+    assert.equal(r.status, 1, r.stdout + r.stderr);
+    assert.match(r.stderr, /DATABASE_URL is not set/);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
   }
 });

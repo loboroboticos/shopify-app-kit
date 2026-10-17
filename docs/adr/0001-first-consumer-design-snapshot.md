@@ -115,7 +115,7 @@ from the planning sandbox, so every Shopify fact not already in a consumer's own
 3. **Memory guidance: CLAUDE.md under 200 lines, path-scoped `.claude/rules/`, hooks for anything that must be
    enforced.** The first consumer's CLAUDE.md was within range; a second consumer app's 139 KB file is the
    anti-pattern the reference describes, which raises the value of a thin `.claude/` with rules carved out by path.
-   `docs-owner` carries the 200-line rule; `doctor` warns when a consumer's CLAUDE.md exceeds it.
+   `docs-owner` carries the 200-line rule (a doctor warning for it was planned and is not built).
 4. **Stack and auth, confirmed with two corrections.** The React Router template is Shopify's recommended path (the
    Remix template is on security fixes only); the app package was at 3.0.0 (Node 22+, `AppProvider` requires
    `apiKey` and always renders App Bridge, webhook `subTopic` removed, metaobject webhooks need filters, REST gone,
@@ -166,7 +166,7 @@ organisation; Postgres with RLS for that app; all 11 agents, ported from the lat
 review lens recommended); GitHub issues as the only queue, no Project board; Shopify's `shopify-ai-toolkit` as the
 kit's companion plugin, with app-layered data staying in the kit's own skills (the ruling under the web check, item 1).
 
-Remaining, with the default the plan assumed:
+Remaining on 2026-09-20, with the default the plan assumed (how each was settled lives in the skills and manifest):
 
 1. Plugin repository visibility under the organisation: **public** (the organisation already had public repos; a
    tripwire keeps the kit literal-free) versus private.

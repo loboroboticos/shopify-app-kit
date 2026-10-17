@@ -190,7 +190,9 @@ describe('guard-shopify-cli.sh', () => {
 // the cloud proxy's GraphQL 403), and
 // `gh run list --workflow <file> ... --jq '.[0].updatedAt // empty'` with the timestamp $FAKE_GH_RUNS (a JSON object
 // keyed by workflow file) maps that file to; FAKE_GH_RUNS=ERROR makes it fail like a logged-out gh.
-// `gh api <endpoint> --jq <filter>` answers with $FAKE_GH_PATHS[endpoint] (a JSON object), or fails when it has none.
+// `gh api <endpoint> [-X GET] [-f|-F k=v]... --jq <filter>` looks up <endpoint>?<k=v&...> in $FAKE_GH_PATHS (canned JSON)
+// and applies the real filter with jq, or fails like a 404 when it has no entry. runGuard turns a bare string into
+// the JSON its endpoint returns: a workflow or run's { path }, a PR's { base: { ref } }, an open-PR list of one.
 const fakeBin = path.join(consumer, 'fakebin');
 fs.mkdirSync(fakeBin, { recursive: true });
 fs.writeFileSync(path.join(fakeBin, 'gh'), `#!/usr/bin/env bash
@@ -203,7 +205,12 @@ case " $* " in
     wf=""; while [ $# -gt 0 ]; do [ "$1" = "--workflow" ] && wf="\${2:-}"; shift; done
     printf '%s' "\${FAKE_GH_RUNS:-null}" | jq -r --arg w "$wf" '(. // {})[$w] // empty' ;;
   *' api '*' --jq '*)
-    printf '%s' "\${FAKE_GH_PATHS:-null}" | jq -e -r --arg e "$2" '(. // {})[$e] // empty' 2>/dev/null || { echo '{"message":"Not Found","status":"404"}'; exit 1; } ;;
+    ep="$2"; q=""; f="."; shift 2
+    while [ $# -gt 0 ]; do case "$1" in -f | -F) q="\${q:+$q&}\${2:-}"; shift ;; --jq) f="\${2:-.}"; shift ;; esac; shift; done
+    [ -z "$q" ] || ep="$ep?$q"
+    v="$(printf '%s' "\${FAKE_GH_PATHS:-null}" | jq -c --arg e "$ep" '(. // {})[$e] // empty')"
+    [ -n "$v" ] || { echo '{"message":"Not Found","status":"404"}'; exit 1; }
+    printf '%s' "$v" | jq -r "$f" ;;
   *) exit 1 ;;
 esac
 `, { mode: 0o755 });
@@ -224,8 +231,10 @@ const toRefspec = configured([['remote.origin.push', 'HEAD:refs/heads/main']]);
 const onFeat = configured([]);
 const releaseTrain = path.join(fixtures, 'release-train-app.json');
 
+const canned = (ep, v) => (typeof v !== 'string' ? v : /[?&]head=/.test(ep) ? [{ base: { ref: v } }] : /\/pulls\/\d+$/.test(ep) ? { base: { ref: v } } : { path: v });
 function runGuard(hook, c) {
-  const extraEnv = { PATH: `${fakeBin}${path.delimiter}${process.env.PATH}`, FAKE_GH_BASE: c.base ?? '', FAKE_GH_PATHS: JSON.stringify(c.paths ?? {}) };
+  const paths = Object.fromEntries(Object.entries(c.paths ?? {}).map(([ep, v]) => [ep, canned(ep, v)]));
+  const extraEnv = { PATH: `${fakeBin}${path.delimiter}${process.env.PATH}`, FAKE_GH_BASE: c.base ?? '', FAKE_GH_PATHS: JSON.stringify(paths) };
   return runHook(hook, { manifest: c.fixture, command: c.cmd, tool: c.tool, input: c.input, cwd: c.cwd, extraEnv });
 }
 
@@ -278,6 +287,11 @@ const protectedCases = [
   { fixture: npmRoot, cmd: 'gh api --method=patch repos/o/r/git/refs/heads/main --input body.json', exit: 2, stderr: /write to git\/refs\/heads\/main/ },
   { fixture: npmRoot, cmd: 'gh api repos/o/r/merges -f base=main -f head=beta', exit: 2, stderr: /\/merges into main/ },
   ...['gh api repos/o/r/git/refs/heads/main -fsha=abc', 'gh api repos/o/r/git/refs/heads/main --field=sha=abc'].map((cmd) => ({ fixture: npmRoot, cmd, exit: 2, stderr: /write to git\/refs\/heads\/main/ })),
+  // a value attached to its field flag (-fbase=main) is read like a spaced one
+  { fixture: npmRoot, cmd: 'gh api repos/o/r/merges -fbase=main -fhead=beta', exit: 2, stderr: /\/merges into main/ },
+  { fixture: npmRoot, cmd: 'gh api -X PATCH repos/o/r/pulls/12 -fbase=main', exit: 2, stderr: /retargets a PR at a protected branch \(main\)/ },
+  { fixture: npmRoot, cmd: 'gh api repos/o/r/git/refs -fref=refs/heads/main -fsha=abc', exit: 2, stderr: /creates or moves refs\/heads\/main/ },
+  { fixture: npmRoot, cmd: 'gh api -X PUT repos/o/r/contents/a.txt -Fbranch=main -fmessage=m', exit: 2, stderr: /writes a file to main/ },
   { fixture: npmRoot, cmd: "gh api graphql -f query='mutation { mergePullRequest(input: {}) { clientMutationId } }'", exit: 2, stderr: /mergePullRequest/ },
   { fixture: npmRoot, cmd: 'gh api -X PUT repos/o/r/pulls/12/merge', base: 'main', exit: 2, stderr: /merge of PR #12 into main/ },
   { fixture: npmRoot, cmd: 'gh api -X PUT repos/o/r/pulls/12/merge', base: '', exit: 2, stderr: /could not be resolved/ },
@@ -285,10 +299,23 @@ const protectedCases = [
   ...[['gh pr merge 12 --squash', 'repos/{owner}/{repo}/pulls/12'], ['gh pr merge https://github.com/o/r/pull/12', 'repos/o/r/pulls/12'], ['gh pr merge feat -R o/r', 'repos/o/r/pulls?state=open&head=o:feat'], ['gh pr merge', 'repos/{owner}/{repo}/pulls?state=open&head={owner}:feat'], ['gh api -X PUT repos/o/r/pulls/12/merge', 'repos/o/r/pulls/12']]
     .flatMap(([cmd, ep]) => [{ fixture: npmRoot, cmd, cwd: onFeat, base: 'ERROR', paths: { [ep]: 'main' }, exit: 2, stderr: /into main/ }, { fixture: npmRoot, cmd, cwd: onFeat, base: 'ERROR', paths: { [ep]: 'beta' }, exit: 0 }]),
   { fixture: npmRoot, cmd: 'gh pr merge 12', base: 'ERROR', exit: 2, stderr: /base branch could not be resolved/ },
+  // more selector shapes on the 403 path; the head travels as a field, so a # stays in the branch name
+  ...[["gh pr merge '#12'", 'repos/{owner}/{repo}/pulls/12'], ['gh pr merge -R o/r 12', 'repos/o/r/pulls/12'], ['gh pr merge o:feat -R o/r', 'repos/o/r/pulls?state=open&head=o:feat'],
+    ['gh pr merge feat/x -R o/r', 'repos/o/r/pulls?state=open&head=o:feat/x'], ['gh pr merge feat', 'repos/{owner}/{repo}/pulls?state=open&head={owner}:feat'], ['gh api -X PUT repos/o/r/pulls/12/ccr/auto_merge', 'repos/o/r/pulls/12']]
+    .flatMap(([cmd, ep]) => [{ fixture: npmRoot, cmd, base: 'ERROR', paths: { [ep]: 'main' }, exit: 2, stderr: /into main/ }, { fixture: npmRoot, cmd, base: 'ERROR', paths: { [ep]: 'beta' }, exit: 0 }]),
+  { fixture: npmRoot, cmd: "gh pr merge 'feat#1' -R o/r", base: 'ERROR', paths: { 'repos/o/r/pulls?state=open&head=o:feat#1': 'main', 'repos/o/r/pulls?state=open&head=o:feat': 'beta' }, exit: 2, stderr: /into main/ },
+  // a base REST cannot name (a null ref, two open PRs with that head) is unresolved, never unprotected
+  { fixture: npmRoot, cmd: 'gh pr merge 12', base: 'ERROR', paths: { 'repos/{owner}/{repo}/pulls/12': { base: {} } }, exit: 2, stderr: /could not be resolved/ },
+  { fixture: npmRoot, cmd: 'gh pr merge feat -R o/r', base: 'ERROR', paths: { 'repos/o/r/pulls?state=open&head=o:feat': [{ base: { ref: 'beta' } }, { base: { ref: 'main' } }] }, exit: 2, stderr: /could not be resolved/ },
   // A write to pulls/<n>/…auto_merge is a merge of PR n; a read or a DELETE is not.
   ...['gh api -X PUT repos/o/r/pulls/12/ccr/auto_merge', 'gh api --method=post repos/o/r/pulls/12/auto_merge', 'gh api repos/o/r/pulls/12/ccr/auto_merge -f merge_method=squash', 'gh api repos/o/r/pulls/12/ccr/auto_merge -fmerge_method=squash', 'gh api repos/o/r/pulls/12/auto_merge --field=merge_method=squash']
     .flatMap((cmd) => [{ fixture: npmRoot, cmd, base: 'main', exit: 2, stderr: /auto-merge of PR #12 into main/ }, { fixture: npmRoot, cmd, base: '', exit: 2, stderr: /auto-merge of PR #12: its base branch could not be resolved/ }, { fixture: npmRoot, cmd, base: 'beta', exit: 0 }]),
   ...['gh api repos/o/r/pulls/12/ccr/auto_merge', 'gh api -X DELETE repos/o/r/pulls/12/ccr/auto_merge'].map((cmd) => ({ fixture: npmRoot, cmd, base: 'main', exit: 0 })),
+  // gh sends the last -X, reads -X and -f inside a short-flag cluster, and a GET with fields stays a read
+  ...['gh api -X DELETE -X PUT repos/o/r/pulls/12/ccr/auto_merge', 'gh api -iX PUT repos/o/r/pulls/12/ccr/auto_merge', 'gh api -if x=1 repos/o/r/pulls/12/auto_merge', 'gh api -X PATCH repos/o/r/pulls/12/auto_merge', 'gh api --jq -X -X PUT repos/o/r/pulls/12/auto_merge']
+    .map((cmd) => ({ fixture: npmRoot, cmd, base: 'main', exit: 2, stderr: /auto-merge of PR #12 into main/ })),
+  ...['gh api -X PUT -X DELETE repos/o/r/pulls/12/ccr/auto_merge', 'gh api --jq -X -X DELETE repos/o/r/pulls/12/auto_merge', 'gh api -X GET repos/o/r/pulls/12/auto_merge -f x=1', 'gh api -X PUT repos/o/r/pulls/12/automerged-thing', 'gh api -X PUT repos/o/r/pulls/12/auto_merged']
+    .map((cmd) => ({ fixture: npmRoot, cmd, base: 'main', exit: 0 })),
   { fixture: MISSING, cmd: 'git push origin beta', exit: 2, stderr: /manifest is missing or unreadable/ },
   { fixture: MISSING, cmd: 'gh pr merge 12', exit: 2, stderr: /manifest/ },
 
@@ -411,7 +438,7 @@ const mcpCases = [
   { fixture: npmRoot, tool: gh('merge_pull_request'), input: { ...repo, pullNumber: 12 }, base: 'main', exit: 2, stderr: /merge_pull_request of PR #12 merges into main/ },
   { fixture: npmRoot, tool: gh('merge_pull_request'), input: { ...repo, pullNumber: 12 }, base: '', exit: 2, stderr: /base branch could not be resolved with gh/ },
   { fixture: npmRoot, tool: gh('enable_pr_auto_merge'), input: { ...repo, pullNumber: 12 }, base: 'main', exit: 2, stderr: /enable_pr_auto_merge of PR #12 merges into main/ },
-  ...['main', 'beta'].map((b) => ({ fixture: npmRoot, tool: gh('merge_pull_request'), input: { ...repo, pullNumber: 12 }, base: 'ERROR', paths: { 'repos/o/r/pulls/12': b }, exit: b === 'main' ? 2 : 0, stderr: /merges into main/ })),
+  ...['merge_pull_request', 'enable_pr_auto_merge'].flatMap((v) => ['main', 'beta'].map((b) => ({ fixture: npmRoot, tool: gh(v), input: { ...repo, pullNumber: 12 }, base: 'ERROR', paths: { 'repos/o/r/pulls/12': b }, exit: b === 'main' ? 2 : 0, stderr: /merges into main/ }))),
   { fixture: npmRoot, tool: gh('actions_run_trigger'), input: { ...repo, method: 'run_workflow', workflow_id: 'deploy.yml', ref: 'main' }, exit: 2, stderr: /run_workflow of a production deploy \(deploy\.yml\)/ },
   { fixture: npmRoot, tool: gh('actions_run_trigger'), input: { ...repo, method: 'run_workflow', workflow_id: '.github/workflows/shopify-deploy.yml', ref: 'main' }, exit: 2, stderr: /production deploy/ },
   { fixture: npmRoot, tool: gh('actions_run_trigger'), input: { ...repo, method: 'run_workflow', workflow_id: '4242', ref: 'main' }, paths: { 'repos/o/r/actions/workflows/4242': '.github/workflows/deploy.yml' }, exit: 2, stderr: /production deploy \(deploy\.yml\)/ },
@@ -800,8 +827,9 @@ function runDoctor({ plugins = BOTH_PLUGINS, optedOut = true, claude = true, gra
   if (optedOut) fs.writeFileSync(optOut, ''); else fs.rmSync(optOut, { force: true });
   fs.mkdirSync(path.dirname(graphifySkill), { recursive: true });
   if (graphify) fs.writeFileSync(graphifySkill, '---\nname: graphify\n---\n'); else fs.rmSync(graphifySkill, { force: true });
-  // The fake bin (claude and gh) shadows the real PATH; when one must be absent, the sandbox PATH replaces it.
-  const PATH = claude && gh ? `${fakeBin}${path.delimiter}${process.env.PATH}` : sandboxPath([claude && 'claude', gh && 'gh'].filter(Boolean));
+  // The fake bin (claude and gh) shadows the real PATH; when one must be absent, or graphify must be (a graphify binary
+  // on the machine would leak in), the sandbox PATH replaces it.
+  const PATH = claude && gh && graphify ? `${fakeBin}${path.delimiter}${process.env.PATH}` : sandboxPath([claude && 'claude', gh && 'gh'].filter(Boolean));
   return runHook('doctor.sh', { event: 'SessionStart', ...opts, extraEnv: { PATH, HOME: fakeHome, CLAUDE_CONFIG_DIR: '', FAKE_CLAUDE_PLUGINS: plugins, FAKE_GH_RUNS: typeof runs === 'string' ? runs : JSON.stringify(runs), ...extraEnv } });
 }
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shopify-app-kit v0.18.0
+# shopify-app-kit v0.18.1
 # hooks/guard-protected-branch.sh: PreToolUse(Bash and GitHub MCP) guard that keeps a session off the protected branches named in
 # .claude/shopify-app.json (branches.protected, branches.default, branches.promotion, deploy.protectedWorkflows).
 #
@@ -110,12 +110,19 @@ is_protected_workflow() {
 # on_protected DIR: is the checkout at DIR on a protected branch?
 on_protected() { is_protected "$(git -C "$1" symbolic-ref --quiet --short HEAD 2>/dev/null)"; }
 
-# gh_jq ENDPOINT FILTER: a gh api read from the command's cwd, filtered; a failed call is nothing, never its error body.
-gh_jq() { local o; o="$( (cd "$cwd" 2>/dev/null && gh api "$1" --jq "$2" 2>/dev/null) )" || o=""; printf '%s' "$o"; }
+# gh_jq ENDPOINT FILTER [ARGS...]: a gh api read from the command's cwd, filtered; a failed call, or a null, is nothing.
+gh_jq() {
+  local o e="$1" f="$2"
+  shift 2
+  o="$( (cd "$cwd" 2>/dev/null && gh api "$e" "$@" --jq "$f" 2>/dev/null) )" || o=""
+  [ "$o" != null ] || o=""
+  printf '%s' "$o"
+}
 
 # pr_base [SELECTOR] [-R REPO]: the PR's base branch, or nothing. gh pr view first; when it fails (a cloud session's
 # proxy refuses GraphQL with a 403), REST: a number or PR URL through pulls/<n>, a branch or no selector (the current
-# branch) through the one open PR with that head, on -R REPO or the checkout's repository (gh's {owner}/{repo}).
+# branch) through the one open PR with that head, on -R REPO or the checkout's repository (gh's {owner}/{repo}). The
+# head goes as a field so gh encodes it (a # or + in a branch name), and -F fills its {owner} placeholder.
 pr_base() {
   local b sel="" r="" n="" br=""
   b="$( (cd "$cwd" 2>/dev/null && gh pr view "$@" --json baseRefName --jq .baseRefName 2>/dev/null) )" || b=""
@@ -128,7 +135,7 @@ pr_base() {
     [ -n "$r" ] || r='{owner}/{repo}'
     case "$br" in "") ;; *:*) ;; *) br="${r%%/*}:$br" ;; esac
     if [ -n "$n" ]; then b="$(gh_jq "repos/$r/pulls/$n" .base.ref)"
-    elif [ -n "$br" ]; then b="$(gh_jq "repos/$r/pulls?state=open&head=$br" 'if length == 1 then .[0].base.ref else empty end')"; fi
+    elif [ -n "$br" ]; then b="$(gh_jq "repos/$r/pulls" 'if length == 1 then .[0].base.ref else empty end' -X GET -f state=open -F "head=$br")"; fi
   fi
   printf '%s' "$b"
 }
@@ -268,13 +275,42 @@ check_gh_run() {
   fi
 }
 
+# api_method ARGS...: the method gh api sends: the last -X / --method (also inside a short-flag cluster such as -iX PUT),
+# else POST when a field flag is present (-f, -F, --field, --raw-field, --input, clustered as -if), else GET.
+api_method() {
+  local m="" f=0 a rest c
+  while [ $# -gt 0 ]; do
+    a="$1"
+    case "$a" in
+      --method=*) m="${a#--method=}" ;;
+      -X | --method) m="${2:-}"; shift ;;
+      -f | -F | --field | --raw-field | --input) f=1; shift ;;
+      --field=* | --raw-field=* | --input=*) f=1 ;;
+      --jq | --header | --hostname | --cache | --preview | --template) shift ;;
+      --*) ;;
+      -?*)
+        rest="${a#-}"
+        while [ -n "$rest" ]; do
+          c="${rest:0:1}"; rest="${rest:1}"
+          case "$c" in
+            X) if [ -n "$rest" ]; then m="${rest#=}"; else m="${2:-}"; shift; fi; rest="" ;;
+            f | F) f=1; [ -n "$rest" ] || shift; rest="" ;;
+            H | p | q | t) [ -n "$rest" ] || shift; rest="" ;;
+          esac
+        done ;;
+    esac
+    [ $# -gt 0 ] && shift
+  done
+  if [ -n "$m" ]; then printf '%s' "$m" | tr '[:lower:]' '[:upper:]'; elif [ "$f" -eq 1 ]; then printf POST; else printf GET; fi
+}
+
 check_gh_api() {
   local joined=" $* " base n p api_repo
   local -a repo=()
   local re_merge='pulls/([0-9]+)/merge([[:space:]?]|$)'
   local re_repo='repos/([^/{}[:space:]]+/[^/{}[:space:]]+)/pulls'
   local re_merges='/merges[[:space:]]'
-  local re_write='[[:space:]](-X|--method)[[:space:]=]*(PATCH|POST|PUT|DELETE)|[[:space:]](-[fF][^[:space:]]*|--(field|raw-field|input)([=[:space:]]|$))'
+  local method; method="$(api_method "$@")"
   if [[ "$joined" =~ $re_merge ]]; then
     n="${BASH_REMATCH[1]}"
     if [[ "$joined" =~ $re_repo ]]; then repo=(-R "${BASH_REMATCH[1]}"); fi
@@ -282,17 +318,10 @@ check_gh_api() {
     [ -n "$base" ] || block "gh api merge of PR #$n: its base branch could not be resolved (fail closed)" "$RULE"
     if is_protected "$base"; then block "gh api merge of PR #$n into $base" "$RULE"; fi
   fi
-  # A write (PUT, POST or PATCH; -f and friends without -X mean POST) to pulls/<n>/…auto_merge is a merge of PR n.
-  local re_auto='pulls/([0-9]+)/([^[:space:]?]*/)?auto_merge([[:space:]?]|$)' re_method='[[:space:]](-X|--method)[[:space:]=]*([A-Za-z]+)' am=0
-  local re_field='[[:space:]](-[fF][^[:space:]]*|--(field|raw-field|input)([=[:space:]]|$))'
-  if [[ "$joined" =~ $re_auto ]]; then
+  # A write (PUT, POST or PATCH, as api_method reads it) to pulls/<n>/…auto_merge is a merge of PR n.
+  local re_auto='pulls/([0-9]+)/([^[:space:]?]*/)?auto_merge([[:space:]?]|$)'
+  if [[ "$joined" =~ $re_auto ]] && case "$method" in PUT | POST | PATCH) true ;; *) false ;; esac; then
     n="${BASH_REMATCH[1]}"
-    shopt -s nocasematch
-    if [[ "$joined" =~ $re_method ]]; then case "${BASH_REMATCH[2]}" in put | post | patch) am=1 ;; esac
-    elif [[ "$joined" =~ $re_field ]]; then am=1; fi
-    shopt -u nocasematch
-  fi
-  if [ "$am" -eq 1 ]; then
     if [[ "$joined" =~ $re_repo ]]; then repo=(-R "${BASH_REMATCH[1]}"); fi
     base="$(pr_base "$n" ${repo[@]+"${repo[@]}"})"
     [ -n "$base" ] || block "gh api auto-merge of PR #$n: its base branch could not be resolved (fail closed)" "$RULE"
@@ -300,22 +329,22 @@ check_gh_api() {
   fi
   local re_dispatch='actions/workflows/([^/[:space:]]+)/dispatches' re_run='actions/runs/([0-9]+)/(rerun|rerun-failed-jobs|cancel|force-cancel)'
   local re_pull='pulls/[0-9]+([[:space:]?]|$)' re_contents='/contents/' write=0
-  shopt -s nocasematch; [[ "$joined" =~ $re_write ]] && write=1; shopt -u nocasematch
+  case "$method" in PATCH | POST | PUT | DELETE) write=1 ;; esac
   if [[ "$joined" =~ $re_repo ]]; then api_repo="${BASH_REMATCH[1]}"; else api_repo=""; fi
   if [[ "$joined" =~ $re_dispatch ]]; then check_workflow_ref "${BASH_REMATCH[1]}" "$api_repo" "gh api workflow dispatch"; fi
   if [[ "$joined" =~ $re_run ]]; then check_run_ref "${BASH_REMATCH[1]}" "$api_repo" "gh api ${BASH_REMATCH[2]}"; fi
   for p in "${PROTECTED[@]}"; do
-    if [[ "$joined" == *[[:space:]=]base=$p[[:space:]]* ]]; then
+    if [[ "$joined" == *[[:space:]=fF]base=$p[[:space:]]* ]]; then
       [[ "$joined" =~ $re_merges ]] && block "gh api /merges into $p" "$RULE"
       [[ "$joined" =~ $re_pull ]] && block "gh api retargets a PR at a protected branch ($p)" "$RULE"
     fi
     if [ "$write" -eq 1 ]; then
       [[ "$joined" == *"git/refs/heads/$p"* ]] && block "gh api write to git/refs/heads/$p" "$RULE"
-      [[ "$joined" == *[[:space:]=]ref=refs/heads/$p[[:space:]]* ]] && block "gh api creates or moves refs/heads/$p" "$RULE"
-      if [[ "$joined" == *"$re_contents"* ]] && [[ "$joined" == *[[:space:]=]branch=$p[[:space:]]* ]]; then block "gh api writes a file to $p" "$RULE"; fi
+      [[ "$joined" == *[[:space:]=fF]ref=refs/heads/$p[[:space:]]* ]] && block "gh api creates or moves refs/heads/$p" "$RULE"
+      if [[ "$joined" == *"$re_contents"* ]] && [[ "$joined" == *[[:space:]=fF]branch=$p[[:space:]]* ]]; then block "gh api writes a file to $p" "$RULE"; fi
     fi
   done
-  if [ "$write" -eq 1 ] && [[ "$joined" == *"$re_contents"* ]] && [[ "$joined" != *[[:space:]=]branch=* ]] && is_protected "$default_branch"; then
+  if [ "$write" -eq 1 ] && [[ "$joined" == *"$re_contents"* ]] && [[ "$joined" != *[[:space:]=fF]branch=* ]] && is_protected "$default_branch"; then
     block "gh api writes a file with no branch, so to the default branch $default_branch" "$RULE"
   fi
   for p in mergePullRequest enablePullRequestAutoMerge; do
