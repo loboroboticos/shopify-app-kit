@@ -12,12 +12,13 @@ re-installs under it, with a new OAuth grant, new sessions, new webhook subscrip
 Rule: plan the registration model before the first install. Encode the distribution in the manifest
 (`app.kind`: `custom-app` versus `embedded-app`) so the review agents and skills know which constraints apply.
 
-## Custom distribution forces the Billing API
+## Custom distribution cannot bill through Shopify
 
-Managed pricing (plans configured in the Partner dashboard, no billing code) is only available to public apps. A
-custom app that charges uses the Billing API: subscription mutations in code, `app_subscriptions/update`
-handled, test versus live decided by the app. That is the whole of the `release` skill's
-`billing-live-posture.md`, and it applies from the first paid install.
+A custom-distribution app cannot charge merchants through Shopify at all: neither the Billing API nor App Pricing
+is open to it, so any charge is settled outside Shopify. A public app chooses either App Pricing (plans hosted by
+Shopify, no subscription webhooks) or the Billing API (subscription mutations in code, `app_subscriptions/update`
+handled, test versus live decided by the app, the whole of the `release` skill's `billing-live-posture.md`).
+Rule: a paid app is a public app; record the choice in `billing.method` before the first paid install.
 
 ## One process serves one registration
 

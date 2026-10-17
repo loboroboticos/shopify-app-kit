@@ -166,7 +166,7 @@
         "live": { "type": "boolean" },
         "testFlag": { "type": "string" },
         "method": {
-          "description": "How merchants are charged. app-pricing: Shopify App Pricing (the successor of Managed Pricing), the default for public apps and available to public apps only; subscription webhooks are not delivered and status comes from the Partner Active Subscription API. billing-api: the Billing API, labelled legacy but functional and the only path for custom-distribution apps. none: the app does not charge.",
+          "description": "How merchants are charged. app-pricing: Shopify App Pricing (the successor of Managed Pricing), the default for public apps and available to public apps only; subscription webhooks are not delivered and status comes from the Partner Active Subscription API. billing-api: the Billing API, labelled legacy but functional, for public apps (a custom-distribution app cannot bill through Shopify at all). none: the app does not charge.",
           "type": "string",
           "enum": ["billing-api", "app-pricing", "none"]
         }

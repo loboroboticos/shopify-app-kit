@@ -246,8 +246,11 @@ describe('templates/', () => {
     const text = read('.claude/hooks/kit-bootstrap.sh');
     assert.match(text, /CLAUDE_CODE_REMOTE/);
     assert.match(text, /claude plugin marketplace add loboroboticos\/shopify-app-kit/);
-    assert.match(text, /claude plugin install shopify-app-kit@shopify-app-kit/);
-    assert.match(text, /claude plugin install shopify-ai-toolkit@claude-plugins-official/);
+    assert.match(text, /grep -q 'shopify-app-kit@shopify-app-kit'/);
+    assert.match(text, /claude plugin install -y shopify-app-kit@shopify-app-kit/);
+    // The marketplace id first, then the bare name a cloud container's built-in directory carries; a line either way.
+    assert.match(text, /claude plugin install -y shopify-ai-toolkit@claude-plugins-official [^\n]*\|\| claude plugin install -y shopify-ai-toolkit /);
+    assert.match(text, /shopify-ai-toolkit installed;[\s\S]*shopify-ai-toolkit install failed/);
     assert.match(text, /\.config\/shopify-ai-toolkit\/opt-out/);
     assert.match(text, /^exit 0$/m);
     assert.doesNotMatch(text, /set -e/);
@@ -264,6 +267,11 @@ describe('templates/', () => {
     const r = spawnSync('bash', [path.join(templatesDir, '.claude/hooks/kit-bootstrap.sh')], { encoding: 'utf8', env: { ...process.env, CLAUDE_CODE_REMOTE: '' } });
     assert.equal(r.status, 0);
     assert.equal(r.stdout, '');
+  });
+
+  test('server/scripts/assert-dev-db.mjs passes its own node --test suite', () => {
+    const r = spawnSync(process.execPath, ['--test', path.join(templatesDir, 'server/scripts/assert-dev-db.test.mjs')], { encoding: 'utf8' });
+    assert.equal(r.status, 0, r.stdout + r.stderr);
   });
 
   test('.claudeignore keeps graphify-out/ out of context and says where it lives', () => {

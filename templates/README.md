@@ -45,6 +45,8 @@ the guards and stamping the manifest. The same script works by hand:
 | `.github/ISSUE_TEMPLATE/config.yml` | Disables blank issues so every item states its close condition. | `work-item.md` |
 | `.gitleaks.toml` | Gitleaks config: defaults plus a rule for connection URIs with embedded credentials; narrow allowlists that each say why. | `secret-scan.yml` |
 | `.env.example` | Every environment variable with whether it is public, a real secret or a local marker; the database fingerprint the dev command must check before migrating. | `database.*`, `auth.*` |
+| `server/scripts/assert-dev-db.mjs` | Written to the server directory's `scripts/`: refuses to migrate unless `DEV_DATABASE_FINGERPRINT` is the fingerprint of the whole `DATABASE_URL`; first in the dev command. | `.env.example` |
+| `server/scripts/assert-dev-db.test.mjs` | Its `node --test` suite: every refusal, and no credential in a message. | `assert-dev-db.mjs` |
 | `docs/README-docs-map.md` | The shape of the "Docs map" section: one row per file under `docs/`, one owner per fact. `new-app` writes it to `docs/README.md` (`docs.mapFile`) with only the rows whose file exists. | `docs.mapFile`, `docs.mapHeading` |
 | `test/docs-consistency.test.mjs` | Fails when a file under `docs/` is missing from the map or a reference doc carries a dated heading; allowlist that only shrinks; repair string in every message. | `docs.*` |
 | `docs/adr/README.md` | The ADR series index and its rules (MADR-lite, one decision per file, newest number wins). | `docs.adrDir` |

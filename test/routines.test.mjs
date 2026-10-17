@@ -22,6 +22,8 @@ const KIT_SCOPED = new Set(['kit-tidy.md']);
 const CONSUMER_READS = ['.claude/shopify-app.json', 'branches.default', 'branches.protected', 'deploy.protectedWorkflows', 'labels.json', 'git remote'];
 const KIT_READS = ['not a consumer', 'labels.json', 'git remote', '.claude/rules/kit.md', 'npm test', 'test/budget', 'kit.portfolioId', 'never pushes to `main`'];
 const NEVER_CLOSES = 'never closes a `human:*` issue';
+const NO_KEYWORD = 'never with a closing keyword';
+const CLOSING_KEYWORD = /\b(close[sd]?|fix(e[sd])?|resolve[sd]?)\s+#/i;
 const CRON = /^(\S+ ){4}\S+$/;
 // A repository literal: a github.com URL, an <owner>/<repo> after a --repo/-R flag, or a .git remote; the
 // placeholders `<owner>/<repo>` and the kit's own manifest paths are fine.
@@ -52,6 +54,9 @@ describe('routines/', () => {
       for (const s of KIT_SCOPED.has(f) ? KIT_READS : CONSUMER_READS) assert.ok(prompt.includes(s), `the prompt reads ${s}`);
       assert.equal(text.includes('not a consumer'), KIT_SCOPED.has(f), 'only a kit-scoped routine says "not a consumer" (doctor.sh reads it)');
       assert.ok(prompt.includes(NEVER_CLOSES), 'the prompt itself carries the rule (it is pasted whole into the routine)');
+      // A closing keyword before #N closes the issue on merge, whatever the sentence says (#137).
+      assert.ok(prompt.includes(NO_KEYWORD), `the prompt says "${NO_KEYWORD}"`);
+      assert.doesNotMatch(text, CLOSING_KEYWORD, 'no closing keyword before an issue number');
       // Filing is deduped on a title prefix; the block (R2) is named in the prompt's own text, not left to rules.md.
       if (!KIT_SCOPED.has(f) && prompt.includes('title prefix')) {
         assert.ok(prompt.includes('"Close condition needs"'), 'a routine that files issues ticks the "Close condition needs" block (R2)');
@@ -107,7 +112,6 @@ describe('routines/', () => {
     for (const s in { '--audit-level=high': 1, 'dependabot.yml': 1, 'semver-major': 1, '`dependencies`, `agent:ci`': 1 }) assert.ok(deps.includes(s), `dependency-wave: ${s}`);
     const parity = read('dev-parity.md');
     for (const s of ['shopifyCli.configs', 'paths.appTomls', 'deploy.targets.beta', 'branches.promotion', 'billing.testFlag', 'checks.tripwireDir', 'repo preamble', 'unverified', 'first 7 days', 'dev-parity: <the drift in six words>', 'for that title prefix', '`human:account`', 'never with a closing', 'no workflow dispatch of any kind', 'no Shopify CLI', 'no Fly CLI', 'raw health response', 'No PR and no push']) assert.ok(parity.includes(s), `dev-parity: ${s}`);
-    assert.doesNotMatch(parity, /\b(closes|fixes|resolves) #/i, 'dev-parity: no closing keyword');
     const tidy = read('kit-tidy.md');
     for (const s of ['Step 1, the suite', 'Step 2, duplicated prose', 'Step 3, things nothing reads', 'Step 4, the size trend', 'Step 5, docs that restate a test', 'Step 6, mechanical drift', 'Step 7, the portfolio', 'Step 8, deprecation candidates', 'this routine deprecates\nnothing', 'At most one PR per run', 'Never a deletion', 'no-repo-literals', 'kit-tidy: <the finding in six words>', 'that title prefix', 'never with a closing']) assert.ok(tidy.includes(s), `kit-tidy: ${s}`);
   });

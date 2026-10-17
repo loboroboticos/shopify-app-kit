@@ -32,6 +32,8 @@ Ground rules, before anything else:
    by `list_repository_collaborators` with push permission; on a public repository anyone can comment) or when
    a closed `Bootstrap:` issue lists the issue under Unlocks (rule R7 of the kit's issue-filing skill, whose
    `references/rules.md` you follow throughout).
+   Refer to issues as a plain `#N`, never with a closing keyword (close, fix, resolve, in any form) before it in
+   a PR body, commit message or comment, whatever the sentence's subject: GitHub closes the issue on merge.
 4. At most one PR per run, to `branches.default`. Never merge anything.
 5. Secrets never appear in an issue, a comment or a PR. A bootstrap names where a value goes, never the value.
 

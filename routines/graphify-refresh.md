@@ -28,6 +28,8 @@ Ground rules, before anything else:
    names one.
 3. This routine never closes a `human:*` issue and never relabels any issue (rule R7 of the kit's issue-filing
    skill); it has no reason to touch the issue tracker at all.
+   Refer to issues as a plain `#N`, never with a closing keyword (close, fix, resolve, in any form) before it in
+   a PR body, commit message or comment, whatever the sentence's subject: GitHub closes the issue on merge.
 4. The only branch this routine pushes is `graph`, and only with `--force-with-lease`. Never `branches.default`.
 5. Nothing under `graphify-out/` may carry a secret: the graph is built from the checkout, and the checkout
    carries none (`secret-scan.yml`); do not point graphify at `.env` or any ignored file.

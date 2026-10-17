@@ -144,31 +144,34 @@ for (const file of templateFiles) {
   let text = substitute(fs.readFileSync(src, 'utf8'));
   if (file === '.github/dependabot.yml' && args.serverDir === '.') text = dropServerDependabotBlocks(text);
   const mode = file.endsWith('.sh') ? 0o755 : undefined;
-  const dest = path.join(target, file);
+  // server/ templates land in the server directory, everything else at the repo root.
+  const dest = file.startsWith('server/') ? path.join(serverRoot, file.slice('server/'.length)) : path.join(target, file);
+  const shown = rel(dest);
 
   if (file === '.claude/shopify-app.json') {
     const manifest = finishManifest(JSON.parse(text));
     text = `${JSON.stringify(manifest, null, 2)}\n`;
-    if (!fs.existsSync(dest)) { write(dest, text); log('write', file); } else if (fs.readFileSync(dest, 'utf8') === text) log('ok', file, 'unchanged'); else { write(`${dest}.shopify-app-kit`, text); log('aside', `${file}.shopify-app-kit`, 'a manifest already exists; reconcile by hand'); }
+    if (!fs.existsSync(dest)) { write(dest, text); log('write', shown); } else if (fs.readFileSync(dest, 'utf8') === text) log('ok', shown, 'unchanged'); else { write(`${dest}.shopify-app-kit`, text); log('aside', `${shown}.shopify-app-kit`, 'a manifest already exists; reconcile by hand'); }
     continue;
   }
-  if (!fs.existsSync(dest)) { write(dest, text, mode); log('write', file); continue; }
+  if (!fs.existsSync(dest)) { write(dest, text, mode); log('write', shown); continue; }
   // A file the kit itself wrote on an earlier run carries the template header (and no overlay section, which
   // would mean the template had the file first); re-running refreshes it.
   const existing = fs.readFileSync(dest, 'utf8');
-  if (existing.includes('shopify-app-kit template') && !existing.includes('shopify-app-kit overlay: begin')) { write(dest, text, mode); log('update', file, 'kit-owned file refreshed'); continue; }
+  if (existing.includes('shopify-app-kit template') && !existing.includes('shopify-app-kit overlay: begin')) { write(dest, text, mode); log('update', shown, 'kit-owned file refreshed'); continue; }
   if (file.endsWith('.json')) {
     const merged = deepMerge(JSON.parse(fs.readFileSync(dest, 'utf8')), JSON.parse(text));
-    write(dest, `${JSON.stringify(merged, null, 2)}\n`); log('merge', file, 'JSON deep-merged, existing values kept');
+    write(dest, `${JSON.stringify(merged, null, 2)}\n`); log('merge', shown, 'JSON deep-merged, existing values kept');
   } else if (TEXT_MERGEABLE.test(file)) {
-    mergeText(dest, text, file); log('merge', file, 'kit section appended');
+    mergeText(dest, text, file); log('merge', shown, 'kit section appended');
   } else {
-    write(`${dest}.shopify-app-kit`, text, mode); log('aside', `${file}.shopify-app-kit`, 'the template already has this file; reconcile by hand');
+    write(`${dest}.shopify-app-kit`, text, mode); log('aside', `${shown}.shopify-app-kit`, 'the template already has this file; reconcile by hand');
   }
 }
 if (templateFiles.some((f) => fs.readFileSync(path.join(templatesDir, f), 'utf8').includes('{{GITLEAKS_'))) {
   todos.push('.github/workflows/secret-scan.yml: replace {{GITLEAKS_VERSION}} and {{GITLEAKS_SHA256}} with the release you pin and the linux_x64 tarball line of its checksums.txt.');
 }
+todos.push('shopify.web.toml: put `node --env-file-if-exists=.env scripts/assert-dev-db.mjs &&` first in the dev command, before `prisma migrate deploy`, and run it once to get the DEV_DATABASE_FINGERPRINT line for .env.');
 
 // dependabot.yml with the server at the repo root: the second npm block (the one whose comment says to drop it)
 // would duplicate the root block, so it goes; every other `directory: /.` becomes `directory: /`.
