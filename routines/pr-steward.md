@@ -31,6 +31,8 @@ Ground rules, before anything else:
 3. This routine never closes a `human:*` issue and never relabels a `human:*` issue to `agent:*` or
    `code only` (rule R7 of the kit's issue-filing skill). A PR whose issue is `human:*`, or that a human opened
    without an agent label, is not yours: read it, touch nothing, list it in the summary.
+   Refer to issues as a plain `#N`, never with a closing keyword (close, fix, resolve, in any form) before it in
+   a PR body, commit message or comment, whatever the sentence's subject: GitHub closes the issue on merge.
 4. No new PR from this routine; the PRs you work on already exist. Never merge, never approve.
 5. Secrets never appear in a comment or a commit.
 

@@ -28,6 +28,8 @@ Ground rules, before anything else:
    names one.
 3. This routine never closes a `human:*` issue and never relabels a `human:*` issue to `agent:*` or
    `code only` (rule R7 of the kit's issue-filing skill, whose `references/rules.md` you follow when filing).
+   Refer to issues as a plain `#N`, never with a closing keyword (close, fix, resolve, in any form) before it in
+   a PR body, commit message or comment, whatever the sentence's subject: GitHub closes the issue on merge.
 4. No PR, ever, from this routine. At most one comment on the queue issue.
 5. Secrets never appear in an issue or a comment; neither do diffs, traces or test output.
 

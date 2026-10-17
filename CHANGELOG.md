@@ -5,6 +5,49 @@ vendored hook carries it on line 2 (`# shopify-app-kit vX.Y.Z`). A version that 
 `### Deprecated`; the next minor deletes it and lists it under `### Removed` (`kit-dev`: "Remove a skill, agent,
 hook, workflow or routine").
 
+## 0.18.0
+
+The first consumer's K1 fixes: merges resolve their base in a cloud session, the auto-merge route is guarded, every
+workflow agent names its model, and the templates, lessons and routine prompts stop stating things that are false.
+
+- `guard-protected-branch`: when `gh pr view` fails (a cloud session's proxy refuses GraphQL with a 403, so every
+  merge was refused), `pr_base` resolves the base through REST for all three callers (`gh pr merge`, `gh api
+  …/pulls/<n>/merge`, the MCP `merge_pull_request` / `enable_pr_auto_merge`): a number or a PR URL through
+  `pulls/<n>`, a branch or no selector through the one open PR with that head, on `-R` or the checkout's repository.
+  Anything still unresolved is refused, as before (#134).
+- `guard-protected-branch`: a `PUT`, `POST` or `PATCH` to `pulls/<n>/…auto_merge` (a proxy-provided REST route that
+  enables auto-merge) is a merge of PR n: blocked into a protected base and when the base cannot be resolved; a read
+  or a `DELETE` passes. A field flag written without a space (`-fsha=…`, `--field=k=v`) now counts as a write here
+  and for the ref and contents checks, which it slipped past before (#134).
+- `pre-pr-review`, `release-readiness`, `plan-review`: every `agent()` names its model by role (`@shared models`):
+  `judgment` (`opus`) for the four `design-review-*` agents, `qa-review-divergence-hunter` and
+  `qa-review-security-governance`; `scope` (`haiku`, `sonnet` in plan-review); `reviewer` and `skeptic` (`sonnet`).
+  `args.models` overrides any role (#135).
+- `dist-2` (`admin-api`'s `distribution-is-one-way.md`), the billing rule seed, the schema's `billing.method` and the
+  ADR seed: a custom-distribution app cannot bill through Shopify at all; a public app uses the Billing API or App
+  Pricing (#136).
+- `triage`, `pr-steward`, `nuclear-review`, `dependency-wave`, `kit-health`, `graphify-refresh`: refer to issues as a
+  plain `#N`, never with a closing keyword before it, whatever the sentence's subject; `test/routines.test.mjs`
+  holds every routine to it (#137).
+- `templates/server/scripts/assert-dev-db.mjs` and its `node --test` suite: the dev-database guard the templates
+  described but never shipped, pinning the whole `DATABASE_URL` (sha256, 8 hex) because a dev project can share
+  production's host and database name. `new-app` writes `server/` templates to the server directory and lists the
+  dev-command prefix as a todo; `.env.example`, the prisma rule seed and CLAUDE.md carry the corrected recipe (#138).
+- `templates/.claude/hooks/kit-bootstrap.sh`: `-y`, the exact plugin id, the bare-name companion fallback for cloud
+  containers, one success or failure line per install (#139).
+- `docs/adr/0001-first-consumer-design-snapshot.md`: the first consumer's design sections (hooks, operating model,
+  the 2026-09-20 web check, decisions), generalised, in a new kit-root `docs/adr/` (#140).
+- `docs-owner` step 3, `single-owner.md` and the docs templates: superseded text is deleted in the PR that
+  supersedes it; `docs/history/` keeps only post-mortems and ADR-grade decisions. `triage` and R8 score an ROI bucket
+  only where the label set has `roi:*`; the ranking doc stays optional (#141).
+
+### Budget
+
+`hooks/` 1770 → 1800 for the REST fallback and the auto-merge route (#134); `workflows/` 1020 → 1035 for the models
+block (#135); `routines/` 700 → 715 for the closing-keyword rule in six prompts (#137); `templates/` 1150 → 1230 for
+the dev-database guard a consumer runs (#138); `test/` 3630 → 3690 for their cases; `CHANGELOG.md` 1000 → 1040 for
+this section; `docs/` gets its own ceiling of 190 (#140).
+
 ## 0.17.7
 
 The guards read a command as the shell does (#116). 0.17.6 cut every command at `;`, `&`, `|` and parentheses

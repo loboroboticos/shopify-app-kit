@@ -9,10 +9,10 @@
    every path the map names exists (the `tripwire` skill's docs-map pattern). A new doc that nobody indexed fails
    the PR.
 3. **A reference doc states the current rule.** Not how it came to be, not when it last broke. Incidents, dates,
-   run ids, commit shas and closed issue numbers belong in the PR description or in a dated history file. The
-   docs-map tripwire also rejects dated headings in reference docs.
-4. **Superseded text moves, it is not deleted.** When a rule changes, the old text goes to
-   `docs/history/<YYYY-MM>-<topic>.md` with a one-line reason at the top. History files are never loaded by
+   run ids, commit shas and closed issue numbers belong in the PR description. The docs-map tripwire also
+   rejects dated headings in reference docs.
+4. **Superseded text is deleted in the PR that supersedes it.** The PR description is the record. `docs/history/`
+   keeps only post-mortems and ADR-grade decisions, dated in the file name; history files are never loaded by
    default and never linked from a rule.
 5. **An issue number may trail a rule only while that issue is open.** "(tracked in #123)" is a promise that the
    rule is temporary. When the issue closes, the number leaves the doc in the same PR, or the rule becomes
@@ -30,7 +30,7 @@ An always-loaded instructions file that grows past a hundred kilobytes because e
 and nothing was ever moved out. Each session pays the full context cost, the file contradicts itself in places
 nobody re-reads, and the useful lines are buried. The cure is mechanical: for each paragraph, ask whether a check
 enforces it (then delete it and name the check), whether it is path-specific (then move it to a path-scoped
-rule), whether it is history (then move it to a dated file), and whether a session needs it most of the time
+rule), whether it is superseded history (then delete it; the PR description is the record), and whether a session needs it most of the time
 (then keep it). Most paragraphs fail all four.
 
 ## Kit consumers

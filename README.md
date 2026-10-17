@@ -199,7 +199,7 @@ Keys the doctor prints and the skills and review agents read (no guard behaviour
 | Key | Values | Read by |
 | --- | --- | --- |
 | `auth.expiringOfflineTokens` | boolean | The app runs `future.expiringOfflineAccessTokens` and its session table carries `refreshToken` and `refreshTokenExpires`. Required by Shopify for public apps created on or after 2026-04-01 and for all public apps from 2027-01-01 (60-minute access token, 90-day refresh token, one live refreshable token per app per store). `doctor` prints it; `tenancy` and `prisma-migration-reviewer` check the flag and the columns. |
-| `billing.method` | `billing-api` / `app-pricing` / `none` | App Pricing (the successor of Managed Pricing) is the default for public apps and public-apps-only, delivers no subscription webhooks (status comes from the Partner Active Subscription API); the Billing API is legacy but functional and the only path for custom distribution. `doctor` prints it; `release` and the billing rule seed read it. |
+| `billing.method` | `billing-api` / `app-pricing` / `none` | App Pricing (the successor of Managed Pricing) is the default for public apps and public-apps-only, delivers no subscription webhooks (status comes from the Partner Active Subscription API); the Billing API is legacy but functional and public-apps-only too; a custom-distribution app cannot bill through Shopify. `doctor` prints it; `release` and the billing rule seed read it. |
 | `docs.adrDir`, `docs.mapFile`, `docs.mapHeading` | repo-relative paths and a heading | Where the ADR series and the docs map live; `docs-owner` and the templates' `docs-consistency` test read them. |
 | `classify.provider`, `classify.labelSets`, `classify.budget`, `classify.defaultEscalateThreshold` | `jev`; a label-set registry; a per-tenant `monthlyCap`; a 0..1 floor | How the app calls a classifier: the `classify` skill reads the section, `classifier-reviewer` checks each call names a declared label set, is budgeted and gated on confidence. Absent means the app classifies nothing. |
 | `kit.portfolioId`, `kit.routines` | an opaque id; routine file names under the kit's `routines/`; each matching its `pattern` in the schema | The doctor prints both, validates them against the schema and reports an entry that is not a consumer routine its kit version ships; a cross-repo routine discovers the product by the id (`routines/REGISTRY.md`, "Discovering the portfolio"). |
@@ -255,7 +255,7 @@ port rules).
 
 ### The pre-pr-review workflow
 
-`/shopify-app-kit:pre-pr-review [base | { "base", "pr", "reviewers", "all" }]` runs the diff-stage roster in one
+`/shopify-app-kit:pre-pr-review [base | { "base", "pr", "reviewers", "all", "models" }]` runs the diff-stage roster in one
 go (`workflows/pre-pr-review.js`, plain JavaScript loaded from the plugin): one cheap scoping agent picks the base
 the way the review skill does and lists the changed files; the roster runs in parallel (the stack reviewers only
 when the diff touches their files; `all: true` forces both); findings on the same file within three lines, or on
@@ -266,7 +266,7 @@ Nothing is posted to the PR and no file is modified.
 
 ### The release-readiness and plan-review workflows
 
-`/shopify-app-kit:release-readiness [{ "base", "head", "pr", "dimensions" }]` has the same three-phase shape,
+`/shopify-app-kit:release-readiness [{ "base", "head", "pr", "dimensions", "models" }]` has the same three-phase shape,
 applied to the promotion range (`branches.promotion.from` against `.to`, or the arguments). Only the dimensions
 the manifest enables run, each as one read-only kit agent: `api-version` (every pin file and toml carries
 `apiVersion.expected`), `webhooks` (every subscription has a handler; compliance handlers present), `migrations`
@@ -278,11 +278,16 @@ the manifest enables run, each as one read-only kit agent: `api-version` (every 
 dimension ran clean, else `go-with-notes`; the result carries the release checklist for the promotion PR body,
 ticked where a dimension passed or does not apply. The `release` skill runs it before opening the promotion PR.
 
-`/shopify-app-kit:plan-review <plan file | PR number | #issue | { "plan", "pr", "issue", "reviewers" }>` runs the
+`/shopify-app-kit:plan-review <plan file | PR number | #issue | { "plan", "pr", "issue", "reviewers", "models" }>` runs the
 four `design-review-*` agents on a plan that has not been built, with the manifest facts it touches and the ADR
 directory in their prompts; findings on the same section merge into one carrying both claims; the verdict is
 `rethink` on a surviving blocker, `revise` on a major or an uncovered lens, else `sound`, and the decisions the
 plan should record as ADRs (findings tagged `adr: true`) are listed separately.
+
+Every `agent()` call in the three workflows names its model by role: `judgment` (`opus`) for the four
+`design-review-*` agents, `qa-review-divergence-hunter` and `qa-review-security-governance`; `scope` (`haiku`,
+`sonnet` in plan-review); `reviewer` and `skeptic` (`sonnet`). `"models": { "scope", "reviewer", "skeptic",
+"judgment" }` overrides any role.
 
 ## Lessons
 

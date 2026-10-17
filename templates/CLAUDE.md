@@ -18,7 +18,7 @@ access tokens; App Pricing. The repo-specific facts (configs, branches, policies
 {{PACKAGE_MANAGER}} install                      # from {{SERVER_DIR}}
 {{PACKAGE_MANAGER}} run dev                      # shopify app dev with the dev config (the dev-loop skill)
 {{PACKAGE_MANAGER}} run typecheck && {{PACKAGE_MANAGER}} test
-{{PACKAGE_MANAGER}} exec prisma migrate dev      # local database only; refuses without DEV_DATABASE_FINGERPRINT
+{{PACKAGE_MANAGER}} exec prisma migrate dev      # local database only; the dev command's assert-dev-db pins it
 ```
 
 ## Hard constraints

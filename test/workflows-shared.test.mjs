@@ -13,11 +13,13 @@ const workflowsDir = path.join(kitRoot, 'workflows');
 const files = fs.readdirSync(workflowsDir).filter((n) => n.endsWith('.js')).sort();
 
 // Every workflow carries each of these once.
-const EXPECTED = ['constants', 'findings-schema', 'verdict-schema', 'dedupe', 'skeptic-apply', 'verdict-counts'];
+const EXPECTED = ['constants', 'models', 'findings-schema', 'verdict-schema', 'dedupe', 'skeptic-apply', 'verdict-counts'];
 // The one declared difference: plan-review's finding shape carries an optional adr tag.
 const EXCEPTIONS = { 'findings-schema': { 'plan-review.js': [/^\s*adr: \{ type: 'boolean' \},$/] } };
 // The names the dedupe block reads and each workflow must declare outside any block.
 const PARAMETERS = ['TOPIC_NEEDS_SAME_CLAIM', 'mergeExtra', 'newExtra'];
+// The name the models block reads: the scoping pass's default model (haiku, sonnet in plan-review).
+const MODEL_PARAMETERS = ['SCOPE_MODEL'];
 
 function blocks(text, file) {
   const out = {};
@@ -72,6 +74,17 @@ describe('workflows shared blocks', () => {
         assert.match(text, new RegExp(`^const ${p} = `, 'm'), `${f} declares ${p}`);
         assert.doesNotMatch(inside, new RegExp(`^const ${p} = `, 'm'), `${f}: ${p} is declared inside a shared block`);
         assert.match(parsed[f].dedupe.body.join('\n'), new RegExp(`\\b${p}\\b`), `the dedupe block reads ${p}`);
+      }
+    }
+  });
+
+  test('the models block reads SCOPE_MODEL, which each workflow declares outside the shared blocks', () => {
+    for (const f of files) {
+      const inside = Object.values(parsed[f]).flatMap((b) => b.body).join('\n');
+      for (const p of MODEL_PARAMETERS) {
+        assert.match(fs.readFileSync(path.join(workflowsDir, f), 'utf8'), new RegExp(`^const ${p} = '(haiku|sonnet|opus)'`, 'm'), `${f} declares ${p}`);
+        assert.doesNotMatch(inside, new RegExp(`^const ${p} = `, 'm'), `${f}: ${p} is declared inside a shared block`);
+        assert.match(parsed[f].models.body.join('\n'), new RegExp(`\\b${p}\\b`), `the models block reads ${p}`);
       }
     }
   });

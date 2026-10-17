@@ -162,7 +162,7 @@ describe('scripts/apply-overlay.mjs on a stand-in template', () => {
 
   test('every template file listed in templates/README.md landed (or merged), placeholders substituted', () => {
     const listed = [...templatesReadme.matchAll(/^\| `([^`{}]+)` \|/gm)].map((m) => m[1]).filter((f) => f !== 'docs/README-docs-map.md');
-    for (const f of listed) assert.ok(fs.existsSync(path.join(dir, f)), `${f} exists in the scaffold`);
+    for (const f of listed) assert.ok(fs.existsSync(path.join(dir, f.replace(/^server\//, ''))), `${f} exists in the scaffold (server/ at the server dir)`);
     const survivors = [];
     for (const f of Object.keys(snapshot(dir))) for (const m of read(f).matchAll(PLACEHOLDER)) survivors.push(`${f}: {{${m[1]}}}`);
     assert.deepEqual([...new Set(survivors)].sort(), ['.github/workflows/secret-scan.yml: {{GITLEAKS_SHA256}}', '.github/workflows/secret-scan.yml: {{GITLEAKS_VERSION}}']);

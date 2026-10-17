@@ -16,15 +16,23 @@ command -v claude >/dev/null 2>&1 || exit 0
 
 installed="$(claude plugin list 2>/dev/null || true)"
 
-if ! grep -q 'shopify-app-kit' <<<"$installed"; then
-  echo "kit-bootstrap: installing shopify-app-kit"
-  claude plugin marketplace add loboroboticos/shopify-app-kit >/dev/null 2>&1 || echo "kit-bootstrap: marketplace add failed (network?); the vendored guards still fire"
-  claude plugin install shopify-app-kit@shopify-app-kit >/dev/null 2>&1 || echo "kit-bootstrap: plugin install failed (network?); the vendored guards still fire"
+if ! grep -q 'shopify-app-kit@shopify-app-kit' <<<"$installed"; then
+  claude plugin marketplace add loboroboticos/shopify-app-kit >/dev/null 2>&1 || true
+  if claude plugin install -y shopify-app-kit@shopify-app-kit >/dev/null 2>&1; then
+    echo "kit-bootstrap: shopify-app-kit installed; its doctor and skills load from the next session (the vendored guards already fire)"
+  else
+    echo "kit-bootstrap: shopify-app-kit install failed (marketplace unreachable, or the CLI refused); the vendored guards still fire"
+  fi
 fi
 
+# Where the claude-plugins-official marketplace is not configured (cloud containers ship the built-in directory
+# instead), the bare name installs the companion from whichever configured marketplace carries it.
 if ! grep -q 'shopify-ai-toolkit' <<<"$installed"; then
-  echo "kit-bootstrap: installing shopify-ai-toolkit"
-  claude plugin install shopify-ai-toolkit@claude-plugins-official >/dev/null 2>&1 || echo "kit-bootstrap: shopify-ai-toolkit install failed (network?)"
+  if claude plugin install -y shopify-ai-toolkit@claude-plugins-official >/dev/null 2>&1 || claude plugin install -y shopify-ai-toolkit >/dev/null 2>&1; then
+    echo "kit-bootstrap: shopify-ai-toolkit installed; the kit's skills use it from the next session"
+  else
+    echo "kit-bootstrap: shopify-ai-toolkit install failed (network, or no configured marketplace carries it); the kit's skills work without it"
+  fi
 fi
 
 # TELEMETRY OPT-OUT: the companion plugin reports usage unless this file exists. Delete this line to opt in.

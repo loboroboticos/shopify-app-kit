@@ -1,7 +1,7 @@
 // test/docs-consistency.test.mjs (shopify-app-kit template)
 // Keeps the docs map honest. Reads docs.mapFile, docs.mapHeading and docs.adrDir from .claude/shopify-app.json.
 // Fails when a file under docs/ is missing from the map, when a path the map names does not exist, when a
-// reference doc carries a dated heading (dates belong in docs/history/ or a date-named planning file), and
+// reference doc carries a dated heading (superseded text is deleted; docs/history/ keeps post-mortems), and
 // when an ADR file has no row in the ADR index. The allowlists only shrink: a second test fails when an entry
 // no longer needs to be there. Every failure message names the repair.
 import { test, describe } from 'node:test';
@@ -77,7 +77,7 @@ describe('docs map', () => {
       const lines = fs.readFileSync(path.join(root, f), 'utf8').split(/\r?\n/);
       lines.forEach((l, i) => { if (DATED_HEADING.test(l)) hits.push(`${f}:${i + 1} ${l}`); });
     }
-    assert.deepEqual(hits, [], `a reference doc states the current rule and carries no date; move the dated text to ${HISTORY_DIR}/<YYYY-MM>-<topic>.md (or a date-named planning file) and leave a link:\n  ${hits.join('\n  ')}`);
+    assert.deepEqual(hits, [], `a reference doc states the current rule and carries no date; delete superseded or dated text in this PR (the PR description is the record; ${HISTORY_DIR}/ keeps only post-mortems and ADR-grade decisions):\n  ${hits.join('\n  ')}`);
   });
 
   test('every ADR record has a row in the ADR index', () => {

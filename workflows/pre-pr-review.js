@@ -16,11 +16,12 @@ export const meta = {
 // every blocker and major to a skeptic that tries to refute it, and returns one verdict on the review skill's
 // scale (block | changes-needed | approve). The launching session reports; nobody posts to the PR.
 //
-// args (all optional): a base-branch string, or { base, pr, reviewers, all }
+// args (all optional): a base-branch string, or { base, pr, reviewers, all, models }
 //   base       review against this branch instead of the manifest's choice
 //   pr         a PR number; its base and body are used
 //   reviewers  restrict the roster to these agent names
 //   all        true forces the stack reviewers to run even when the diff does not touch their files
+//   models     per-role model overrides: { scope, reviewer, skeptic, judgment }
 
 // @shared constants
 const SEVERITIES = ['blocker', 'major', 'minor', 'note']
@@ -41,6 +42,15 @@ const ROSTER = [
 ]
 
 const opts = typeof args === 'string' ? { base: args } : (args && typeof args === 'object' ? args : {})
+
+const SCOPE_MODEL = 'haiku' // the scoping pass's default model
+// Every agent() names its model by role; args.models ({ scope, reviewer, skeptic, judgment }, model names) overrides any.
+// @shared models
+const JUDGMENT = new Set(['design-review-architecture', 'design-review-feasibility', 'design-review-product-intent', 'design-review-risk-governance', 'qa-review-divergence-hunter', 'qa-review-security-governance'])
+const MODELS = { scope: SCOPE_MODEL, reviewer: 'sonnet', skeptic: 'sonnet', judgment: 'opus' }
+for (const [k, v] of Object.entries(opts.models && typeof opts.models === 'object' ? opts.models : {})) if (k in MODELS && typeof v === 'string' && v) MODELS[k] = v
+const modelFor = (name) => (JUDGMENT.has(name) ? MODELS.judgment : MODELS.reviewer)
+// @end
 
 const SCOPE_SCHEMA = {
   type: 'object',
@@ -129,7 +139,7 @@ in the structured shape requested.
 7. refsResolved: true only when \`git rev-parse --verify <baseRef>\` succeeded and the diff ran; false when the base
    ref is missing or the diff failed (an empty changedFiles then means "unknown", not "no changes").
 8. notes: anything a reviewer should know (no manifest, gh missing, base ref missing, diff empty).`,
-  { label: 'scope', phase: 'Scope', effort: 'low', schema: SCOPE_SCHEMA })
+  { label: 'scope', phase: 'Scope', effort: 'low', model: MODELS.scope, schema: SCOPE_SCHEMA })
 
 if (!scope) throw new Error('scoping pass returned nothing; cannot choose a base or a roster')
 if (!scope.refsResolved) {
@@ -180,7 +190,7 @@ An empty findings list still needs the headline and the checked paragraph.`
 // Review: a barrier is right here, because dedupe below needs every reviewer's findings at once.
 phase('Review')
 const reports = await parallel(selected.map((r) => () =>
-  agent(context, { agentType: `shopify-app-kit:${r.name}`, label: r.name, phase: 'Review', schema: FINDINGS_SCHEMA })
+  agent(context, { agentType: `shopify-app-kit:${r.name}`, label: r.name, phase: 'Review', model: modelFor(r.name), schema: FINDINGS_SCHEMA })
     .then((out) => ({ name: r.name, out }))))
 
 const ran = []
@@ -250,7 +260,7 @@ Proposed fix: ${f.fix}
 Return refuted=true only when you can show, with evidence from the checkout, that every claim listed is wrong,
 already handled, or out of this branch's scope (pre-existing and untouched). Return refuted=false when any claim
 stands, even partly. Either way give the reason and the severity you would assign (blocker | major | minor | note).`,
-    { label: `verify:${f.file ? f.file.split('/').pop() : 'whole'}#${i + 1}`, phase: 'Verify', schema: VERDICT_SCHEMA })))
+    { label: `verify:${f.file ? f.file.split('/').pop() : 'whole'}#${i + 1}`, phase: 'Verify', model: MODELS.skeptic, schema: VERDICT_SCHEMA })))
 
 // @shared skeptic-apply
 const refuted = []

@@ -8,8 +8,8 @@
 ## Docs map
 
 One row per file under `docs/`. One owner per fact: a fact is stated in its owning document and linked from
-everywhere else, never restated. Reference documents state the current rule and carry no dates; history goes
-to `docs/history/` with the date in the file name; decisions go to `docs/adr/` as one record each.
+everywhere else, never restated. Reference documents state the current rule and carry no dates; superseded text
+is deleted in the PR that supersedes it; decisions go to `docs/adr/` as one record each.
 
 | Document | Owns | Kind |
 | --- | --- | --- |
@@ -19,6 +19,6 @@ to `docs/history/` with the date in the file name; decisions go to `docs/adr/` a
 | `docs/billing.md` | The billing method, plan and tier names, the test flag, the reconcile job | reference |
 | `docs/adr/README.md` | The decision index; each numbered record under `docs/adr/` owns one decision | index |
 | `docs/adr/SEEDS.md` | The decisions still to be taken before Phase 1; shrinks as records are written | index |
-| `docs/history/` | Dated files: incidents, superseded rules, migrations of the docs themselves | history |
+| `docs/history/` | Dated files: post-mortems and ADR-grade decisions only; superseded text is deleted, not moved here | history |
 
 <!-- Rows for files that do not exist yet are a plan; delete them or create the file before merging. -->

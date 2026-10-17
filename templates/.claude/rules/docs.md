@@ -14,8 +14,9 @@ paths:
 - One document owns each fact. Find the owner in the docs map (`docs.mapFile`, under `docs.mapHeading`) before
   writing; every other mention links to it and never restates it. A new file under `docs/` gets its row in
   the same PR (`test/docs-consistency.test.mjs` fails otherwise).
-- Reference docs state the current rule and carry no dates, incidents, run ids or closed issue numbers. Dated
-  text goes to `docs/history/<YYYY-MM>-<topic>.md`; the test rejects a dated heading in a reference doc.
+- Reference docs state the current rule and carry no dates, incidents, run ids or closed issue numbers; the test
+  rejects a dated heading. Superseded text is deleted in the PR that supersedes it (the PR description is the
+  record); `docs/history/` keeps only post-mortems and ADR-grade decisions.
 - Before adding "never do X", name the hook, tripwire or CI step that enforces it, or write the check.
 - CLAUDE.md stays under 200 lines and holds only what a session needs most of the time; mechanics go to a
   path-scoped file here in `.claude/rules/`.

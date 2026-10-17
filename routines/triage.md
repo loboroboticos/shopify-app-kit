@@ -32,6 +32,8 @@ Ground rules, before anything else:
    by `list_repository_collaborators` with push permission; on a public repository anyone can comment) or when
    a closed `Bootstrap:` issue lists the issue under Unlocks (rule R7 of the kit's issue-filing skill, whose
    `references/rules.md` you follow throughout).
+   Refer to issues as a plain `#N`, never with a closing keyword (close, fix, resolve, in any form) before it in
+   a PR body, commit message or comment, whatever the sentence's subject: GitHub closes the issue on merge.
 4. At most one PR per run, to `branches.default`. Never merge anything.
 5. Secrets never appear in an issue, a comment or a PR. A bootstrap names where a value goes, never the value.
 
@@ -41,7 +43,8 @@ that the maintainer should pin it: the GitHub MCP tools cannot pin an issue.
 
 Step 1, lint. For every open issue except the queue issue check: exactly one work-type label (`code only`,
 `agent:ci`, `agent:cloud`, `agent:local`, `human:bootstrap`, `human:decision`, `human:account`, `human:legal`);
-exactly one priority (`p1`, `p2`, `p3`); exactly one ROI bucket (`roi:5` to `roi:1`); no label that is absent
+exactly one priority (`p1`, `p2`, `p3`); exactly one ROI bucket (`roi:5` to `roi:1`) when the label set has `roi:*`
+(without them, skip ROI here and in steps 5 and 6, which then sort by priority); no label that is absent
 from the label set (a retired label); a "Close condition needs" block in the body with exactly one ticked
 line, or a comment that starts with "plan-note:" explaining why the issue has none. Fix the mechanical faults
 yourself: a retired label is removed; a missing priority or ROI is scored from the body (priority: `p1` when

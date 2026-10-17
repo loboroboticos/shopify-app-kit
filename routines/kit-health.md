@@ -30,6 +30,8 @@ Ground rules, before anything else:
    names one.
 3. This routine never closes a `human:*` issue and never relabels a `human:*` issue to `agent:*` or
    `code only` (rule R7 of the kit's issue-filing skill, whose `references/rules.md` you follow when filing).
+   Refer to issues as a plain `#N`, never with a closing keyword (close, fix, resolve, in any form) before it in
+   a PR body, commit message or comment, whatever the sentence's subject: GitHub closes the issue on merge.
 4. No PR from this routine. Issues only, and only after searching the open issues for the same title prefix
    (one open issue per finding family; comment on the match instead of filing again). A new issue comes from
    the work-item template, its "Close condition needs" block ticking the one line of the rung a step names (R2).

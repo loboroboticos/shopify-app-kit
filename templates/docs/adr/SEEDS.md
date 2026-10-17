@@ -31,7 +31,7 @@ Write one `NNNN-*.md` per entry before building anything that depends on it.
 10. **Deployment target.** Which platform, which release command runs migrations, does the app scale to zero
     before migrating, and where do the secrets live?
 11. **Billing method.** `app-pricing` (App Pricing, public apps only, no subscription webhooks) or
-    `billing-api` (legacy, functional, required for custom distribution)? What is the test posture?
+    `billing-api` (legacy, functional, public apps only; a custom-distribution app cannot bill through Shopify)? What is the test posture?
 12. **Distribution.** Public App Store or custom distribution? This is locked at registration creation; going
     public later is a new registration every merchant re-installs under.
 13. **Branch model.** One protected branch sessions PR into, or a default branch with a promotion PR to a

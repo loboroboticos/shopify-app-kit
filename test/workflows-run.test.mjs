@@ -425,3 +425,27 @@ describe('plan-review under a stub runtime', () => {
     assert.match(result.notes, /no plan to review/);
   });
 });
+
+// Every agent() names a model by role (#135): judgment for the six named agents, scope, reviewer, skeptic.
+describe('every agent() call names its model', () => {
+  const JUDGMENT = ['design-review-architecture', 'design-review-feasibility', 'design-review-product-intent', 'design-review-risk-governance', 'qa-review-divergence-hunter', 'qa-review-security-governance'];
+  const roleOf = (c) => (c.opts.label === 'scope' ? 'scope' : c.opts.label.startsWith('verify:') ? 'skeptic' : JUDGMENT.includes(c.opts.agentType.replace('shopify-app-kit:', '')) ? 'judgment' : 'reviewer');
+  const cases = [
+    ['pre-pr-review', 'haiku', () => runtime({ scope: baseScope, reviews: { 'qa-review-usability': { headline: 'h', checked: 'c', findings: [finding('major', 'x', 'a.ts', 1)] } }, verdicts: {} })],
+    ['release-readiness', 'haiku', () => runtime({ scope: releaseScope, reviewPhase: 'Dimensions', byLabel: true, reviews: { webhooks: { headline: 'h', checked: 'c', findings: [dimFinding('major', 'x', 'webhooks')] } }, verdicts: {} })],
+    ['plan-review', 'sonnet', () => runtime({ scope: planScope, reviews: { 'design-review-feasibility': { headline: 'h', checked: 'c', findings: [planFinding('major', 'x', 'Rollout')] } }, verdicts: {} })],
+  ];
+  for (const [name, scopeModel, make] of cases) {
+    test(`${name}: scope ${scopeModel}, judgment opus, reviewer and skeptic sonnet; args.models overrides`, async () => {
+      const rt = make();
+      await run(name, rt, name === 'plan-review' ? { plan: 'plan.md' } : {});
+      const want = { scope: scopeModel, reviewer: 'sonnet', skeptic: 'sonnet', judgment: 'opus' };
+      for (const r of ['scope', 'skeptic', 'judgment']) assert.ok(rt.calls.some((c) => roleOf(c) === r), `${name} launches a ${r} call`);
+      for (const c of rt.calls) assert.equal(c.opts.model, want[roleOf(c)], `${c.opts.label} (${roleOf(c)})`);
+      const over = make();
+      await run(name, over, { ...(name === 'plan-review' ? { plan: 'plan.md' } : {}), models: { scope: 'opus', reviewer: 'haiku', skeptic: 'haiku', judgment: 'sonnet', bogus: 'x' } });
+      const swapped = { scope: 'opus', reviewer: 'haiku', skeptic: 'haiku', judgment: 'sonnet' };
+      for (const c of over.calls) assert.equal(c.opts.model, swapped[roleOf(c)], `${c.opts.label} overridden`);
+    });
+  }
+});
