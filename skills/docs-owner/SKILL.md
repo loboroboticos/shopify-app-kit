@@ -21,9 +21,9 @@ record is in `references/adr-shape.md`.
    add it to the map in the same change (the map is tripwired for completeness where the repo has the check).
 
 3. **State the current rule, not its history.** A reference doc says what is true now. Incident narratives,
-   dates, run ids, commit shas and closed issue numbers go to the PR description or a dated history file
-   (`docs/history/<YYYY-MM>-<topic>.md`). Superseded text moves to a history file with the date in its name
-   rather than being deleted. An issue number may trail a rule only while that issue is open.
+   dates, run ids, commit shas and closed issue numbers go to the PR description. Superseded text is deleted in
+   the PR that supersedes it (the PR description is the record); `docs/history/` keeps only post-mortems and
+   ADR-grade decisions. An issue number may trail a rule only while that issue is open.
 
 4. **Replace warnings with checks.** Before adding "never do X" to a doc, look in `checks.tripwireDir`, the vendored
    hooks and CI for something that already enforces it. If one exists, name the check instead of the warning. If
@@ -39,7 +39,7 @@ record is in `references/adr-shape.md`.
    alternative (`references/adr-shape.md`). Product decisions and tooling decisions live in separate series, each
    with an index of one row per record.
 
-7. **Report** which document owns the fact now, which mentions became pointers, what moved to history, and which
+7. **Report** which document owns the fact now, which mentions became pointers, what was deleted as superseded, and which
    check (if any) replaced a warning.
 
 ## References

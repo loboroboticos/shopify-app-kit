@@ -65,8 +65,8 @@ anyone can comment, so the author's permission is checked first), and a closed `
 
 ## R8: same pass, same PR
 
-A new issue gets its priority, its ROI bucket and, when the repo keeps a ranking doc, its row in that doc in
-the same pass and the same PR as the filing. A queue where half the issues are unscored cannot be sorted, and
+A new issue gets its priority, its ROI bucket (where the repo's label set has `roi:*`) and, when the repo keeps a
+ranking doc, its row in that doc in the same pass and the same PR as the filing. A queue where half the issues are unscored cannot be sorted, and
 the triage routine's lint reports every issue missing one of the three labels.
 
 ## R9: CI-filed issues

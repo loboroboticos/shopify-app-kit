@@ -43,7 +43,8 @@ that the maintainer should pin it: the GitHub MCP tools cannot pin an issue.
 
 Step 1, lint. For every open issue except the queue issue check: exactly one work-type label (`code only`,
 `agent:ci`, `agent:cloud`, `agent:local`, `human:bootstrap`, `human:decision`, `human:account`, `human:legal`);
-exactly one priority (`p1`, `p2`, `p3`); exactly one ROI bucket (`roi:5` to `roi:1`); no label that is absent
+exactly one priority (`p1`, `p2`, `p3`); exactly one ROI bucket (`roi:5` to `roi:1`) when the label set has `roi:*`
+(without them, skip ROI here and in steps 5 and 6, which then sort by priority); no label that is absent
 from the label set (a retired label); a "Close condition needs" block in the body with exactly one ticked
 line, or a comment that starts with "plan-note:" explaining why the issue has none. Fix the mechanical faults
 yourself: a retired label is removed; a missing priority or ROI is scored from the body (priority: `p1` when

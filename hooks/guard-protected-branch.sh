@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shopify-app-kit v0.17.7
+# shopify-app-kit v0.18.0
 # hooks/guard-protected-branch.sh: PreToolUse(Bash and GitHub MCP) guard that keeps a session off the protected branches named in
 # .claude/shopify-app.json (branches.protected, branches.default, branches.promotion, deploy.protectedWorkflows).
 #
@@ -115,7 +115,7 @@ gh_jq() { local o; o="$( (cd "$cwd" 2>/dev/null && gh api "$1" --jq "$2" 2>/dev/
 
 # pr_base [SELECTOR] [-R REPO]: the PR's base branch, or nothing. gh pr view first; when it fails (a cloud session's
 # proxy refuses GraphQL with a 403), REST: a number or PR URL through pulls/<n>, a branch or no selector (the current
-# branch) through the one open PR with that head, on -R REPO or the origin remote's repository.
+# branch) through the one open PR with that head, on -R REPO or the checkout's repository (gh's {owner}/{repo}).
 pr_base() {
   local b sel="" r="" n="" br=""
   b="$( (cd "$cwd" 2>/dev/null && gh pr view "$@" --json baseRefName --jq .baseRefName 2>/dev/null) )" || b=""
@@ -274,7 +274,7 @@ check_gh_api() {
   local re_merge='pulls/([0-9]+)/merge([[:space:]?]|$)'
   local re_repo='repos/([^/{}[:space:]]+/[^/{}[:space:]]+)/pulls'
   local re_merges='/merges[[:space:]]'
-  local re_write='[[:space:]](-X|--method)[[:space:]=]*(PATCH|POST|PUT|DELETE)|[[:space:]](-f|-F|--field|--raw-field|--input)[[:space:]]'
+  local re_write='[[:space:]](-X|--method)[[:space:]=]*(PATCH|POST|PUT|DELETE)|[[:space:]](-[fF][^[:space:]]*|--(field|raw-field|input)([=[:space:]]|$))'
   if [[ "$joined" =~ $re_merge ]]; then
     n="${BASH_REMATCH[1]}"
     if [[ "$joined" =~ $re_repo ]]; then repo=(-R "${BASH_REMATCH[1]}"); fi
@@ -284,11 +284,12 @@ check_gh_api() {
   fi
   # A write (PUT, POST or PATCH; -f and friends without -X mean POST) to pulls/<n>/…auto_merge is a merge of PR n.
   local re_auto='pulls/([0-9]+)/([^[:space:]?]*/)?auto_merge([[:space:]?]|$)' re_method='[[:space:]](-X|--method)[[:space:]=]*([A-Za-z]+)' am=0
+  local re_field='[[:space:]](-[fF][^[:space:]]*|--(field|raw-field|input)([=[:space:]]|$))'
   if [[ "$joined" =~ $re_auto ]]; then
     n="${BASH_REMATCH[1]}"
     shopt -s nocasematch
     if [[ "$joined" =~ $re_method ]]; then case "${BASH_REMATCH[2]}" in put | post | patch) am=1 ;; esac
-    elif [[ "$joined" =~ [[:space:]](-f|-F|--field|--raw-field|--input)[[:space:]] ]]; then am=1; fi
+    elif [[ "$joined" =~ $re_field ]]; then am=1; fi
     shopt -u nocasematch
   fi
   if [ "$am" -eq 1 ]; then

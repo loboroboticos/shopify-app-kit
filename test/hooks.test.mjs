@@ -277,6 +277,7 @@ const protectedCases = [
   { fixture: npmRoot, cmd: 'gh api -X PUT repos/o/r/git/refs/heads/main -f sha=abc', exit: 2, stderr: /write to git\/refs\/heads\/main/ },
   { fixture: npmRoot, cmd: 'gh api --method=patch repos/o/r/git/refs/heads/main --input body.json', exit: 2, stderr: /write to git\/refs\/heads\/main/ },
   { fixture: npmRoot, cmd: 'gh api repos/o/r/merges -f base=main -f head=beta', exit: 2, stderr: /\/merges into main/ },
+  ...['gh api repos/o/r/git/refs/heads/main -fsha=abc', 'gh api repos/o/r/git/refs/heads/main --field=sha=abc'].map((cmd) => ({ fixture: npmRoot, cmd, exit: 2, stderr: /write to git\/refs\/heads\/main/ })),
   { fixture: npmRoot, cmd: "gh api graphql -f query='mutation { mergePullRequest(input: {}) { clientMutationId } }'", exit: 2, stderr: /mergePullRequest/ },
   { fixture: npmRoot, cmd: 'gh api -X PUT repos/o/r/pulls/12/merge', base: 'main', exit: 2, stderr: /merge of PR #12 into main/ },
   { fixture: npmRoot, cmd: 'gh api -X PUT repos/o/r/pulls/12/merge', base: '', exit: 2, stderr: /could not be resolved/ },
@@ -285,7 +286,7 @@ const protectedCases = [
     .flatMap(([cmd, ep]) => [{ fixture: npmRoot, cmd, cwd: onFeat, base: 'ERROR', paths: { [ep]: 'main' }, exit: 2, stderr: /into main/ }, { fixture: npmRoot, cmd, cwd: onFeat, base: 'ERROR', paths: { [ep]: 'beta' }, exit: 0 }]),
   { fixture: npmRoot, cmd: 'gh pr merge 12', base: 'ERROR', exit: 2, stderr: /base branch could not be resolved/ },
   // A write to pulls/<n>/…auto_merge is a merge of PR n; a read or a DELETE is not.
-  ...['gh api -X PUT repos/o/r/pulls/12/ccr/auto_merge', 'gh api --method=post repos/o/r/pulls/12/auto_merge', 'gh api repos/o/r/pulls/12/ccr/auto_merge -f merge_method=squash']
+  ...['gh api -X PUT repos/o/r/pulls/12/ccr/auto_merge', 'gh api --method=post repos/o/r/pulls/12/auto_merge', 'gh api repos/o/r/pulls/12/ccr/auto_merge -f merge_method=squash', 'gh api repos/o/r/pulls/12/ccr/auto_merge -fmerge_method=squash', 'gh api repos/o/r/pulls/12/auto_merge --field=merge_method=squash']
     .flatMap((cmd) => [{ fixture: npmRoot, cmd, base: 'main', exit: 2, stderr: /auto-merge of PR #12 into main/ }, { fixture: npmRoot, cmd, base: '', exit: 2, stderr: /auto-merge of PR #12: its base branch could not be resolved/ }, { fixture: npmRoot, cmd, base: 'beta', exit: 0 }]),
   ...['gh api repos/o/r/pulls/12/ccr/auto_merge', 'gh api -X DELETE repos/o/r/pulls/12/ccr/auto_merge'].map((cmd) => ({ fixture: npmRoot, cmd, base: 'main', exit: 0 })),
   { fixture: MISSING, cmd: 'git push origin beta', exit: 2, stderr: /manifest is missing or unreadable/ },

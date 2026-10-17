@@ -255,7 +255,7 @@ port rules).
 
 ### The pre-pr-review workflow
 
-`/shopify-app-kit:pre-pr-review [base | { "base", "pr", "reviewers", "all" }]` runs the diff-stage roster in one
+`/shopify-app-kit:pre-pr-review [base | { "base", "pr", "reviewers", "all", "models" }]` runs the diff-stage roster in one
 go (`workflows/pre-pr-review.js`, plain JavaScript loaded from the plugin): one cheap scoping agent picks the base
 the way the review skill does and lists the changed files; the roster runs in parallel (the stack reviewers only
 when the diff touches their files; `all: true` forces both); findings on the same file within three lines, or on
@@ -266,7 +266,7 @@ Nothing is posted to the PR and no file is modified.
 
 ### The release-readiness and plan-review workflows
 
-`/shopify-app-kit:release-readiness [{ "base", "head", "pr", "dimensions" }]` has the same three-phase shape,
+`/shopify-app-kit:release-readiness [{ "base", "head", "pr", "dimensions", "models" }]` has the same three-phase shape,
 applied to the promotion range (`branches.promotion.from` against `.to`, or the arguments). Only the dimensions
 the manifest enables run, each as one read-only kit agent: `api-version` (every pin file and toml carries
 `apiVersion.expected`), `webhooks` (every subscription has a handler; compliance handlers present), `migrations`
@@ -278,11 +278,16 @@ the manifest enables run, each as one read-only kit agent: `api-version` (every 
 dimension ran clean, else `go-with-notes`; the result carries the release checklist for the promotion PR body,
 ticked where a dimension passed or does not apply. The `release` skill runs it before opening the promotion PR.
 
-`/shopify-app-kit:plan-review <plan file | PR number | #issue | { "plan", "pr", "issue", "reviewers" }>` runs the
+`/shopify-app-kit:plan-review <plan file | PR number | #issue | { "plan", "pr", "issue", "reviewers", "models" }>` runs the
 four `design-review-*` agents on a plan that has not been built, with the manifest facts it touches and the ADR
 directory in their prompts; findings on the same section merge into one carrying both claims; the verdict is
 `rethink` on a surviving blocker, `revise` on a major or an uncovered lens, else `sound`, and the decisions the
 plan should record as ADRs (findings tagged `adr: true`) are listed separately.
+
+Every `agent()` call in the three workflows names its model by role: `judgment` (`opus`) for the four
+`design-review-*` agents, `qa-review-divergence-hunter` and `qa-review-security-governance`; `scope` (`haiku`,
+`sonnet` in plan-review); `reviewer` and `skeptic` (`sonnet`). `"models": { "scope", "reviewer", "skeptic",
+"judgment" }` overrides any role.
 
 ## Lessons
 

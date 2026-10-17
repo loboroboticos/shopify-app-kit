@@ -302,7 +302,7 @@ describe('templates/', () => {
     assert.match(text, /KNOWN_UNMAPPED = \[\]/);
     assert.match(text, /only shrink/);
     assert.match(text, /add a row to/);
-    assert.match(text, /move the dated text to/);
+    assert.match(text, /delete superseded or dated text in this PR/);
   });
 
   test('the ADR seeds name every decision a new app takes first', () => {

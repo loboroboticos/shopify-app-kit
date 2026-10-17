@@ -171,7 +171,7 @@ for (const file of templateFiles) {
 if (templateFiles.some((f) => fs.readFileSync(path.join(templatesDir, f), 'utf8').includes('{{GITLEAKS_'))) {
   todos.push('.github/workflows/secret-scan.yml: replace {{GITLEAKS_VERSION}} and {{GITLEAKS_SHA256}} with the release you pin and the linux_x64 tarball line of its checksums.txt.');
 }
-todos.push('shopify.web.toml: put `node --env-file-if-exists=.env scripts/assert-dev-db.mjs &&` first in the dev command, before `prisma migrate deploy`, and run it once to get the DEV_DATABASE_FINGERPRINT line for .env.');
+todos.push('the server dev command: put `node --env-file-if-exists=.env scripts/assert-dev-db.mjs &&` first, before `prisma migrate deploy`, and run it once to get the DEV_DATABASE_FINGERPRINT line for .env.');
 
 // dependabot.yml with the server at the repo root: the second npm block (the one whose comment says to drop it)
 // would duplicate the root block, so it goes; every other `directory: /.` becomes `directory: /`.
