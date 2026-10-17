@@ -446,6 +446,10 @@ describe('every agent() call names its model', () => {
       await run(name, over, { ...(name === 'plan-review' ? { plan: 'plan.md' } : {}), models: { scope: 'opus', reviewer: 'haiku', skeptic: 'haiku', judgment: 'sonnet', bogus: 'x' } });
       const swapped = { scope: 'opus', reviewer: 'haiku', skeptic: 'haiku', judgment: 'sonnet' };
       for (const c of over.calls) assert.equal(c.opts.model, swapped[roleOf(c)], `${c.opts.label} overridden`);
+      // a non-string or empty value, or an inherited name, never replaces a default
+      const junk = make();
+      await run(name, junk, { ...(name === 'plan-review' ? { plan: 'plan.md' } : {}), models: { scope: 42, reviewer: '', skeptic: null, judgment: { x: 1 }, toString: 'haiku', constructor: 'haiku' } });
+      for (const c of junk.calls) assert.equal(c.opts.model, want[roleOf(c)], `${c.opts.label} keeps its default`);
     });
   }
 });

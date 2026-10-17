@@ -41,7 +41,7 @@ repair string is the sync command (`/shopify-app-kit:sync`, `cp`, a script name)
 
 **Docs-map completeness.** Every document under the docs directory is named in the index that maps facts to
 owners, and every path the index names exists. A second assertion: no dated headings (`## 2026-08 ...`) in a
-reference doc, because dates belong in history files (the `docs-owner` skill's rule).
+reference doc, because dates belong in the PR description (the `docs-owner` skill's rule).
 
 **Scheduled-workflow liveness.** The ops ritual's hand-written list of scheduled workflows equals the set of
 files under `.github/workflows/` that carry `schedule:`. When someone adds a cron and forgets the ritual, or

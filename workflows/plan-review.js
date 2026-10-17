@@ -56,7 +56,7 @@ const SCOPE_MODEL = 'sonnet' // the scoping pass's default model
 // @shared models
 const JUDGMENT = new Set(['design-review-architecture', 'design-review-feasibility', 'design-review-product-intent', 'design-review-risk-governance', 'qa-review-divergence-hunter', 'qa-review-security-governance'])
 const MODELS = { scope: SCOPE_MODEL, reviewer: 'sonnet', skeptic: 'sonnet', judgment: 'opus' }
-for (const [k, v] of Object.entries(opts.models && typeof opts.models === 'object' ? opts.models : {})) if (k in MODELS && typeof v === 'string' && v) MODELS[k] = v
+for (const [k, v] of Object.entries(opts.models && typeof opts.models === 'object' ? opts.models : {})) if (Object.hasOwn(MODELS, k) && typeof v === 'string' && v) MODELS[k] = v
 const modelFor = (name) => (JUDGMENT.has(name) ? MODELS.judgment : MODELS.reviewer)
 // @end
 

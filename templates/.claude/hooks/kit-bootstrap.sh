@@ -4,8 +4,12 @@
 # registers the kit but nothing installs it until `claude plugin install` has run once; this hook does that
 # when the kit is absent, installs the official Shopify companion plugin when absent, writes its telemetry
 # opt-out, and installs the graphify companion (a pip package plus a user-level skill, pinned to the release
-# the kit's doctor names) when absent. It never fails the session: every network step is best-effort and the
-# exit code is always 0. Local sessions are left alone (the maintainer installs plugins deliberately).
+# the kit's doctor names) when absent. A kit already installed (a cloud home can carry an old plugin cache into every
+# session) is refreshed: marketplace update, then plugin update, with one line naming the version before and after.
+# The refreshed plugin's hooks and skills load from the next session; a sync in this same session copies the vendored
+# hooks from the refreshed cache directory and runs that directory's doctor.sh directly. It never fails the session:
+# every network step is best-effort and the exit code is always 0. Local sessions are left alone (the maintainer
+# installs plugins deliberately).
 set -uo pipefail
 
 # The graphify release the kit tested; hooks/doctor.sh in the kit names the same version in its install hint.
@@ -16,12 +20,29 @@ command -v claude >/dev/null 2>&1 || exit 0
 
 installed="$(claude plugin list 2>/dev/null || true)"
 
+# kit_version: the installed kit's version, from the install path installed_plugins.json records; "unknown" without jq.
+kit_version() {
+  local f="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/plugins/installed_plugins.json" dir v=""
+  if command -v jq >/dev/null 2>&1 && [ -f "$f" ]; then
+    dir="$(jq -r '(.plugins["shopify-app-kit@shopify-app-kit"] // [])[0].installPath // empty' "$f" 2>/dev/null)"
+    [ -z "$dir" ] || v="$(jq -r '.version // empty' "$dir/.claude-plugin/plugin.json" 2>/dev/null)"
+  fi
+  printf '%s' "${v:-unknown}"
+}
+
 if ! grep -q 'shopify-app-kit@shopify-app-kit' <<<"$installed"; then
   claude plugin marketplace add loboroboticos/shopify-app-kit >/dev/null 2>&1 || true
   if claude plugin install -y shopify-app-kit@shopify-app-kit >/dev/null 2>&1; then
     echo "kit-bootstrap: shopify-app-kit installed; its doctor and skills load from the next session (the vendored guards already fire)"
   else
     echo "kit-bootstrap: shopify-app-kit install failed (marketplace unreachable, or the CLI refused); the vendored guards still fire"
+  fi
+else
+  before="$(kit_version)"
+  if claude plugin marketplace update shopify-app-kit >/dev/null 2>&1 && claude plugin update -y shopify-app-kit@shopify-app-kit >/dev/null 2>&1; then
+    echo "kit-bootstrap: shopify-app-kit $before -> $(kit_version); a newer version loads from the next session"
+  else
+    echo "kit-bootstrap: shopify-app-kit $before kept (marketplace or plugin update failed); the vendored guards still fire"
   fi
 fi
 

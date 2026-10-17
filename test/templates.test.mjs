@@ -8,6 +8,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { schema, validate } from './lib/schema-validate.mjs';
 import { kitRoot, walk } from './lib/fs.mjs';
@@ -272,6 +273,36 @@ describe('templates/', () => {
   test('server/scripts/assert-dev-db.mjs passes its own node --test suite', () => {
     const r = spawnSync(process.execPath, ['--test', path.join(templatesDir, 'server/scripts/assert-dev-db.test.mjs')], { encoding: 'utf8' });
     assert.equal(r.status, 0, r.stdout + r.stderr);
+  });
+
+  test('kit-bootstrap.sh refreshes an installed kit: marketplace update, plugin update, one before/after line, exit 0', () => {
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), 'kit-bootstrap-home-'));
+    const bin = path.join(home, 'bin');
+    const cache = path.join(home, 'cache');
+    fs.mkdirSync(path.join(cache, '.claude-plugin'), { recursive: true });
+    fs.mkdirSync(path.join(home, '.claude', 'plugins'), { recursive: true });
+    fs.mkdirSync(path.join(home, '.claude', 'skills', 'graphify'), { recursive: true });
+    fs.writeFileSync(path.join(home, '.claude', 'skills', 'graphify', 'SKILL.md'), '');
+    fs.writeFileSync(path.join(home, '.claude', 'plugins', 'installed_plugins.json'), JSON.stringify({ version: 2, plugins: { 'shopify-app-kit@shopify-app-kit': [{ scope: 'user', installPath: cache }] } }));
+    const plugin = path.join(cache, '.claude-plugin', 'plugin.json');
+    // A fake claude: both plugins listed, every call logged, `plugin update` moves the cache to 0.18.1 unless told to fail.
+    fs.mkdirSync(bin);
+    fs.writeFileSync(path.join(bin, 'claude'), `#!/usr/bin/env bash\necho "$*" >> "${home}/calls"\ncase " $* " in\n  *' plugin list '*) printf 'shopify-app-kit@shopify-app-kit\\nshopify-ai-toolkit@claude-plugins-official\\n' ;;\n  *' plugin update '*) [ -z "\${FAIL_UPDATE:-}" ] || exit 1; printf '{"version":"0.18.1"}' > "${plugin}" ;;\nesac\n`, { mode: 0o755 });
+    const run = (env = {}) => {
+      fs.writeFileSync(plugin, '{"version":"0.18.0"}');
+      fs.rmSync(path.join(home, 'calls'), { force: true });
+      return spawnSync('bash', [path.join(templatesDir, '.claude/hooks/kit-bootstrap.sh')], { encoding: 'utf8', env: { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH}`, HOME: home, CLAUDE_CONFIG_DIR: '', CLAUDE_CODE_REMOTE: '1', ...env } });
+    };
+    const ok = run();
+    assert.equal(ok.status, 0, ok.stderr);
+    assert.match(ok.stdout, /^kit-bootstrap: shopify-app-kit 0\.18\.0 -> 0\.18\.1; a newer version loads from the next session$/m);
+    const calls = fs.readFileSync(path.join(home, 'calls'), 'utf8');
+    assert.match(calls, /^plugin marketplace update shopify-app-kit\nplugin update -y shopify-app-kit@shopify-app-kit$/m);
+    assert.doesNotMatch(calls, /plugin install/);
+    const failed = run({ FAIL_UPDATE: '1' });
+    assert.equal(failed.status, 0);
+    assert.match(failed.stdout, /^kit-bootstrap: shopify-app-kit 0\.18\.0 kept \(marketplace or plugin update failed\)/m);
+    fs.rmSync(home, { recursive: true, force: true });
   });
 
   test('.claudeignore keeps graphify-out/ out of context and says where it lives', () => {

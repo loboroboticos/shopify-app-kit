@@ -10,7 +10,8 @@
 // Exit: 0 the declared database matches · 1 no DATABASE_URL · 2 no pin, or a pin that does not match.
 // Its test: scripts/assert-dev-db.test.mjs (node --test).
 import { createHash } from 'node:crypto';
-import { pathToFileURL } from 'node:url';
+import { realpathSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 
 /** The truncated one-way fingerprint of a connection string: short enough to eyeball, ample against collision. */
 export function fingerprint(url) {
@@ -59,8 +60,10 @@ export function checkDevDatabase({ url, pinned }) {
   return { ok: true, code: 0, message: `dev database ${where} (${actual}) is the declared one; proceeding.` };
 }
 
-// Only as a CLI, so a test can import the helpers without reading the environment.
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+// Only as a CLI, so a test can import the helpers without reading the environment. Both sides resolve symlinks: a
+// linked invocation that compared unequal would skip the check and exit 0 (fail open).
+const real = (p) => { try { return realpathSync(p); } catch { return p; } };
+if (process.argv[1] && real(process.argv[1]) === real(fileURLToPath(import.meta.url))) {
   const result = checkDevDatabase({ url: process.env.DATABASE_URL, pinned: process.env.DEV_DATABASE_FINGERPRINT });
   if (result.ok) console.log(`[dev-db] ${result.message}`);
   else {

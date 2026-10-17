@@ -23,7 +23,8 @@ const CONSUMER_READS = ['.claude/shopify-app.json', 'branches.default', 'branche
 const KIT_READS = ['not a consumer', 'labels.json', 'git remote', '.claude/rules/kit.md', 'npm test', 'test/budget', 'kit.portfolioId', 'never pushes to `main`'];
 const NEVER_CLOSES = 'never closes a `human:*` issue';
 const NO_KEYWORD = 'never with a closing keyword';
-const CLOSING_KEYWORD = /\b(close[sd]?|fix(e[sd])?|resolve[sd]?)\s+#/i;
+// GitHub also reads a colon after the keyword and a cross-repository reference (`Closes: #N`, `fixes owner/repo#N`).
+const CLOSING_KEYWORD = /\b(close[sd]?|fix(e[sd])?|resolve[sd]?):?\s+([\w.-]+\/[\w.-]+)?#\d/i;
 const CRON = /^(\S+ ){4}\S+$/;
 // A repository literal: a github.com URL, an <owner>/<repo> after a --repo/-R flag, or a .git remote; the
 // placeholders `<owner>/<repo>` and the kit's own manifest paths are fine.

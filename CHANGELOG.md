@@ -5,6 +5,37 @@ vendored hook carries it on line 2 (`# shopify-app-kit vX.Y.Z`). A version that 
 `### Deprecated`; the next minor deletes it and lists it under `### Removed` (`kit-dev`: "Remove a skill, agent,
 hook, workflow or routine").
 
+## 0.18.1
+
+Fixes from the review of 0.18.0.
+
+- `guard-protected-branch`: a value attached to its field flag (`-fbase=main`, `-fref=refs/heads/main`,
+  `-Fbranch=main`) is checked like a spaced one; 0.18.0's note that the ref and contents checks caught `-fsha=` held
+  for the write, not for an attached value (#147).
+- `guard-protected-branch`: the method is the last `-X` / `--method`, also inside a short-flag cluster (`-iX PUT`),
+  and a field flag in a cluster (`-if`) means POST; `-X GET` with fields stays a read. This decides the auto-merge
+  route and every write check (#148).
+- `guard-protected-branch`: the head lookup sends `state` and `head` as fields, so gh encodes a `#` or `+` in a
+  branch name, and a `null` base (or two open PRs with that head) is unresolved, never unprotected (#149).
+- `test/hooks.test.mjs`: the fake `gh` applies the real `--jq` filter to canned JSON; new cases for MCP
+  `enable_pr_auto_merge` and the auto-merge route on the GraphQL-403 path, the `'#12'`, `-R o/r 12`, `o:feat`,
+  `feat/x` and bare-branch selectors, and `automerged-thing` / `auto_merged` / `-X GET … -f` as non-merges (#151).
+- `templates/server/scripts/assert-dev-db.mjs`: the check runs when invoked through a symlink (it exited 0 without
+  checking); its suite spawns the CLI for exit 0, 1 and 2 and through a link (#146).
+- `templates/.claude/hooks/kit-bootstrap.sh`: an installed kit is refreshed (`claude plugin marketplace update`,
+  then `claude plugin update -y`) with one line naming the version before and after; a cloud home that carries an
+  old plugin cache no longer pins every session to it (#154).
+- `test/routines.test.mjs` also rejects `Closes: #N` and `owner/repo#N`; the workflows' `@shared models` block
+  takes only own role names and string values (tested); the doctor's graphify test no longer sees a real
+  `graphify` on PATH (#153).
+- Stale text from 0.18.0's docs and ROI rules: the docs-2 lesson, `tripwire-patterns.md`, triage step 1,
+  issue-filing step 6 and R8, the `labels.json` comment, and the ADR's doctor claim and decision list (#152).
+
+### Budget
+
+`hooks/` 1800 → 1830, `templates/` 1230 → 1285, `test/` 3690 → 3750 and `CHANGELOG.md` 1040 → 1075 for the fixes the
+0.18.0 review found, their cases, and this section (#150).
+
 ## 0.18.0
 
 The first consumer's K1 fixes: merges resolve their base in a cloud session, the auto-merge route is guarded, every
@@ -18,7 +49,7 @@ workflow agent names its model, and the templates, lessons and routine prompts s
 - `guard-protected-branch`: a `PUT`, `POST` or `PATCH` to `pulls/<n>/…auto_merge` (a proxy-provided REST route that
   enables auto-merge) is a merge of PR n: blocked into a protected base and when the base cannot be resolved; a read
   or a `DELETE` passes. A field flag written without a space (`-fsha=…`, `--field=k=v`) now counts as a write here
-  and for the ref and contents checks, which it slipped past before (#134).
+  and for the ref and contents checks; a value attached to it (`-fbase=main`) was still missed, fixed in 0.18.1 (#134).
 - `pre-pr-review`, `release-readiness`, `plan-review`: every `agent()` names its model by role (`@shared models`):
   `judgment` (`opus`) for the four `design-review-*` agents, `qa-review-divergence-hunter` and
   `qa-review-security-governance`; `scope` (`haiku`, `sonnet` in plan-review); `reviewer` and `skeptic` (`sonnet`).

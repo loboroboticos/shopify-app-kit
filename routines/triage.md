@@ -47,7 +47,7 @@ exactly one priority (`p1`, `p2`, `p3`); exactly one ROI bucket (`roi:5` to `roi
 (without them, skip ROI here and in steps 5 and 6, which then sort by priority); no label that is absent
 from the label set (a retired label); a "Close condition needs" block in the body with exactly one ticked
 line, or a comment that starts with "plan-note:" explaining why the issue has none. Fix the mechanical faults
-yourself: a retired label is removed; a missing priority or ROI is scored from the body (priority: `p1` when
+yourself: a retired label is removed; a missing priority (or ROI, with `roi:*`) is scored from the body (`p1` when
 it gates a real install or protects money or data, `p2` when unblocked and planned, `p3` when it is deploy
 work, blocked, or nice-to-have; ROI: value divided by effort into five buckets); two work-type labels where
 one is `human:*` keep the `human:*` one. Everything else (no ticked line, a rung you cannot determine, a body

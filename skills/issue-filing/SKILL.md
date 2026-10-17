@@ -32,7 +32,7 @@ live, is in `references/executor-ladder.md`.
    text, any 2FA or payout step → `human:decision` or `human:account`, whatever a CLI could do); a decision
    with no options comment gets one, or the filer takes the reversible default and labels `code only` (R5).
 6. **Score in the same pass** (R8): one priority (`p1` gates a real install or protects money or data; `p2`
-   unblocked and planned; `p3` deploy, blocked or nice-to-have), one ROI bucket (`roi:5` … `roi:1`, value ÷
+   unblocked and planned; `p3` deploy, blocked or nice-to-have), one ROI bucket where the set has `roi:*` (value ÷
    effort; a bootstrap's value is the max of its Unlocks, its effort the maintainer's minutes), plus
    `launch-gate`, `blocked` or `deploy` when they apply, and a row in the ranking doc when the repo keeps one.
 7. **Closing or relabelling a `human:*` issue** (R7): a session closes it once the human work is done and its
