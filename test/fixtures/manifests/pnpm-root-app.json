@@ -11,7 +11,7 @@
   "webhooks": { "topics": ["app/uninstalled", "app/scopes_update"], "compliance": true },
   "scopes": { "required": ["read_products", "write_products"], "optional": [] },
   "deploy": { "targets": { "prod": { "fly": "sample-tool", "flyToml": "fly.toml", "workflow": "deploy.yml" } },
-              "protectedWorkflows": ["deploy.yml"], "scaleToZeroBeforeMigrate": false },
+              "protectedWorkflows": ["deploy.yml"], "scaleToZeroBeforeMigrate": false, "migrationGate": "release" },
   "billing": { "live": false, "testFlag": "BILLING_TEST" },
   "database": { "provider": "sqlite", "rls": false, "sharedDevDbWithBeta": false },
   "checks": { "tripwireDir": "test/claude" }

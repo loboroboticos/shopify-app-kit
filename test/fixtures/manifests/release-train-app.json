@@ -8,5 +8,5 @@
   "paths": { "server": ".", "shopifyServer": "app/shopify.server.ts", "appTomls": ["shopify.app.example.toml", "shopify.app.example-dev.toml"] },
   "apiVersion": { "expected": "2026-07", "pins": ["app/shopify.server.ts"] },
   "deploy": { "targets": { "prod": { "fly": "example-train", "flyToml": "fly.toml", "workflow": "fly-deploy.yml" } },
-              "protectedWorkflows": ["fly-deploy.yml"], "scaleToZeroBeforeMigrate": false }
+              "protectedWorkflows": ["fly-deploy.yml"], "scaleToZeroBeforeMigrate": false, "migrationGate": "hand-run" }
 }

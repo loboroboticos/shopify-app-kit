@@ -538,6 +538,7 @@ describe('guard-package-manager.sh', () => guardCases('guard-package-manager.sh'
 // ---------------------------------------------------------------------------------------------- guard-migrations
 // npm-root: scaleToZeroBeforeMigrate true, prisma-postgres shared with beta; pnpm-root: false, sqlite.
 // { fixture, cmd, cwd?, exit, stderr?, stdout? (regex the stdout must match when allowed; otherwise stdout must be empty) }
+const HAND_RUN = /^shopify-app-kit\/guard-migrations: deploy\.migrationGate is hand-run in \.claude\/shopify-app\.json; merging a migration does not apply it to production.*in the PR body .*migrations-and-zero-downtime\.md\)\.\n$/;
 const REMINDER = /^shopify-app-kit\/guard-migrations: deploy\.scaleToZeroBeforeMigrate is true in \.claude\/shopify-app\.json; scale the app to zero before prisma migrate deploy .*migrations-and-zero-downtime\.md\)\.\n$/;
 const migrationCases = [
   // ---- blocked: migrate reset under every prefix
@@ -595,7 +596,8 @@ const migrationCases = [
   { fixture: npmRoot, cmd: 'pnpm exec prisma migrate deploy', exit: 0, stdout: REMINDER },
   { fixture: npmRoot, cmd: 'cd web && npx prisma generate && npx prisma migrate deploy', exit: 0, stdout: REMINDER },
   { fixture: pnpmRoot, cmd: 'npx prisma migrate deploy', exit: 0 },
-  { fixture: releaseTrain, cmd: 'npx prisma migrate deploy', exit: 0 },
+  // deploy.migrationGate hand-run: one line saying merging does not apply it; release (pnpm fixture) prints nothing
+  { fixture: releaseTrain, cmd: 'npx prisma migrate deploy', exit: 0, stdout: HAND_RUN },
   { fixture: MISSING, cmd: 'npx prisma migrate deploy', exit: 0 },
   { fixture: MISSING, cmd: 'npx prisma migrate dev', exit: 0 },
   // ---- prose false positives: a heredoc body, an echo, a commit message, a file name

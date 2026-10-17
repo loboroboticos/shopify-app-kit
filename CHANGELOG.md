@@ -5,6 +5,17 @@ vendored hook carries it on line 2 (`# shopify-app-kit vX.Y.Z`). A version that 
 `### Deprecated`; the next minor deletes it and lists it under `### Removed` (`kit-dev`: "Remove a skill, agent,
 hook, workflow or routine").
 
+## 0.19.0
+
+- `deploy.migrationGate` (`release` / `ci` / `hand-run`, optional): how a migration reaches production. Under
+  `hand-run` an allowed `prisma migrate deploy` prints one `guard-migrations` reminder line: merging a migration does
+  not apply it, so the PR body lists it for the maintainer. `deploy.scaleToZeroBeforeMigrate` is unchanged and its
+  reminder can print alongside (#142).
+
+### Budget
+
+`hooks/` 1800 → 1805 and `CHANGELOG.md` 1040 → 1050 for the gate's reminder and this section (#142).
+
 ## 0.18.0
 
 The first consumer's K1 fixes: merges resolve their base in a cloud session, the auto-merge route is guarded, every

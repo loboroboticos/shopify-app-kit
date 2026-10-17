@@ -29,7 +29,9 @@ into a lock storm. The hosting platform's release command (`[deploy] release_com
 or the equivalent pre-start hook) runs once per deploy, before the new instances start.
 
 Rule: `prisma migrate deploy` in the release command; the app process never migrates. A tripwire asserts the
-hosting config carries the release command and the start script does not.
+hosting config carries the release command and the start script does not. `deploy.migrationGate` records which
+path the repo uses (`release`, `ci` for a protected workflow, or `hand-run`); under `hand-run` a merged migration
+is not live until the maintainer applies it, so the PR body lists it for them (`guard-migrations` reminds).
 
 ## Scale to zero before migrating when webhooks are in flight
 

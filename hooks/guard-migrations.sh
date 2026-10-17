@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# shopify-app-kit v0.18.0
+# shopify-app-kit v0.19.0
 # hooks/guard-migrations.sh: PreToolUse(Bash) guard that keeps destructive Prisma database commands out of an agent
-# session, driven by .claude/shopify-app.json (paths.prisma, deploy.scaleToZeroBeforeMigrate, database.*).
+# session, driven by .claude/shopify-app.json (paths.prisma, deploy.scaleToZeroBeforeMigrate, deploy.migrationGate, database.*).
 #
 #   prisma migrate reset                         blocked always (drops and recreates the database)
 #   prisma db push --force-reset|--accept-data-loss
@@ -9,7 +9,8 @@
 #   prisma db execute ... DROP DATABASE|DROP SCHEMA|TRUNCATE
 #                                                blocked when the command text carries one of those statements
 #   prisma migrate deploy                        allowed; one reminder line on stdout when the manifest sets
-#                                                deploy.scaleToZeroBeforeMigrate (a running app swallows webhooks)
+#                                                deploy.scaleToZeroBeforeMigrate (a running app swallows webhooks), and
+#                                                one when deploy.migrationGate is hand-run (merging does not apply it)
 #
 # Any prefix is seen through: npx / pnpx / bunx, pnpm exec / pnpm dlx, npm exec, yarn [dlx], bun x, a path to the
 # binary, or bare prisma. Everything else Prisma (migrate dev, migrate deploy, migrate status, migrate diff,
@@ -50,6 +51,7 @@ prisma_path=""
 provider=""
 shared_dev=""
 scale_to_zero=""
+migration_gate=""
 reminded=0
 RULE=""
 
@@ -70,6 +72,7 @@ manifest_read_or_skip() {
   kit_resolve_manifest "$cwd"
   kit_manifest_ok || return 1
   scale_to_zero="$(mf '.deploy.scaleToZeroBeforeMigrate // false')"
+  migration_gate="$(mf '.deploy.migrationGate // empty')"
   manifest_loaded=1
 }
 
@@ -97,9 +100,10 @@ check_prisma() {
       esac ;;
     "migrate deploy")
       # once per command: a command the walker also reads raw (a quoted blank, a separator) arrives twice
-      if [ "$reminded" -eq 0 ] && manifest_read_or_skip && [ "$scale_to_zero" = true ]; then
+      if [ "$reminded" -eq 0 ] && manifest_read_or_skip; then
         reminded=1
-        echo "shopify-app-kit/guard-migrations: deploy.scaleToZeroBeforeMigrate is true in .claude/shopify-app.json; scale the app to zero before prisma migrate deploy and back up after, or a running instance swallows webhook deliveries mid-migration (release skill: references/migrations-and-zero-downtime.md)."
+        [ "$scale_to_zero" != true ] || echo "shopify-app-kit/guard-migrations: deploy.scaleToZeroBeforeMigrate is true in .claude/shopify-app.json; scale the app to zero before prisma migrate deploy and back up after, or a running instance swallows webhook deliveries mid-migration (release skill: references/migrations-and-zero-downtime.md)."
+        [ "$migration_gate" != hand-run ] || echo "shopify-app-kit/guard-migrations: deploy.migrationGate is hand-run in .claude/shopify-app.json; merging a migration does not apply it to production: the maintainer runs prisma migrate deploy there by hand, so list the migration for the maintainer in the PR body (release skill: references/migrations-and-zero-downtime.md)."
       fi ;;
   esac
 }

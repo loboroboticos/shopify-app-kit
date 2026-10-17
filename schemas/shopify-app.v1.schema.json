@@ -147,7 +147,11 @@
           }
         },
         "protectedWorkflows": { "type": "array", "items": { "type": "string" } },
-        "scaleToZeroBeforeMigrate": { "type": "boolean" }
+        "scaleToZeroBeforeMigrate": { "type": "boolean" },
+        "migrationGate": {
+          "enum": ["release", "ci", "hand-run"],
+          "description": "How a migration reaches production. release: the host's release step runs prisma migrate deploy on deploy. ci: a protected workflow runs it. hand-run: the maintainer runs it against production by hand, so merging a migration does not apply it; guard-migrations prints a reminder on an allowed migrate deploy."
+        }
       }
     },
     "auth": {
