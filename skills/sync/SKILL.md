@@ -38,12 +38,12 @@ their logic, and touches nothing outside `.claude/`.
    ```json
    { "hooks": { "PreToolUse": [
      { "matcher": "Bash", "hooks": [
-         { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/kit/guard-shopify-cli.sh\"" },
-         { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/kit/guard-protected-branch.sh\"" },
-         { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/kit/guard-package-manager.sh\"" },
-         { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/kit/guard-migrations.sh\"" }
+         { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/kit/guard-shopify-cli.sh\"", "onFailure": "block" },
+         { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/kit/guard-protected-branch.sh\"", "onFailure": "block" },
+         { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/kit/guard-package-manager.sh\"", "onFailure": "block" },
+         { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/kit/guard-migrations.sh\"", "onFailure": "block" }
      ] },
-     { "matcher": "mcp__.*github.*", "hooks": [ { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/kit/guard-protected-branch.sh\"" } ] }
+     { "matcher": "mcp__.*github.*", "hooks": [ { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/kit/guard-protected-branch.sh\"", "onFailure": "block" } ] }
    ] } }
    ```
 

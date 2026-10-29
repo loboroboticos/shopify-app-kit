@@ -5,6 +5,24 @@ vendored hook carries it on line 2 (`# shopify-app-kit vX.Y.Z`). A version that 
 `### Deprecated`; the next minor deletes it and lists it under `### Removed` (`kit-dev`: "Remove a skill, agent,
 hook, workflow or routine").
 
+## 0.19.0
+
+A session whose checkout predates a manifest change on the default branch is held to it (app-1: a workflow newly
+added to `deploy.protectedWorkflows` was dispatchable from a session still on an older commit).
+
+- `guard-protected-branch`: `branches.protected` and `deploy.protectedWorkflows` are the union of this checkout's
+  manifest and the default branch's on origin, read lazily on the first guarded verb from a private bare repo under
+  `.git/kit/` (`--depth=1`; the session's clone is never made shallow), cached 120 s, each step bounded to 6 s. A
+  workflow's display name is also read from origin's copy. A protection origin removed stays enforced until the
+  checkout updates. Every block names what it checked. Origin unreachable with no copy ever: dispatch, rerun,
+  cancel, merge and auto-merge block, a push goes ahead on local protections. Bindings (config names, package
+  managers, the `shopifyCli` policies) stay local; when origin's differ, the next guarded call after a fetch adds a
+  drift notice through PreToolUse `additionalContext`, and the doctor prints a `Drift:` line.
+- Block wording: "a protected workflow", not "a production deploy".
+- Every guard registration (the `sync` snippet, `templates/.claude/settings.json`) sets `"onFailure": "block"`
+  (Claude Code hooks reference, v2.1.295+), so a guard that times out or crashes blocks; the doctor reports one
+  without it.
+
 ## 0.18.1
 
 Fixes from the review of 0.18.0.

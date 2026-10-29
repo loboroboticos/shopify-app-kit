@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shopify-app-kit v0.18.1
+# shopify-app-kit v0.19.0
 # hooks/doctor.sh: SessionStart briefing for a consumer repo. Validates .claude/shopify-app.json structurally
 # (required keys, enums, patterns of schema v1), prints one paragraph of facts to stdout, reports vendored-hook
 # drift and a kit.routines entry that is not a consumer routine this kit ships, checks the two companions (the
@@ -82,6 +82,11 @@ kv="$(mf '((.kit | objects) // {}).version // empty')"
 [ -n "$kv" ] && [ "$kv" != "$KIT_VERSION" ] && echo "Drift: the manifest's kit.version is $kv but the installed kit is v$KIT_VERSION; run /shopify-app-kit:sync."
 sref="$(mf '."$schema" // "" | strings | capture("shopify-app-kit/(?<r>[^/]+)/schemas/").r // empty' 2>/dev/null)"
 [ -n "$sref" ] && [ "$sref" != "v$KIT_VERSION" ] && echo "Drift: the manifest's \$schema points at $sref, not v$KIT_VERSION; /shopify-app-kit:sync repoints it."
+# The default branch's manifest on origin (lib.sh kit_origin_load, which also warms the guards' cache): a key a guard
+# reads that differs, or an origin that could not be fetched.
+kit_origin_load; od="$(kit_origin_drift)"
+[ -z "$od" ] || echo "Drift: this checkout's manifest differs from $kit_origin_src on $od; guard-protected-branch enforces the protections of both, every other key comes from this checkout. Update it unless this branch changes the manifest on purpose."
+case "$kit_origin" in stale | none) echo "Origin: the guards check $kit_origin_note." ;; esac
 
 mf '
   def s: if . == null then "-" else tostring end;
@@ -135,6 +140,9 @@ if [ -d "$hookdir" ]; then
   elif [ -f "$hookdir/guard-protected-branch.sh" ] && ! grep -q '"mcp__\.\*github' <<<"$settings"; then
     echo "Drift: .claude/settings.json does not register guard-protected-branch.sh for the GitHub MCP tools (matcher mcp__.*github.*), so an MCP push, merge or workflow run is unguarded. /shopify-app-kit:sync prints the snippet."
   fi
+  # "onFailure": "block" (Claude Code hooks reference): a guard that times out or crashes blocks instead of allowing.
+  nofail="$(jq -rs '[.[].hooks.PreToolUse[]?.hooks[]? | select((.command // "") | test("hooks/kit/guard-")) | select(.onFailure != "block") | .command | capture("(?<g>guard-[a-z-]+[.]sh)").g] | unique | join(" ")' <<<"$settings" 2>/dev/null)"
+  [ -z "$nofail" ] || echo "Drift: $nofail registered without \"onFailure\": \"block\", so a guard that times out or crashes lets the call through; /shopify-app-kit:sync prints the snippet."
 elif [ -n "$kv" ]; then
   echo "Drift: the manifest says kit.version $kv but $root/.claude/hooks/kit/ does not exist; run /shopify-app-kit:sync."
 fi
