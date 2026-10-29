@@ -23,6 +23,11 @@ added to `deploy.protectedWorkflows` was dispatchable from a session still on an
   (Claude Code hooks reference, v2.1.295+), so a guard that times out or crashes blocks; the doctor reports one
   without it.
 
+### Budget
+
+- A temporary raise the maintainer approved for app-1's stale-checkout guard: `hooks/` 1830 -> 1947, `test/` 3750 ->
+  TEST, `CHANGELOG.md` 1075 -> 1093. A ratchet-down follow-up is owed.
+
 ## 0.18.1
 
 Fixes from the review of 0.18.0.
