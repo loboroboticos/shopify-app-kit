@@ -7,26 +7,23 @@ hook, workflow or routine").
 
 ## 0.19.0
 
-A session whose checkout predates a manifest change on the default branch is held to it (app-1: a workflow newly
-added to `deploy.protectedWorkflows` was dispatchable from a session still on an older commit).
+A stale checkout is held to the default branch's manifest (app-1: a newly protected workflow was dispatchable).
 
 - `guard-protected-branch`: `branches.protected` and `deploy.protectedWorkflows` are the union of this checkout's
-  manifest and the default branch's on origin, read lazily on the first guarded verb from a private bare repo under
-  `.git/kit/` (`--depth=1`; the session's clone is never made shallow), cached 120 s, each step bounded to 6 s. A
-  workflow's display name is also read from origin's copy. A protection origin removed stays enforced until the
-  checkout updates. Every block names what it checked. Origin unreachable with no copy ever: dispatch, rerun,
-  cancel, merge and auto-merge block, a push goes ahead on local protections. Bindings (config names, package
-  managers, the `shopifyCli` policies) stay local; when origin's differ, the next guarded call after a fetch adds a
-  drift notice through PreToolUse `additionalContext`, and the doctor prints a `Drift:` line.
-- Block wording: "a protected workflow", not "a production deploy".
-- Every guard registration (the `sync` snippet, `templates/.claude/settings.json`) sets `"onFailure": "block"`
-  (Claude Code hooks reference, v2.1.295+), so a guard that times out or crashes blocks; the doctor reports one
-  without it.
+  and origin's default-branch manifest, read on the first guarded verb into a bare repo under `.git/kit/` (`--depth=1`,
+  never into the clone), cached 120 s, each step bounded to 6 s; display names come from origin's copy too. A
+  protection origin removed stays until the checkout updates, and every block names what it checked. Origin never
+  reached, no copy: dispatch, rerun, cancel and merge block, a push passes. Bindings and the `shopifyCli` policies
+  stay local; a fetch that finds origin's manifest different sends a drift notice (PreToolUse `additionalContext`)
+  and the doctor prints `Drift:`. Residual: a clone whose git auth lives only in its own `.git/config` falls back
+  to `refs/remotes/origin/<default>`. Blocks say "a protected workflow", not "a production deploy".
+- Every guard registration (the `sync` snippet, the settings template) sets `"onFailure": "block"` (Claude Code
+  2.1.295+), so a guard that times out or crashes blocks; the doctor reports one without it.
 
 ### Budget
 
-- A temporary raise the maintainer approved for app-1's stale-checkout guard: `hooks/` 1830 -> 1947, `test/` 3750 ->
-  TEST, `CHANGELOG.md` 1075 -> 1093. A ratchet-down follow-up is owed.
+- Temporary raise, approved by the maintainer for app-1's stale-checkout incident: `hooks/` 1830 -> 1950, `test/`
+  3750 -> 3830, `CHANGELOG.md` 1075 -> 1090. A ratchet-down follow-up is owed.
 
 ## 0.18.1
 

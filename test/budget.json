@@ -4,19 +4,19 @@
   "dirs": {
     "agents": 760,
     "docs": 190,
-    "hooks": 1947,
+    "hooks": 1950,
     "lessons": 200,
     "routines": 715,
     "schemas": 270,
     "scripts": 70,
     "skills": 3380,
     "templates": 1285,
-    "test": 3826,
+    "test": 3830,
     "workflows": 1035
   },
   "files": {
     "README.md": 400,
-    "CHANGELOG.md": 1093,
+    "CHANGELOG.md": 1090,
     ".claude/rules/kit.md": 40
   },
   "classes": {

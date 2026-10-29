@@ -26,6 +26,9 @@
 # Allowed on purpose: gh pr create --base <protected> (a promotion PR), pushes to the default or a feature branch,
 # git status/commit/log, gh api reads, gh workflow run of any other workflow. Anything the guard cannot read
 # (no jq, no manifest, an unresolvable PR base, a cd to a non-literal path before an implicit push) fails closed.
+# The protected lists also take the default branch's manifest on origin (origin_union, lib.sh kit_origin_load; fetched
+# with the environment's and user's git config, not the clone's .git/config), and a fetch that finds it different adds
+# a drift notice (notice). Origin never reached, no copy: a dispatch, rerun, cancel or merge fails closed, a push passes.
 # Vendored into consumers at .claude/hooks/kit/guard-protected-branch.sh by /shopify-app-kit:sync.
 set -uo pipefail
 
@@ -79,11 +82,13 @@ PROTECTED=(); while IFS= read -r l; do PROTECTED+=("$l"); done < <(mf '.branches
 WORKFLOWS=(); while IFS= read -r l; do WORKFLOWS+=("$l"); done < <(mf '.deploy.protectedWorkflows[]?')
 default_branch="$(mf '.branches.default // empty')"
 promotion="$(mf 'if .branches.promotion then "\(.branches.promotion.from) -> \(.branches.promotion.to)" else empty end')"
-protected_list="$(IFS=,; printf '%s' "${PROTECTED[*]}")"
-protected_list="${protected_list//,/, }"
-
-RULE="Only the maintainer ships to $protected_list. Target ${default_branch:-the default branch} instead; Claude may open a ${promotion:-${default_branch:-default} -> ${PROTECTED[0]}} promotion PR when asked, never merge it."
-RULE_CD="The push would go wherever that checkout is; cd to a literal path first, or name the branch (git push origin <branch>). $RULE"
+# rules: the block texts, from the protected list as it stands (again once origin's is added).
+rules() {
+  protected_list="$(printf '%s\n' "${PROTECTED[@]}" | awk '!s[$0]++' | paste -sd, - | sed 's/,/, /g')"
+  RULE="Only the maintainer ships to $protected_list. Target ${default_branch:-the default branch} instead; Claude may open a ${promotion:-${default_branch:-default} -> ${PROTECTED[0]}} promotion PR when asked, never merge it."
+  RULE_CD="The push would go wherever that checkout is; cd to a literal path first, or name the branch (git push origin <branch>). $RULE"
+}
+rules
 
 # origin_union: the first time a guarded verb is seen, add the protections the default branch's manifest on origin
 # lists (kit_origin_load, lib.sh); plain names only. One that origin removed stays: this checkout still lists it.
@@ -93,12 +98,13 @@ origin_union() {
   case "$kit_origin" in ok | stale) ;; *) return 0 ;; esac
   local o l; o="$(kit_origin_show "$kit_origin_mf")"
   while IFS= read -r l; do case "$l" in b*) PROTECTED+=("${l#b}") ;; w*) WORKFLOWS+=("${l#w}") ;; esac; done < <(jq -r \
-    '(.branches.protected[]? | strings | "b" + .), (.deploy.protectedWorkflows[]? | strings | "w" + .) | select(test("^[bw][A-Za-z0-9._][A-Za-z0-9._/-]*$"))' <<<"$o" 2>/dev/null)
+    '(.branches.protected[]? | strings | "b" + .), (.deploy.protectedWorkflows[]? | strings | "w" + .) | select(test("^[bw][A-Za-z0-9._][A-Za-z0-9._/-]*$") and (test("[.][.]") | not))' <<<"$o" 2>/dev/null)
+  rules
 }
 
 # irreversible WHAT: a dispatch, rerun, cancel, merge or auto-merge is refused while origin was never reachable
 # (kit_origin none: no copy of its protections ever obtained); a push goes ahead on this checkout's own.
-irreversible() { origin_union; [ "$kit_origin" != none ] || block "$1 cannot be checked against origin's protected branches and workflows (fail closed)" "$RULE"; }
+irreversible() { origin_union; [ "$kit_origin" != none ] || block "$1 cannot be checked against origin's protected branches and workflows (fail closed)" "This is origin being unreachable, not a protected target: make it reachable (git fetch origin ${default_branch:-<default>}) and retry; a failed lookup is retried after 30 s. Pushes still go ahead on this checkout's protections."; }
 
 is_protected() {
   local b="${1#refs/heads/}" p
@@ -332,7 +338,6 @@ check_gh_api() {
   local re_repo='repos/([^/{}[:space:]]+/[^/{}[:space:]]+)/pulls'
   local re_merges='/merges[[:space:]]'
   local method; method="$(api_method "$@")"
-  origin_union
   if [[ "$joined" =~ $re_merge ]]; then
     n="${BASH_REMATCH[1]}"; irreversible "gh api merge of PR #$n"
     if [[ "$joined" =~ $re_repo ]]; then repo=(-R "${BASH_REMATCH[1]}"); fi
@@ -352,6 +357,7 @@ check_gh_api() {
   local re_dispatch='actions/workflows/([^/[:space:]]+)/dispatches' re_run='actions/runs/([0-9]+)/(rerun|rerun-failed-jobs|cancel|force-cancel)'
   local re_pull='pulls/[0-9]+([[:space:]?]|$)' re_contents='/contents/' write=0
   case "$method" in PATCH | POST | PUT | DELETE) write=1 ;; esac
+  [ "$write" -eq 0 ] && [[ "$joined" != *base=* ]] || origin_union
   if [[ "$joined" =~ $re_repo ]]; then api_repo="${BASH_REMATCH[1]}"; else api_repo=""; fi
   if [[ "$joined" =~ $re_dispatch ]]; then check_workflow_ref "${BASH_REMATCH[1]}" "$api_repo" "gh api workflow dispatch"; fi
   if [[ "$joined" =~ $re_run ]]; then check_run_ref "${BASH_REMATCH[1]}" "$api_repo" "gh api ${BASH_REMATCH[2]}"; fi
@@ -490,9 +496,10 @@ check_mcp() {
 }
 
 # The drift notice: after a fetch this call made, a guard-read key on which origin's manifest differs from this
-# checkout's reaches the session as PreToolUse additionalContext (the call itself goes ahead).
+# checkout's reaches the session as PreToolUse additionalContext (the call itself goes ahead), once per origin tip.
 notice() {
   local d; [ "$kit_origin_fresh" -eq 1 ] && d="$(kit_origin_drift)" && [ -n "$d" ] || exit 0
+  [ "$(cat "$kit_origin_stamp.noticed" 2>/dev/null)" != "$kit_origin_src $d" ] && printf '%s\n' "$kit_origin_src $d" >"$kit_origin_stamp.noticed" 2>/dev/null || exit 0
   jq -nc --arg c "shopify-app-kit: this checkout's .claude/shopify-app.json differs from $kit_origin_src on $d. The guards enforce the protected branches and workflows of both, but read config names, package managers, policies and paths from this checkout only; update it from origin/$default_branch unless this branch changes the manifest on purpose." \
     '{hookSpecificOutput: {hookEventName: "PreToolUse", additionalContext: $c}}'
   exit 0

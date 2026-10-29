@@ -516,13 +516,14 @@ describe('guard-protected-branch.sh against the default branch on origin', () =>
   test('a stale checkout is held to protections origin added (gh, display name, MCP, push), and its clone is untouched', () => {
     const { clone } = staleClone(addPurge), log = () => git(clone, 'rev-list', '--count', '--all').stdout;
     const before = log();
-    assert.equal(inClone(clone, { cmd: 'git status && ls .github' }).status, 0);
+    assert.equal(inClone(clone, { cmd: 'git status && ls .github && gh api repos/o/r/pulls' }).status, 0);
     assert.ok(!fs.existsSync(path.join(clone, '.git', 'kit')), 'an unguarded command fetches nothing');
     for (const c of [{ cmd: 'gh workflow run purge.yml' }, { cmd: 'gh workflow run "Session Purge"' }, purge, { cmd: 'git push origin release' }]) {
       const r = inClone(clone, c);
       assert.equal(r.status, 2, `${JSON.stringify(c)}: ${r.stderr}`);
       assert.match(r.stderr, /protected (workflow|branch) \((purge\.yml|Session Purge|release)\)[\s\S]*Protections checked: this checkout's manifest and origin\/beta at [0-9a-f]+ \(fetched \d+ s ago\)/);
     }
+    assert.match(inClone(clone, { cmd: 'git push origin release' }).stderr, /Only the maintainer ships to main, release\./, 'the rule names origin\'s branch');
     assert.equal(inClone(clone, { ...purge, input: { ...purge.input, workflow_id: 'qa.yml' } }).status, 0);
     assert.equal(log(), before, 'no commit lost or gained');
     for (const f of ['shallow', 'FETCH_HEAD']) assert.ok(!fs.existsSync(path.join(clone, '.git', f)), `.git/${f}`);
@@ -549,13 +550,16 @@ describe('guard-protected-branch.sh against the default branch on origin', () =>
     assert.equal(inClone(clone, { cmd: 'gh workflow run purge.yml' }, { SHOPIFY_APP_KIT_ORIGIN_TTL: '0' }).status, 2, 'past it origin is read again');
   });
 
-  for (const [what, url] of [['unreachable', '/nonexistent/origin.git'], ['hung', 'hang::x']]) {
+  // PATH without timeout or gtimeout (stock macOS): the perl alarm bounds the fetch.
+  const noTimeout = () => { const d = fs.mkdtempSync(path.join(consumer, 'bin-notimeout-')); for (const dir of process.env.PATH.split(path.delimiter)) for (const n of fs.existsSync(dir) ? fs.readdirSync(dir) : []) if (!/^g?timeout$/.test(n) && !fs.existsSync(path.join(d, n))) fs.symlinkSync(path.join(dir, n), path.join(d, n)); return `${fakeBin}${path.delimiter}${d}`; };
+  for (const [what, url, env] of [['unreachable', '/nonexistent/origin.git', {}], ['hung', 'hang::x', {}], ['hung, no timeout binary,', 'hang::x', { PATH: noTimeout() }]]) {
     test(`origin ${what} on a cold start: dispatch, rerun and merge block, a push goes ahead on local protections, in time`, () => {
       const { clone } = staleClone();
       git(clone, 'remote', 'set-url', 'origin', url); git(clone, 'update-ref', '-d', 'refs/remotes/origin/beta');
-      const t0 = Date.now(), first = inClone(clone, { cmd: 'gh workflow run qa.yml' });
+      const t0 = Date.now(), first = inClone(clone, { cmd: 'gh workflow run qa.yml' }, env);
       assert.ok(Date.now() - t0 < 9000, `bounded: ${Date.now() - t0} ms`);
       assert.match(first.stderr, /gh workflow run cannot be checked against origin's protected branches[\s\S]*could not be fetched and no copy of it exists/);
+      assert.match(first.stderr, /origin being unreachable, not a protected target/);
       for (const c of [{ cmd: 'gh run rerun 99' }, { cmd: 'gh pr merge 12', base: 'beta' }]) assert.equal(inClone(clone, c).status, 2, c.cmd);
       assert.equal(inClone(clone, { cmd: 'git push origin feat/x' }).status, 0);
       assert.equal(inClone(clone, { cmd: 'git push origin main' }).status, 2);

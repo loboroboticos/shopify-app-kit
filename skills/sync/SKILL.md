@@ -32,8 +32,8 @@ their logic, and touches nothing outside `.claude/`.
 5. **Print the registration snippet** and ask the user to merge it into `<root>/.claude/settings.json`
    when `hooks.PreToolUse` does not already register the guards (the doctor reports this): one entry per
    `guard-*.sh` copied under `Bash`, plus the GitHub MCP entry; none for `lib.sh` (it is sourced). A consumer
-   upgrading adds a new entry by hand; the doctor reports every vendored guard that neither `settings.json` nor
-   `settings.local.json` registers, and a missing MCP entry.
+   upgrading adds a new entry, and `"onFailure": "block"` to each existing one (Claude Code 2.1.295+), by hand; the
+   doctor reports a vendored guard neither settings file registers, a missing MCP entry, and one without `onFailure`.
 
    ```json
    { "hooks": { "PreToolUse": [

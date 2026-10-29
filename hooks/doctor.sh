@@ -82,11 +82,10 @@ kv="$(mf '((.kit | objects) // {}).version // empty')"
 [ -n "$kv" ] && [ "$kv" != "$KIT_VERSION" ] && echo "Drift: the manifest's kit.version is $kv but the installed kit is v$KIT_VERSION; run /shopify-app-kit:sync."
 sref="$(mf '."$schema" // "" | strings | capture("shopify-app-kit/(?<r>[^/]+)/schemas/").r // empty' 2>/dev/null)"
 [ -n "$sref" ] && [ "$sref" != "v$KIT_VERSION" ] && echo "Drift: the manifest's \$schema points at $sref, not v$KIT_VERSION; /shopify-app-kit:sync repoints it."
-# The default branch's manifest on origin (lib.sh kit_origin_load, which also warms the guards' cache): a key a guard
-# reads that differs, or an origin that could not be fetched.
+# Origin's default-branch manifest (lib.sh kit_origin_load, warming the guards' cache): a guard-read key that differs.
 kit_origin_load; od="$(kit_origin_drift)"
 [ -z "$od" ] || echo "Drift: this checkout's manifest differs from $kit_origin_src on $od; guard-protected-branch enforces the protections of both, every other key comes from this checkout. Update it unless this branch changes the manifest on purpose."
-case "$kit_origin" in stale | none) echo "Origin: the guards check $kit_origin_note." ;; esac
+case "$kit_origin" in stale) echo "Origin: the guards check $kit_origin_note." ;; none) echo "Origin: the guards check $kit_origin_note, so a workflow dispatch, rerun, cancel or merge is refused until origin is reachable; pushes go ahead on this checkout's protections." ;; esac
 
 mf '
   def s: if . == null then "-" else tostring end;

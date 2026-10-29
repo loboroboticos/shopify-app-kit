@@ -749,43 +749,41 @@ kit_walk_commands() {
 }
 
 # ---------------------------------------------------------------- origin manifest (guard-protected-branch, the doctor)
-# A long-running session's checkout can predate a manifest change on the default branch, so kit_origin_load reads that
-# branch's manifest from origin: fetched --depth=1 into a private bare repo under <git common dir>/kit/ (never into the
-# session's clone, which a shallow fetch would truncate), cached 120 s ($SHOPIFY_APP_KIT_ORIGIN_TTL) and 30 s after a
-# failure, each step bounded to 6 s. It never sets GIT_ASKPASS or GIT_CONFIG_* (cloud git auth comes from the
-# environment) and never prints the remote URL. kit_origin: ok (fetched), stale (a copy after a failed fetch), absent
-# (origin has no such branch), none (unreachable, no copy ever), skip (SHOPIFY_APP_KIT_MANIFEST set, no origin remote,
-# not a git tree); kit_origin_note says what was checked.
-kit_origin=""; kit_origin_note=""; kit_origin_src=""; kit_origin_git=""; kit_origin_ref=refs/kit/tip; kit_origin_mf=""; kit_origin_fresh=0; KIT_NL=$'\n'
+# A session's checkout can predate a manifest change on the default branch, so kit_origin_load reads that branch's
+# manifest from origin, fetched --depth=1 into a private bare repo under <git common dir>/kit/ (a shallow fetch into the
+# session's clone would truncate it), cached 120 s ($SHOPIFY_APP_KIT_ORIGIN_TTL), 30 s after a failure, each step <= 6 s.
+# Never sets GIT_ASKPASS or GIT_CONFIG_* (cloud auth comes from the environment) nor prints the URL. kit_origin: ok,
+# stale (a copy after a failed fetch), absent (no such branch), none (unreachable, no copy ever), skip (manifest env set,
+# no origin, not a git tree); kit_origin_note says what was checked.
+kit_origin=""; kit_origin_note=""; kit_origin_src=""; kit_origin_git=""; kit_origin_ref=refs/kit/tip; kit_origin_mf=""; kit_origin_stamp=""; kit_origin_fresh=0; KIT_NL=$'\n'
 
 kit__bounded() { if command -v timeout >/dev/null 2>&1; then timeout "$@"; elif command -v gtimeout >/dev/null 2>&1; then gtimeout "$@"; else perl -e 'alarm shift; exec @ARGV' "$@"; fi; }
 
 # kit_origin_show PATH: PATH as it is in the origin copy, or nothing.
 kit_origin_show() { git --git-dir="$kit_origin_git" show "$kit_origin_ref:$1" 2>/dev/null; }
 
-# kit__origin_lock DIR: 0 holding DIR/lock (pid and time in it; a dead holder's lock is reclaimed), 1 after waiting up
-# to 6 s for another holder to finish (its result is then in the cache).
+# kit__origin_lock DIR: 0 holding DIR/lock (pid and time in it; a dead holder's is reclaimed), 1 after waiting <= 6 s for a live one.
 kit__origin_lock() {
   local l="$1/lock" p pt i=0
   until mkdir "$l" 2>/dev/null; do
     p=""; pt=0; { read -r p pt <"$l/owner"; } 2>/dev/null
     if { [ -n "$p" ] && ! kill -0 "$p" 2>/dev/null; } || { [ $(($(date +%s) - ${pt:-0})) -gt 20 ] && [ "$i" -ge 5 ]; }; then rm -rf "$l"; continue; fi
-    [ "$i" -lt 30 ] && [ -d "$l" ] || return 1
-    sleep 0.2; i=$((i + 1))
+    [ "$i" -lt 30 ] || return 1
+    sleep 0.2; i=$((i + 1)); [ -d "$l" ] || return 1
   done
   printf '%s %s\n' "$$" "$(date +%s)" >"$l/owner"
 }
 
 # kit__origin_fetch URL BRANCH STAMP: fetch BRANCH's tip into the private repo; STAMP.ok gets "<time> <sha|absent>",
-# STAMP.fail the time of a transport failure. Written to a unique name and renamed, so parallel guards never see half.
+# STAMP.fail a transport failure's time; renamed into place. stderr goes to a file: a helper perl's alarm leaves cannot hold it.
 kit__origin_fetch() {
-  local err rc sha now; now="$(date +%s)"
+  local rc sha now e="$3.err.$$"; now="$(date +%s)"
   [ -d "$kit_origin_git" ] || git init -q --bare "$kit_origin_git" >/dev/null 2>&1
-  err="$(LC_ALL=C kit__bounded 6 git --git-dir="$kit_origin_git" -c gc.auto=0 fetch -q --depth=1 --no-tags --no-write-fetch-head "$1" "+refs/heads/$2:$kit_origin_ref" 2>&1 >/dev/null)"; rc=$?
+  LC_ALL=C kit__bounded 6 git --git-dir="$kit_origin_git" -c gc.auto=0 fetch -q --depth=1 --no-tags --no-write-fetch-head "$1" "+refs/heads/$2:$kit_origin_ref" >/dev/null 2>"$e" </dev/null; rc=$?
   if [ "$rc" -eq 0 ]; then sha="$(git --git-dir="$kit_origin_git" rev-parse --short "$kit_origin_ref" 2>/dev/null)"; kit_origin_fresh=1
-  elif [[ "$err" == *"couldn't find remote ref"* ]]; then sha=absent
-  else printf '%s\n' "$now" >"$3.fail.$$" 2>/dev/null && mv -f "$3.fail.$$" "$3.fail"; return 0; fi
-  printf '%s %s\n' "$now" "${sha:-absent}" >"$3.ok.$$" 2>/dev/null && mv -f "$3.ok.$$" "$3.ok"
+  elif grep -q "couldn't find remote ref" "$e" 2>/dev/null; then sha=absent
+  else printf '%s\n' "$now" >"$3.fail.$$" 2>/dev/null && mv -f "$3.fail.$$" "$3.fail"; rm -f "$e"; return 0; fi
+  printf '%s %s\n' "$now" "${sha:-absent}" >"$3.ok.$$" 2>/dev/null && mv -f "$3.ok.$$" "$3.ok"; rm -f "$e"
 }
 
 kit_origin_load() {
@@ -796,9 +794,8 @@ kit_origin_load() {
   [ -z "${SHOPIFY_APP_KIT_MANIFEST:-}" ] && [[ "$b" =~ ^[A-Za-z0-9._/][A-Za-z0-9._/-]*$ ]] || return 0
   kd="$(git -C "$root" rev-parse --git-common-dir 2>/dev/null)" && url="$(git -C "$root" remote get-url origin 2>/dev/null)" || return 0
   case "$kd" in /*) ;; *) kd="$root/$kd" ;; esac
-  kd="$kd/kit"; s="$kd/origin-v1"; kit_origin_git="$kd/origin.git"; now="$(date +%s)"
-  kit_origin_mf="$(git -C "$root" rev-parse --show-prefix 2>/dev/null).claude/shopify-app.json"
-  mkdir -p "$kd" 2>/dev/null
+  kd="$kd/kit"; s="$kd/origin-v1"; kit_origin_stamp="$s"; kit_origin_git="$kd/origin.git"; now="$(date +%s)"
+  kit_origin_mf="$(git -C "$root" rev-parse --show-prefix 2>/dev/null).claude/shopify-app.json"; mkdir -p "$kd" 2>/dev/null
   { read -r t sha <"$s.ok"; read -r f <"$s.fail"; } 2>/dev/null
   if [ $((now - ${t:-0})) -ge "$ttl" ] && [ $((now - ${f:-0})) -ge 30 ]; then
     if kit__origin_lock "$kd"; then kit__origin_fetch "$url" "$b" "$s"; rm -rf "$kd/lock"; fi
