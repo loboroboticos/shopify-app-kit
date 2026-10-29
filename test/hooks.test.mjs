@@ -551,7 +551,7 @@ describe('guard-protected-branch.sh against the default branch on origin', () =>
   });
 
   // PATH without timeout or gtimeout (stock macOS): the perl alarm bounds the fetch.
-  const noTimeout = () => { const d = fs.mkdtempSync(path.join(consumer, 'bin-notimeout-')); for (const dir of process.env.PATH.split(path.delimiter)) for (const n of fs.existsSync(dir) ? fs.readdirSync(dir) : []) if (!/^g?timeout$/.test(n) && !fs.existsSync(path.join(d, n))) fs.symlinkSync(path.join(dir, n), path.join(d, n)); return `${fakeBin}${path.delimiter}${d}`; };
+  const noTimeout = (seen = new Set()) => { const d = fs.mkdtempSync(path.join(consumer, 'bin-notimeout-')); for (const dir of process.env.PATH.split(path.delimiter)) for (const n of fs.existsSync(dir) ? fs.readdirSync(dir) : []) if (!/^g?timeout$/.test(n) && !seen.has(n) && seen.add(n)) fs.symlinkSync(path.join(dir, n), path.join(d, n)); return `${fakeBin}${path.delimiter}${d}`; };
   for (const [what, url, env] of [['unreachable', '/nonexistent/origin.git', {}], ['hung', 'hang::x', {}], ['hung, no timeout binary,', 'hang::x', { PATH: noTimeout() }]]) {
     test(`origin ${what} on a cold start: dispatch, rerun and merge block, a push goes ahead on local protections, in time`, () => {
       const { clone } = staleClone();
