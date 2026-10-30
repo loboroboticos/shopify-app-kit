@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shopify-app-kit v0.18.1
+# shopify-app-kit v0.19.0
 # hooks/guard-protected-branch.sh: PreToolUse(Bash and GitHub MCP) guard that keeps a session off the protected branches named in
 # .claude/shopify-app.json (branches.protected, branches.default, branches.promotion, deploy.protectedWorkflows).
 #
@@ -26,6 +26,9 @@
 # Allowed on purpose: gh pr create --base <protected> (a promotion PR), pushes to the default or a feature branch,
 # git status/commit/log, gh api reads, gh workflow run of any other workflow. Anything the guard cannot read
 # (no jq, no manifest, an unresolvable PR base, a cd to a non-literal path before an implicit push) fails closed.
+# The protected lists also take the default branch's manifest on origin (origin_union, lib.sh kit_origin_load; fetched
+# with the environment's and user's git config, not the clone's .git/config), and a fetch that finds it different adds
+# a drift notice (notice). Origin never reached, no copy: a dispatch, rerun, cancel or merge fails closed, a push passes.
 # Vendored into consumers at .claude/hooks/kit/guard-protected-branch.sh by /shopify-app-kit:sync.
 set -uo pipefail
 
@@ -79,30 +82,51 @@ PROTECTED=(); while IFS= read -r l; do PROTECTED+=("$l"); done < <(mf '.branches
 WORKFLOWS=(); while IFS= read -r l; do WORKFLOWS+=("$l"); done < <(mf '.deploy.protectedWorkflows[]?')
 default_branch="$(mf '.branches.default // empty')"
 promotion="$(mf 'if .branches.promotion then "\(.branches.promotion.from) -> \(.branches.promotion.to)" else empty end')"
-protected_list="$(IFS=,; printf '%s' "${PROTECTED[*]}")"
-protected_list="${protected_list//,/, }"
+# rules: the block texts, from the protected list as it stands (again once origin's is added).
+rules() {
+  protected_list="$(printf '%s\n' "${PROTECTED[@]}" | awk '!s[$0]++' | paste -sd, - | sed 's/,/, /g')"
+  RULE="Only the maintainer ships to $protected_list. Target ${default_branch:-the default branch} instead; Claude may open a ${promotion:-${default_branch:-default} -> ${PROTECTED[0]}} promotion PR when asked, never merge it."
+  RULE_CD="The push would go wherever that checkout is; cd to a literal path first, or name the branch (git push origin <branch>). $RULE"
+}
+rules
 
-RULE="Only the maintainer ships to $protected_list. Target ${default_branch:-the default branch} instead; Claude may open a ${promotion:-${default_branch:-default} -> ${PROTECTED[0]}} promotion PR when asked, never merge it."
-RULE_CD="The push would go wherever that checkout is; cd to a literal path first, or name the branch (git push origin <branch>). $RULE"
+# origin_union: the first time a guarded verb is seen, add the protections the default branch's manifest on origin
+# lists (kit_origin_load, lib.sh); plain names only. One that origin removed stays: this checkout still lists it.
+origin_union() {
+  [ -z "$kit_origin" ] || return 0
+  kit_origin_load
+  case "$kit_origin" in ok | stale) ;; *) return 0 ;; esac
+  local o l; o="$(kit_origin_show "$kit_origin_mf")"
+  while IFS= read -r l; do case "$l" in b*) PROTECTED+=("${l#b}") ;; w*) WORKFLOWS+=("${l#w}") ;; esac; done < <(jq -r \
+    '(.branches.protected[]? | strings | "b" + .), (.deploy.protectedWorkflows[]? | strings | "w" + .) | select(test("^[bw][A-Za-z0-9._][A-Za-z0-9._/-]*$") and (test("[.][.]") | not))' <<<"$o" 2>/dev/null)
+  rules
+}
+
+# irreversible WHAT: a dispatch, rerun, cancel, merge or auto-merge is refused while origin was never reachable
+# (kit_origin none: no copy of its protections ever obtained); a push goes ahead on this checkout's own.
+irreversible() { origin_union; [ "$kit_origin" != none ] || block "$1 cannot be checked against origin's protected branches and workflows (fail closed)" "This is origin being unreachable, not a protected target: make it reachable (git fetch origin ${default_branch:-<default>}) and retry; a failed lookup is retried after 30 s. Pushes still go ahead on this checkout's protections."; }
 
 is_protected() {
   local b="${1#refs/heads/}" p
+  origin_union
   for p in "${PROTECTED[@]}"; do [ "$b" = "$p" ] && return 0; done
   return 1
 }
 
-# workflow_display_name FILE: the `name:` of <consumer root>/.github/workflows/FILE, or nothing.
-workflow_display_name() {
-  sed -nE "s/^name:[[:space:]]*[\"']?([^\"']*)[\"']?[[:space:]]*\$/\\1/p" "$root/.github/workflows/$1" 2>/dev/null | head -n1
+# workflow_display_names FILE: the `name:` of FILE under <consumer root>/.github/workflows/ and in the origin copy.
+workflow_display_names() {
+  { cat "$root/.github/workflows/$1" 2>/dev/null; [ -z "$kit_origin_git" ] || kit_origin_show ".github/workflows/$1"; } \
+    | sed -nE "s/^name:[[:space:]]*[\"']?([^\"']*)[\"']?[[:space:]]*\$/\\1/p"
 }
 
 is_protected_workflow() {
-  local f
+  local f n
   [ -n "$1" ] || return 1
+  origin_union
   for f in ${WORKFLOWS[@]+"${WORKFLOWS[@]}"}; do
     [ "$1" = "$f" ] && return 0
     [ "$1" = ".github/workflows/$f" ] && return 0
-    [ "$1" = "$(workflow_display_name "$f")" ] && return 0
+    while IFS= read -r n; do [ "$1" = "$n" ] && return 0; done < <(workflow_display_names "$f")
   done
   return 1
 }
@@ -194,6 +218,7 @@ check_configured_push() {
       d="$(git -C "$dir" config "branch.$src.merge" 2>/dev/null)"
       if is_protected "$d"; then block "git push of $src goes to its upstream ${d#refs/heads/} (push.default=$pd)" "$RULE"; fi ;;
     matching)
+      origin_union
       for p in "${PROTECTED[@]}"; do
         if git -C "$dir" show-ref --verify --quiet "refs/heads/$p"; then block "git push with push.default=matching pushes the local $p" "$RULE"; fi
       done ;;
@@ -213,6 +238,7 @@ check_gh_pr_merge() {
     esac
     n=$((n + 1))
   done
+  irreversible "gh pr merge"
   base="$(pr_base ${sel[@]+"${sel[@]}"} ${repo[@]+"${repo[@]}"})"
   [ -n "$base" ] || block "gh pr merge ${sel[*]:-(current branch)}: its base branch could not be resolved, so the merge is refused (fail closed)" "$RULE"
   if is_protected "$base"; then block "gh pr merge ${sel[*]:-(current branch)} merges into $base" "$RULE"; fi
@@ -246,12 +272,13 @@ check_gh_workflow_run() {
     esac
     n=$((n + 1))
   done
+  irreversible "gh workflow run"
   case "${positional[0]:-}" in
     *[!0-9]* | "") ;;
     *) check_workflow_ref "${positional[0]}" "$repo" "gh workflow run"; return 0 ;;
   esac
   if is_protected_workflow "${positional[0]:-}" || is_protected_workflow "${positional[*]:-}"; then
-    block "gh workflow run of a production deploy (${positional[*]:-})" "$RULE"
+    block "gh workflow run of a protected workflow (${positional[*]:-})" "$RULE"
   fi
 }
 
@@ -312,7 +339,7 @@ check_gh_api() {
   local re_merges='/merges[[:space:]]'
   local method; method="$(api_method "$@")"
   if [[ "$joined" =~ $re_merge ]]; then
-    n="${BASH_REMATCH[1]}"
+    n="${BASH_REMATCH[1]}"; irreversible "gh api merge of PR #$n"
     if [[ "$joined" =~ $re_repo ]]; then repo=(-R "${BASH_REMATCH[1]}"); fi
     base="$(pr_base "$n" ${repo[@]+"${repo[@]}"})"
     [ -n "$base" ] || block "gh api merge of PR #$n: its base branch could not be resolved (fail closed)" "$RULE"
@@ -321,7 +348,7 @@ check_gh_api() {
   # A write (PUT, POST or PATCH, as api_method reads it) to pulls/<n>/…auto_merge is a merge of PR n.
   local re_auto='pulls/([0-9]+)/([^[:space:]?]*/)?auto_merge([[:space:]?]|$)'
   if [[ "$joined" =~ $re_auto ]] && case "$method" in PUT | POST | PATCH) true ;; *) false ;; esac; then
-    n="${BASH_REMATCH[1]}"
+    n="${BASH_REMATCH[1]}"; irreversible "gh api auto-merge of PR #$n"
     if [[ "$joined" =~ $re_repo ]]; then repo=(-R "${BASH_REMATCH[1]}"); fi
     base="$(pr_base "$n" ${repo[@]+"${repo[@]}"})"
     [ -n "$base" ] || block "gh api auto-merge of PR #$n: its base branch could not be resolved (fail closed)" "$RULE"
@@ -330,6 +357,7 @@ check_gh_api() {
   local re_dispatch='actions/workflows/([^/[:space:]]+)/dispatches' re_run='actions/runs/([0-9]+)/(rerun|rerun-failed-jobs|cancel|force-cancel)'
   local re_pull='pulls/[0-9]+([[:space:]?]|$)' re_contents='/contents/' write=0
   case "$method" in PATCH | POST | PUT | DELETE) write=1 ;; esac
+  [ "$write" -eq 0 ] && [[ "$joined" != *base=* ]] || origin_union
   if [[ "$joined" =~ $re_repo ]]; then api_repo="${BASH_REMATCH[1]}"; else api_repo=""; fi
   if [[ "$joined" =~ $re_dispatch ]]; then check_workflow_ref "${BASH_REMATCH[1]}" "$api_repo" "gh api workflow dispatch"; fi
   if [[ "$joined" =~ $re_run ]]; then check_run_ref "${BASH_REMATCH[1]}" "$api_repo" "gh api ${BASH_REMATCH[2]}"; fi
@@ -418,20 +446,22 @@ repo_api() { if [ -n "${1:-}" ]; then printf 'repos/%s' "$1"; else printf 'repos
 # a numeric id gh cannot map to a file fails closed.
 check_workflow_ref() {
   local wf="$1" repo="$2" what="$3"
+  irreversible "$what"
   case "$wf" in
     "" | *[!0-9]*) ;;
     *) wf="$(gh_path "$(repo_api "$repo")/actions/workflows/$1")"
        [ -n "$wf" ] || block "$what of workflow id $1: gh could not map it to a file (fail closed)" "$RULE" ;;
   esac
-  if is_protected_workflow "$wf"; then block "$what of a production deploy ($wf)" "$RULE"; fi
+  if is_protected_workflow "$wf"; then block "$what of a protected workflow ($wf)" "$RULE"; fi
 }
 
 # check_run_ref RUN [REPO] WHAT: block WHAT on a run of a protected workflow; a run gh cannot resolve fails closed.
 check_run_ref() {
   local wf
+  irreversible "$3"
   wf="$(gh_path "$(repo_api "$2")/actions/runs/$1")"
   [ -n "$wf" ] || block "$3 of run $1: its workflow could not be resolved with gh (fail closed)" "$RULE"
-  if is_protected_workflow "$wf"; then block "$3 of a production deploy run ($wf)" "$RULE"; fi
+  if is_protected_workflow "$wf"; then block "$3 of a run of a protected workflow ($wf)" "$RULE"; fi
 }
 
 check_mcp() {
@@ -446,7 +476,7 @@ check_mcp() {
       base="$(kit_tool_arg base)"
       if is_protected "$base"; then block "update_pull_request retargets PR #$(kit_tool_arg pullNumber) at a protected branch ($base)" "$RULE"; fi ;;
     merge_pull_request | enable_pr_auto_merge)
-      n="$(kit_tool_arg pullNumber)"
+      n="$(kit_tool_arg pullNumber)"; irreversible "$mcp_verb"
       [ -z "$n" ] || base="$(pr_base "$n" -R "$slug")"
       [ -n "$base" ] || block "$mcp_verb of PR #${n:-?}: its base branch could not be resolved with gh, so the merge is refused (fail closed)" "$RULE"
       if is_protected "$base"; then block "$mcp_verb of PR #$n merges into $base" "$RULE"; fi ;;
@@ -465,6 +495,16 @@ check_mcp() {
   esac
 }
 
-if [ -n "$mcp_verb" ]; then check_mcp; exit 0; fi
+# The drift notice: after a fetch this call made, a guard-read key on which origin's manifest differs from this
+# checkout's reaches the session as PreToolUse additionalContext (the call itself goes ahead), once per origin tip.
+notice() {
+  local d; [ "$kit_origin_fresh" -eq 1 ] && d="$(kit_origin_drift)" && [ -n "$d" ] || exit 0
+  [ "$(cat "$kit_origin_stamp.noticed" 2>/dev/null)" != "$kit_origin_src $d" ] && printf '%s\n' "$kit_origin_src $d" >"$kit_origin_stamp.noticed" 2>/dev/null || exit 0
+  jq -nc --arg c "shopify-app-kit: this checkout's .claude/shopify-app.json differs from $kit_origin_src on $d. The guards enforce the protected branches and workflows of both, but read config names, package managers, policies and paths from this checkout only; update it from origin/$default_branch unless this branch changes the manifest on purpose." \
+    '{hookSpecificOutput: {hookEventName: "PreToolUse", additionalContext: $c}}'
+  exit 0
+}
+
+if [ -n "$mcp_verb" ]; then check_mcp; notice; fi
 kit_walk_commands "$cmd" on_command
-exit 0
+notice

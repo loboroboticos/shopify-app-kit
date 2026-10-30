@@ -5,6 +5,26 @@ vendored hook carries it on line 2 (`# shopify-app-kit vX.Y.Z`). A version that 
 `### Deprecated`; the next minor deletes it and lists it under `### Removed` (`kit-dev`: "Remove a skill, agent,
 hook, workflow or routine").
 
+## 0.19.0
+
+A stale checkout is held to the default branch's manifest (app-1: a newly protected workflow was dispatchable).
+
+- `guard-protected-branch`: `branches.protected` and `deploy.protectedWorkflows` are the union of this checkout's
+  and origin's default-branch manifest, read on the first guarded verb into a bare repo under `.git/kit/` (`--depth=1`,
+  never into the clone), cached 120 s, each step bounded to 6 s; display names come from origin's copy too. A
+  protection origin removed stays until the checkout updates, and every block names what it checked. Origin never
+  reached, no copy: dispatch, rerun, cancel and merge block, a push passes. Bindings and the `shopifyCli` policies
+  stay local; a fetch that finds origin's manifest different sends a drift notice (PreToolUse `additionalContext`)
+  and the doctor prints `Drift:`. Residual: a clone whose git auth lives only in its own `.git/config` falls back
+  to `refs/remotes/origin/<default>`. Blocks say "a protected workflow", not "a production deploy".
+- Every guard registration (the `sync` snippet, the settings template) sets `"onFailure": "block"` (Claude Code
+  2.1.295+), so a guard that times out or crashes blocks; the doctor reports one without it.
+
+### Budget
+
+- Temporary raise, approved by the maintainer for app-1's stale-checkout incident: `hooks/` 1830 -> 1950, `test/`
+  3750 -> 3830, `CHANGELOG.md` 1075 -> 1090. A ratchet-down follow-up is owed.
+
 ## 0.18.1
 
 Fixes from the review of 0.18.0.

@@ -129,6 +129,7 @@ describe('templates/', () => {
     const bash = s.hooks.PreToolUse.filter((h) => h.matcher === 'Bash').flatMap((h) => h.hooks.map((x) => x.command)).join('\n');
     const registered = [...bash.matchAll(/hooks\/kit\/(guard-[a-z-]+\.sh)/g)].map((m) => m[1]).sort();
     assert.deepEqual(registered, shipped, 'the Bash entry registers exactly the guards under hooks/');
+    assert.ok(s.hooks.PreToolUse.every((h) => h.hooks.every((x) => x.onFailure === 'block')), 'a guard that times out or crashes blocks (onFailure)');
     // The protected-branch guard also runs on the GitHub MCP tools, whatever the server's name prefix.
     const mcp = s.hooks.PreToolUse.filter((h) => h.matcher !== 'Bash');
     for (const tool of ['mcp__github__merge_pull_request', 'mcp__plugin_github_github__push_files']) {

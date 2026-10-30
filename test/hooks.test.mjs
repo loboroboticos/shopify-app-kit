@@ -214,6 +214,7 @@ case " $* " in
   *) exit 1 ;;
 esac
 `, { mode: 0o755 });
+fs.writeFileSync(path.join(fakeBin, 'git-remote-hang'), '#!/bin/sh\nsleep 30\n', { mode: 0o755 }); // an origin that never answers
 // Workflow files whose display names the guard reads from <consumer root>/.github/workflows/<file>.
 fs.mkdirSync(path.join(consumer, '.github', 'workflows'), { recursive: true });
 fs.writeFileSync(path.join(consumer, '.github', 'workflows', 'deploy.yml'), 'name: Deploy\non: workflow_dispatch\n');
@@ -234,7 +235,7 @@ const releaseTrain = path.join(fixtures, 'release-train-app.json');
 const canned = (ep, v) => (typeof v !== 'string' ? v : /[?&]head=/.test(ep) ? [{ base: { ref: v } }] : /\/pulls\/\d+$/.test(ep) ? { base: { ref: v } } : { path: v });
 function runGuard(hook, c) {
   const paths = Object.fromEntries(Object.entries(c.paths ?? {}).map(([ep, v]) => [ep, canned(ep, v)]));
-  const extraEnv = { PATH: `${fakeBin}${path.delimiter}${process.env.PATH}`, FAKE_GH_BASE: c.base ?? '', FAKE_GH_PATHS: JSON.stringify(paths) };
+  const extraEnv = { PATH: `${fakeBin}${path.delimiter}${process.env.PATH}`, FAKE_GH_BASE: c.base ?? '', FAKE_GH_PATHS: JSON.stringify(paths), ...c.env };
   return runHook(hook, { manifest: c.fixture, command: c.cmd, tool: c.tool, input: c.input, cwd: c.cwd, extraEnv });
 }
 
@@ -279,10 +280,10 @@ const protectedCases = [
   { fixture: npmRoot, cmd: 'gh pr merge --auto -R o/r 12', base: 'main', exit: 2, stderr: /merges into main/ },
   { fixture: npmRoot, cmd: 'gh pr edit 12 --base main', exit: 2, stderr: /retargets a PR at a protected branch/ },
   { fixture: npmRoot, cmd: 'gh pr edit 12 --base=main', exit: 2, stderr: /retargets a PR at a protected branch/ },
-  { fixture: npmRoot, cmd: 'gh workflow run deploy.yml', exit: 2, stderr: /production deploy \(deploy\.yml\)/ },
-  { fixture: npmRoot, cmd: 'gh workflow run .github/workflows/shopify-deploy.yml -f dump=true', exit: 2, stderr: /production deploy/ },
-  { fixture: npmRoot, cmd: 'gh workflow run "Shopify Deploy"', exit: 2, stderr: /production deploy \(Shopify Deploy\)/ },
-  { fixture: npmRoot, cmd: 'gh workflow run Deploy --ref main', exit: 2, stderr: /production deploy \(Deploy\)/ },
+  { fixture: npmRoot, cmd: 'gh workflow run deploy.yml', exit: 2, stderr: /protected workflow \(deploy\.yml\)/ },
+  { fixture: npmRoot, cmd: 'gh workflow run .github/workflows/shopify-deploy.yml -f dump=true', exit: 2, stderr: /protected workflow/ },
+  { fixture: npmRoot, cmd: 'gh workflow run "Shopify Deploy"', exit: 2, stderr: /protected workflow \(Shopify Deploy\)/ },
+  { fixture: npmRoot, cmd: 'gh workflow run Deploy --ref main', exit: 2, stderr: /protected workflow \(Deploy\)/ },
   { fixture: npmRoot, cmd: 'gh api -X PUT repos/o/r/git/refs/heads/main -f sha=abc', exit: 2, stderr: /write to git\/refs\/heads\/main/ },
   { fixture: npmRoot, cmd: 'gh api --method=patch repos/o/r/git/refs/heads/main --input body.json', exit: 2, stderr: /write to git\/refs\/heads\/main/ },
   { fixture: npmRoot, cmd: 'gh api repos/o/r/merges -f base=main -f head=beta', exit: 2, stderr: /\/merges into main/ },
@@ -363,12 +364,12 @@ const protectedCases = [
   { fixture: npmRoot, cmd: 'git push origin feat:feat', cwd: toUpstream, exit: 0 },
   { fixture: npmRoot, cmd: 'gh pr edit 12 -Bmain', exit: 2, stderr: /retargets a PR at a protected branch/ },
   { fixture: npmRoot, cmd: 'gh pr edit 12 -B=main', exit: 2, stderr: /retargets a PR at a protected branch/ },
-  { fixture: npmRoot, cmd: 'gh workflow run 4242', paths: { 'repos/{owner}/{repo}/actions/workflows/4242': '.github/workflows/deploy.yml' }, exit: 2, stderr: /production deploy \(deploy\.yml\)/ },
+  { fixture: npmRoot, cmd: 'gh workflow run 4242', paths: { 'repos/{owner}/{repo}/actions/workflows/4242': '.github/workflows/deploy.yml' }, exit: 2, stderr: /protected workflow \(deploy\.yml\)/ },
   { fixture: npmRoot, cmd: 'gh workflow run 4242', exit: 2, stderr: /workflow id 4242: gh could not map it/ },
-  { fixture: npmRoot, cmd: 'gh run rerun 99 -R o/r', paths: { 'repos/o/r/actions/runs/99': '.github/workflows/deploy.yml' }, exit: 2, stderr: /gh run rerun of a production deploy run/ },
+  { fixture: npmRoot, cmd: 'gh run rerun 99 -R o/r', paths: { 'repos/o/r/actions/runs/99': '.github/workflows/deploy.yml' }, exit: 2, stderr: /gh run rerun of a run of a protected workflow/ },
   { fixture: npmRoot, cmd: 'gh run cancel 99', exit: 2, stderr: /run 99: its workflow could not be resolved/ },
   { fixture: npmRoot, cmd: 'gh run rerun 7 -R o/r', paths: { 'repos/o/r/actions/runs/7': '.github/workflows/ci.yml' }, exit: 0 },
-  { fixture: npmRoot, cmd: 'gh api -X POST repos/o/r/actions/workflows/deploy.yml/dispatches -f ref=main', exit: 2, stderr: /workflow dispatch of a production deploy/ },
+  { fixture: npmRoot, cmd: 'gh api -X POST repos/o/r/actions/workflows/deploy.yml/dispatches -f ref=main', exit: 2, stderr: /workflow dispatch of a protected workflow/ },
   { fixture: npmRoot, cmd: 'gh api repos/o/r/pulls/12 -X PATCH -f base=main', exit: 2, stderr: /retargets a PR at a protected branch \(main\)/ },
   { fixture: npmRoot, cmd: 'gh api repos/o/r/merges --raw-field=base=main -f head=beta', exit: 2, stderr: /\/merges into main/ },
   { fixture: npmRoot, cmd: 'gh api -X PUT repos/o/r/contents/a.md -f message=m -f content=eA== -f branch=main', exit: 2, stderr: /writes a file to main/ },
@@ -415,7 +416,7 @@ const protectedCases = [
   // ---- release-train fixture: protected main + release, default develop, fly-deploy.yml protected
   { fixture: releaseTrain, cmd: 'git push origin release', exit: 2, stderr: /ships to main, release\. Target develop instead/ },
   { fixture: releaseTrain, cmd: 'git push origin main', exit: 2, stderr: /Target develop instead; Claude may open a release -> main promotion PR/ },
-  { fixture: releaseTrain, cmd: 'gh workflow run fly-deploy.yml', exit: 2, stderr: /production deploy \(fly-deploy\.yml\)/ },
+  { fixture: releaseTrain, cmd: 'gh workflow run fly-deploy.yml', exit: 2, stderr: /protected workflow \(fly-deploy\.yml\)/ },
   { fixture: releaseTrain, cmd: 'git push origin develop', exit: 0 },
   { fixture: releaseTrain, cmd: 'gh workflow run deploy.yml', exit: 0 },
   { fixture: path.join(fixtures, 'multi-tenant-app.json'), cmd: 'gh workflow run deploy.yml', exit: 0 }, // no deploy.protectedWorkflows: an empty list must not trip set -u on bash 3.2
@@ -439,12 +440,12 @@ const mcpCases = [
   { fixture: npmRoot, tool: gh('merge_pull_request'), input: { ...repo, pullNumber: 12 }, base: '', exit: 2, stderr: /base branch could not be resolved with gh/ },
   { fixture: npmRoot, tool: gh('enable_pr_auto_merge'), input: { ...repo, pullNumber: 12 }, base: 'main', exit: 2, stderr: /enable_pr_auto_merge of PR #12 merges into main/ },
   ...['merge_pull_request', 'enable_pr_auto_merge'].flatMap((v) => ['main', 'beta'].map((b) => ({ fixture: npmRoot, tool: gh(v), input: { ...repo, pullNumber: 12 }, base: 'ERROR', paths: { 'repos/o/r/pulls/12': b }, exit: b === 'main' ? 2 : 0, stderr: /merges into main/ }))),
-  { fixture: npmRoot, tool: gh('actions_run_trigger'), input: { ...repo, method: 'run_workflow', workflow_id: 'deploy.yml', ref: 'main' }, exit: 2, stderr: /run_workflow of a production deploy \(deploy\.yml\)/ },
-  { fixture: npmRoot, tool: gh('actions_run_trigger'), input: { ...repo, method: 'run_workflow', workflow_id: '.github/workflows/shopify-deploy.yml', ref: 'main' }, exit: 2, stderr: /production deploy/ },
-  { fixture: npmRoot, tool: gh('actions_run_trigger'), input: { ...repo, method: 'run_workflow', workflow_id: '4242', ref: 'main' }, paths: { 'repos/o/r/actions/workflows/4242': '.github/workflows/deploy.yml' }, exit: 2, stderr: /production deploy \(deploy\.yml\)/ },
+  { fixture: npmRoot, tool: gh('actions_run_trigger'), input: { ...repo, method: 'run_workflow', workflow_id: 'deploy.yml', ref: 'main' }, exit: 2, stderr: /run_workflow of a protected workflow \(deploy\.yml\)/ },
+  { fixture: npmRoot, tool: gh('actions_run_trigger'), input: { ...repo, method: 'run_workflow', workflow_id: '.github/workflows/shopify-deploy.yml', ref: 'main' }, exit: 2, stderr: /protected workflow/ },
+  { fixture: npmRoot, tool: gh('actions_run_trigger'), input: { ...repo, method: 'run_workflow', workflow_id: '4242', ref: 'main' }, paths: { 'repos/o/r/actions/workflows/4242': '.github/workflows/deploy.yml' }, exit: 2, stderr: /protected workflow \(deploy\.yml\)/ },
   { fixture: npmRoot, tool: gh('actions_run_trigger'), input: { ...repo, method: 'run_workflow', workflow_id: '4242', ref: 'main' }, exit: 2, stderr: /workflow id 4242: gh could not map it/ },
   { fixture: npmRoot, tool: gh('actions_run_trigger'), input: { ...repo, method: 'run_workflow', ref: 'main' }, exit: 2, stderr: /names no workflow/ },
-  { fixture: npmRoot, tool: gh('actions_run_trigger'), input: { ...repo, method: 'rerun_workflow_run', run_id: 99 }, paths: { 'repos/o/r/actions/runs/99': '.github/workflows/shopify-deploy.yml@refs/heads/main' }, exit: 2, stderr: /rerun_workflow_run of a production deploy run \(shopify-deploy\.yml\)/ },
+  { fixture: npmRoot, tool: gh('actions_run_trigger'), input: { ...repo, method: 'rerun_workflow_run', run_id: 99 }, paths: { 'repos/o/r/actions/runs/99': '.github/workflows/shopify-deploy.yml@refs/heads/main' }, exit: 2, stderr: /rerun_workflow_run of a run of a protected workflow \(shopify-deploy\.yml\)/ },
   { fixture: npmRoot, tool: gh('actions_run_trigger'), input: { ...repo, method: 'cancel_workflow_run', run_id: 99 }, exit: 2, stderr: /cancel_workflow_run of run 99: its workflow could not be resolved/ },
   { fixture: npmRoot, tool: 'mcp__plugin_github_github__push_files', input: { ...repo, branch: 'main' }, exit: 2, stderr: /push_files writes to a protected branch/ },
   { fixture: MISSING, tool: gh('push_files'), input: { ...repo, branch: 'beta' }, exit: 2, stderr: /manifest is missing or unreadable/ },
@@ -491,6 +492,84 @@ describe('guard-protected-branch.sh', () => {
     const r = runGuard('guard-protected-branch.sh', { fixture: p, cmd: 'git push origin beta' });
     assert.equal(r.status, 2, r.stderr);
     assert.match(r.stderr, /manifest is missing or unreadable/);
+  });
+});
+
+// ---------------------------------------------------------------------------------------------- the origin manifest
+// staleClone(edit): a bare origin on beta and a full clone of it, then edit(manifest) committed and pushed to origin
+// (with purge.yml, "Session Purge"), so the clone's checkout predates it. No network: the origin is a local path.
+const git = (cwd, ...a) => spawnSync('git', ['-C', cwd, '-c', 'user.name=t', '-c', 'user.email=t@t', ...a], { encoding: 'utf8' });
+function staleClone(edit) {
+  const d = fs.mkdtempSync(path.join(os.tmpdir(), 'shopify-app-kit-origin-')), [bare, work, clone] = ['origin.git', 'work', 'clone'].map((n) => path.join(d, n));
+  git(d, 'init', '-q', '--bare', '-b', 'beta', bare); git(d, 'clone', '-q', bare, work);
+  const commit = (f) => { f(JSON.parse(fs.readFileSync(npmRoot, 'utf8'))); git(work, 'add', '-A'); git(work, 'commit', '-qm', 'x'); git(work, 'push', '-q', 'origin', 'HEAD:beta'); };
+  const put = (m) => { fs.mkdirSync(path.join(work, '.claude'), { recursive: true }); fs.writeFileSync(path.join(work, '.claude', 'shopify-app.json'), JSON.stringify(m)); };
+  commit(put); git(d, 'clone', '-q', bare, clone);
+  if (edit) commit((m) => { edit(m); put(m); fs.mkdirSync(path.join(work, '.github', 'workflows'), { recursive: true }); fs.writeFileSync(path.join(work, '.github', 'workflows', 'purge.yml'), 'name: Session Purge\n'); });
+  return { clone, work, edit: (f) => commit((m) => { f(m); put(m); }) };
+}
+const inClone = (clone, c, env = {}) => runGuard('guard-protected-branch.sh', { ...c, fixture: undefined, cwd: clone, env: { CLAUDE_PROJECT_DIR: clone, ...env } });
+const addPurge = (m) => { m.deploy.protectedWorkflows.push('purge.yml'); m.branches.protected.push('release'); };
+const purge = { tool: gh('actions_run_trigger'), input: { ...repo, method: 'run_workflow', workflow_id: 'purge.yml', ref: 'beta' } };
+
+describe('guard-protected-branch.sh against the default branch on origin', () => {
+  test('a stale checkout is held to protections origin added (gh, display name, MCP, push), and its clone is untouched', () => {
+    const { clone } = staleClone(addPurge), log = () => git(clone, 'rev-list', '--count', '--all').stdout;
+    const before = log();
+    assert.equal(inClone(clone, { cmd: 'git status && ls .github && gh api repos/o/r/pulls' }).status, 0);
+    assert.ok(!fs.existsSync(path.join(clone, '.git', 'kit')), 'an unguarded command fetches nothing');
+    for (const c of [{ cmd: 'gh workflow run purge.yml' }, { cmd: 'gh workflow run "Session Purge"' }, purge, { cmd: 'git push origin release' }]) {
+      const r = inClone(clone, c);
+      assert.equal(r.status, 2, `${JSON.stringify(c)}: ${r.stderr}`);
+      assert.match(r.stderr, /protected (workflow|branch) \((purge\.yml|Session Purge|release)\)[\s\S]*Protections checked: this checkout's manifest and origin\/beta at [0-9a-f]+ \(fetched \d+ s ago\)/);
+    }
+    assert.match(inClone(clone, { cmd: 'git push origin release' }).stderr, /Only the maintainer ships to main, release\./, 'the rule names origin\'s branch');
+    assert.equal(inClone(clone, { ...purge, input: { ...purge.input, workflow_id: 'qa.yml' } }).status, 0);
+    assert.equal(log(), before, 'no commit lost or gained');
+    for (const f of ['shallow', 'FETCH_HEAD']) assert.ok(!fs.existsSync(path.join(clone, '.git', f)), `.git/${f}`);
+  });
+
+  test('a protection origin removed stays enforced; bindings stay local; the drift notice appears only when they differ', () => {
+    const { clone } = staleClone((m) => { m.deploy.protectedWorkflows = []; m.shopifyCli.configs.deploy = 'other'; });
+    assert.match(inClone(clone, { cmd: 'gh workflow run deploy.yml' }).stderr, /protected workflow \(deploy\.yml\)/);
+    const r = runHook('guard-shopify-cli.sh', { command: 'shopify app deploy --config example', cwd: clone, extraEnv: { CLAUDE_PROJECT_DIR: clone } });
+    assert.equal(r.status, 0, r.stderr);
+    const n = inClone(clone, { cmd: 'gh workflow run qa.yml' }, { SHOPIFY_APP_KIT_ORIGIN_TTL: '0' });
+    assert.equal(n.status, 0, n.stderr);
+    assert.match(JSON.parse(n.stdout).hookSpecificOutput.additionalContext, /differs from origin\/beta at [0-9a-f]+ on deploy\.protectedWorkflows, shopifyCli\./);
+    assert.equal(inClone(staleClone().clone, { cmd: 'gh workflow run qa.yml' }).stdout, '', 'equal manifests: no notice');
+  });
+
+  test('the origin copy is cached for the TTL, then fetched again; a dead holder\'s lock is reclaimed', () => {
+    const { clone, edit } = staleClone();
+    fs.mkdirSync(path.join(clone, '.git', 'kit', 'lock'), { recursive: true }); fs.writeFileSync(path.join(clone, '.git', 'kit', 'lock', 'owner'), '999999 1\n');
+    assert.equal(inClone(clone, { cmd: 'gh workflow run purge.yml' }).status, 0);
+    assert.ok(fs.existsSync(path.join(clone, '.git', 'kit', 'origin-v1.ok')) && !fs.existsSync(path.join(clone, '.git', 'kit', 'lock')), 'fetched and released');
+    edit(addPurge);
+    assert.equal(inClone(clone, { cmd: 'gh workflow run purge.yml' }).status, 0, 'inside the TTL the cached copy decides');
+    assert.equal(inClone(clone, { cmd: 'gh workflow run purge.yml' }, { SHOPIFY_APP_KIT_ORIGIN_TTL: '0' }).status, 2, 'past it origin is read again');
+  });
+
+  // PATH without timeout or gtimeout (stock macOS): the perl alarm bounds the fetch.
+  const noTimeout = (seen = new Set()) => { const d = fs.mkdtempSync(path.join(consumer, 'bin-notimeout-')); for (const dir of process.env.PATH.split(path.delimiter)) for (const n of fs.existsSync(dir) ? fs.readdirSync(dir) : []) if (!/^g?timeout$/.test(n) && !seen.has(n) && seen.add(n)) fs.symlinkSync(path.join(dir, n), path.join(d, n)); return `${fakeBin}${path.delimiter}${d}`; };
+  for (const [what, url, env] of [['unreachable', '/nonexistent/origin.git', {}], ['hung', 'hang::x', {}], ['hung, no timeout binary,', 'hang::x', { PATH: noTimeout() }]]) {
+    test(`origin ${what} on a cold start: dispatch, rerun and merge block, a push goes ahead on local protections, in time`, () => {
+      const { clone } = staleClone();
+      git(clone, 'remote', 'set-url', 'origin', url); git(clone, 'update-ref', '-d', 'refs/remotes/origin/beta');
+      const t0 = Date.now(), first = inClone(clone, { cmd: 'gh workflow run qa.yml' }, env);
+      assert.ok(Date.now() - t0 < 9000, `bounded: ${Date.now() - t0} ms`);
+      assert.match(first.stderr, /gh workflow run cannot be checked against origin's protected branches[\s\S]*could not be fetched and no copy of it exists/);
+      assert.match(first.stderr, /origin being unreachable, not a protected target/);
+      for (const c of [{ cmd: 'gh run rerun 99' }, { cmd: 'gh pr merge 12', base: 'beta' }]) assert.equal(inClone(clone, c).status, 2, c.cmd);
+      assert.equal(inClone(clone, { cmd: 'git push origin feat/x' }).status, 0);
+      assert.equal(inClone(clone, { cmd: 'git push origin main' }).status, 2);
+    });
+  }
+
+  test('the doctor reports a manifest that differs from origin, and nothing when they match', () => {
+    const doc = (clone) => runDoctor({ manifest: undefined, cwd: clone, extraEnv: { CLAUDE_PROJECT_DIR: clone } }).stdout;
+    assert.match(doc(staleClone(addPurge).clone), /Drift: this checkout's manifest differs from origin\/beta at [0-9a-f]+ on branches\.protected, deploy\.protectedWorkflows;/);
+    assert.doesNotMatch(doc(staleClone().clone), /differs from origin|Origin:/);
   });
 });
 
@@ -976,6 +1055,8 @@ describe('doctor.sh', () => {
     const run = (pre) => { fs.writeFileSync(path.join(dir, '.claude', 'settings.json'), JSON.stringify({ hooks: { PreToolUse: pre } })); return runDoctor({ manifest: undefined, cwd: dir, extraEnv: { CLAUDE_PROJECT_DIR: dir } }); };
     assert.match(run([entry('Bash')]).stdout, /does not register guard-protected-branch\.sh for the GitHub MCP tools/);
     assert.doesNotMatch(run([entry('Bash'), entry('mcp__.*github.*')]).stdout, /for the GitHub MCP tools/);
+    assert.match(run([entry('Bash')]).stdout, /Drift: guard-protected-branch\.sh registered without "onFailure": "block"/);
+    assert.doesNotMatch(run([{ matcher: 'Bash', hooks: [{ ...entry('Bash').hooks[0], onFailure: 'block' }] }]).stdout, /onFailure/);
   });
 
   test('reports a vendored guard the kit no longer ships, and one the plugin marks deprecated', () => {

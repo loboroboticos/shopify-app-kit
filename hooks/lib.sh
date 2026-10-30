@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shopify-app-kit v0.18.1
+# shopify-app-kit v0.19.0
 # hooks/lib.sh: shared helpers for the shopify-app-kit guard hooks. Sourced, never executed.
 # Vendored into consumers at .claude/hooks/kit/lib.sh by /shopify-app-kit:sync, next to the guards.
 #
@@ -23,7 +23,7 @@
 #   kit_walk_commands CMD CB  -> calls CB "<effective dir>" <prog> <args...> for every simple command in CMD, as the
 #                                shell would read it (an awk lexer), with cd/pushd/popd tracking   [needs awk]
 
-KIT_VERSION="0.18.1"
+KIT_VERSION="0.19.0"
 KIT_HOOK_NAME="${KIT_HOOK_NAME:-hook}"
 KIT_MANIFEST_RULE="Add or repair .claude/shopify-app.json (the repo manifest the kit's guard hooks read; schema: shopify-app-kit schemas/shopify-app.v1.schema.json)."
 
@@ -38,8 +38,8 @@ cwd=""
 # ---------------------------------------------------------------- blocking
 
 block() {
-  printf 'Blocked by shopify-app-kit/%s: %s.\n%s\nCases: shopify-app-kit test/hooks.test.mjs (v%s).\n' \
-    "$KIT_HOOK_NAME" "$1" "$2" "$KIT_VERSION" >&2
+  printf 'Blocked by shopify-app-kit/%s: %s.\n%s\n%sCases: shopify-app-kit test/hooks.test.mjs (v%s).\n' "$KIT_HOOK_NAME" "$1" "$2" \
+    "${kit_origin_note:+Protections checked: $kit_origin_note.$KIT_NL}" "$KIT_VERSION" >&2
   exit 2
 }
 
@@ -746,4 +746,79 @@ kit_walk_commands() {
   kit_stack=()
   dir="$cwd"
   kit__walk "$1" "$2" 0
+}
+
+# ---------------------------------------------------------------- origin manifest (guard-protected-branch, the doctor)
+# A session's checkout can predate a manifest change on the default branch, so kit_origin_load reads that branch's
+# manifest from origin, fetched --depth=1 into a private bare repo under <git common dir>/kit/ (a shallow fetch into the
+# session's clone would truncate it), cached 120 s ($SHOPIFY_APP_KIT_ORIGIN_TTL), 30 s after a failure, each step <= 6 s.
+# Never sets GIT_ASKPASS or GIT_CONFIG_* (cloud auth comes from the environment) nor prints the URL. kit_origin: ok,
+# stale (a copy after a failed fetch), absent (no such branch), none (unreachable, no copy ever), skip (manifest env set,
+# no origin, not a git tree); kit_origin_note says what was checked.
+kit_origin=""; kit_origin_note=""; kit_origin_src=""; kit_origin_git=""; kit_origin_ref=refs/kit/tip; kit_origin_mf=""; kit_origin_stamp=""; kit_origin_fresh=0; KIT_NL=$'\n'
+
+kit__bounded() { if command -v timeout >/dev/null 2>&1; then timeout "$@"; elif command -v gtimeout >/dev/null 2>&1; then gtimeout "$@"; else perl -e 'alarm shift; exec @ARGV' "$@"; fi; }
+
+# kit_origin_show PATH: PATH as it is in the origin copy, or nothing.
+kit_origin_show() { git --git-dir="$kit_origin_git" show "$kit_origin_ref:$1" 2>/dev/null; }
+
+# kit__origin_lock DIR: 0 holding DIR/lock (pid and time in it; a dead holder's is reclaimed), 1 after waiting <= 6 s for a live one.
+kit__origin_lock() {
+  local l="$1/lock" p pt i=0
+  until mkdir "$l" 2>/dev/null; do
+    p=""; pt=0; { read -r p pt <"$l/owner"; } 2>/dev/null
+    if { [ -n "$p" ] && ! kill -0 "$p" 2>/dev/null; } || { [ $(($(date +%s) - ${pt:-0})) -gt 20 ] && [ "$i" -ge 5 ]; }; then rm -rf "$l"; continue; fi
+    [ "$i" -lt 30 ] || return 1
+    sleep 0.2; i=$((i + 1)); [ -d "$l" ] || return 1
+  done
+  printf '%s %s\n' "$$" "$(date +%s)" >"$l/owner"
+}
+
+# kit__origin_fetch URL BRANCH STAMP: fetch BRANCH's tip into the private repo; STAMP.ok gets "<time> <sha|absent>",
+# STAMP.fail a transport failure's time; renamed into place. stderr goes to a file: a helper perl's alarm leaves cannot hold it.
+kit__origin_fetch() {
+  local rc sha now e="$3.err.$$"; now="$(date +%s)"
+  [ -d "$kit_origin_git" ] || git init -q --bare "$kit_origin_git" >/dev/null 2>&1
+  LC_ALL=C kit__bounded 6 git --git-dir="$kit_origin_git" -c gc.auto=0 fetch -q --depth=1 --no-tags --no-write-fetch-head "$1" "+refs/heads/$2:$kit_origin_ref" >/dev/null 2>"$e" </dev/null; rc=$?
+  if [ "$rc" -eq 0 ]; then sha="$(git --git-dir="$kit_origin_git" rev-parse --short "$kit_origin_ref" 2>/dev/null)"; kit_origin_fresh=1
+  elif grep -q "couldn't find remote ref" "$e" 2>/dev/null; then sha=absent
+  else printf '%s\n' "$now" >"$3.fail.$$" 2>/dev/null && mv -f "$3.fail.$$" "$3.fail"; rm -f "$e"; return 0; fi
+  printf '%s %s\n' "$now" "${sha:-absent}" >"$3.ok.$$" 2>/dev/null && mv -f "$3.ok.$$" "$3.ok"; rm -f "$e"
+}
+
+kit_origin_load() {
+  [ -z "$kit_origin" ] || return 0
+  kit_origin=skip
+  local b kd url s now t=0 sha="" f=0 ttl="${SHOPIFY_APP_KIT_ORIGIN_TTL:-120}"
+  b="$(mf '.branches.default // empty' 2>/dev/null)"
+  [ -z "${SHOPIFY_APP_KIT_MANIFEST:-}" ] && [[ "$b" =~ ^[A-Za-z0-9._/][A-Za-z0-9._/-]*$ ]] || return 0
+  kd="$(git -C "$root" rev-parse --git-common-dir 2>/dev/null)" && url="$(git -C "$root" remote get-url origin 2>/dev/null)" || return 0
+  case "$kd" in /*) ;; *) kd="$root/$kd" ;; esac
+  kd="$kd/kit"; s="$kd/origin-v1"; kit_origin_stamp="$s"; kit_origin_git="$kd/origin.git"; now="$(date +%s)"
+  kit_origin_mf="$(git -C "$root" rev-parse --show-prefix 2>/dev/null).claude/shopify-app.json"; mkdir -p "$kd" 2>/dev/null
+  { read -r t sha <"$s.ok"; read -r f <"$s.fail"; } 2>/dev/null
+  if [ $((now - ${t:-0})) -ge "$ttl" ] && [ $((now - ${f:-0})) -ge 30 ]; then
+    if kit__origin_lock "$kd"; then kit__origin_fetch "$url" "$b" "$s"; rm -rf "$kd/lock"; fi
+    { read -r t sha <"$s.ok"; read -r f <"$s.fail"; } 2>/dev/null
+  fi
+  kit_origin_src="origin/$b at ${sha:-?}"
+  if [ $((now - ${t:-0})) -lt "$ttl" ] && [ "${t:-0}" -ge "${f:-0}" ]; then
+    if [ "$sha" = absent ]; then kit_origin=absent; kit_origin_note="this checkout's manifest only (origin has no branch $b)"; return 0; fi
+    kit_origin=ok; kit_origin_note="this checkout's manifest and $kit_origin_src (fetched $((now - t)) s ago)"; return 0
+  fi
+  kit_origin=stale
+  if git --git-dir="$kit_origin_git" rev-parse -q --verify "$kit_origin_ref" >/dev/null 2>&1 && [ "$sha" != absent ]; then
+    kit_origin_note="this checkout's manifest and $kit_origin_src, a copy from $(((now - t) / 60)) min ago: origin could not be fetched"
+  elif kit_origin_git="$(git -C "$root" rev-parse --absolute-git-dir 2>/dev/null)" && git -C "$root" rev-parse -q --verify "refs/remotes/origin/$b" >/dev/null 2>&1; then
+    kit_origin_ref="refs/remotes/origin/$b"; kit_origin_src="origin/$b at $(git -C "$root" rev-parse --short "$kit_origin_ref")"
+    kit_origin_note="this checkout's manifest and $kit_origin_src, its remote-tracking copy: origin could not be fetched"
+  else kit_origin=none; kit_origin_note="this checkout's manifest only: origin/$b could not be fetched and no copy of it exists"; fi
+}
+
+# kit_origin_drift: the keys a guard reads on which the origin copy differs from this checkout's manifest, or nothing.
+kit_origin_drift() {
+  case "$kit_origin" in ok | stale) ;; *) return 0 ;; esac
+  kit_origin_show "$kit_origin_mf" | jq -r --slurpfile l "$manifest" '. as $o | ["branches.protected", "branches.default",
+    "deploy.protectedWorkflows", "deploy.scaleToZeroBeforeMigrate", "shopifyCli", "packageManagers", "paths.prisma", "database"]
+    | map(select(try ((. / ".") as $p | ($o | getpath($p)) != ($l[0] | getpath($p))) catch true)) | join(", ")' 2>/dev/null
 }
