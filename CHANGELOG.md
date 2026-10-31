@@ -5,30 +5,30 @@ vendored hook carries it on line 2 (`# shopify-app-kit vX.Y.Z`). A version that 
 `### Deprecated`; the next minor deletes it and lists it under `### Removed` (`kit-dev`: "Remove a skill, agent,
 hook, workflow or routine"). Sections up to 0.6.0 are compacted; `git log -p CHANGELOG.md` has their full text.
 
+## 0.19.2
+
+The cache age a block names (`fetched N s ago`) is never negative: a stamp ahead of `kit_origin_load`'s clock (the
+fetch's own clock read fell on the next second, or skew) counts as 0 s old; the test pins it. Nothing else changes.
+
 ## 0.19.1
 
 The ratchet-down after 0.19.0's raise (#161), and the D6 residual recorded rather than built (#162).
 
 - `guard-protected-branch`: a block says `Protections checked: ...` only when origin's copy differs from this checkout
-  on a guard-read key (the keys are named) or origin was not read cleanly (stale, absent, none); a plain block stays
-  short. The remote-tracking fallback gains the test it lacked.
+  on a guard-read key (named) or origin was not read cleanly (stale, absent, none); a plain block stays short.
 - `guard-shopify-cli` reads this checkout's policies only, by decision: a checkout that predates a stricter `shopifyCli`
   policy enforces the older one until its manifest is updated from `origin/<default>`; the doctor reports the difference
   at session start, the drift notice after the next guarded `git` or `gh` call (its header, the README row).
-- Comments shortened and two folds in `hooks/`; near-duplicate rows tabled in the tests (the same cases: the generated
-  rows were dumped and compared); the 0.1.0-0.6.0 sections here compacted, which `release.md` now allows, with
-  `personas.md` and the README carrying the persona port rules the 0.5.0 section held. Behaviour otherwise unchanged.
+- Comments shortened and two folds in `hooks/`; near-duplicate test rows tabled (the same generated cases, dumped and
+  compared) and the remote-tracking fallback tested; the 0.1.0-0.6.0 sections here compacted, which `release.md` now
+  allows (`personas.md` and the README carry the port rules the 0.5.0 section held). Behaviour otherwise unchanged.
 
 ### Budget
 
-- `test/` 3830 -> 3815 and `CHANGELOG.md` 1090 -> 950: measured usage rounded up to 5, no cushion, every line wrapped
-  at the files' width. `hooks/` stays at 1950: the comment cuts that were to pay for a drop were line joins once
-  measured honestly, so only the two folds and the one-chain `kit_origin_load` are kept, and B1 and the D6 header
-  spend them. `raisedIn` stays 0.19.0 while `hooks/` and `test/` sit above their 0.18.1 ceilings (1830, 3750); that
-  remainder is #161's. Kept on purpose: the lock's dead-pid check (age alone
-  would cost 6 s per call for 20 s after a killed hook), the `absent` state (as `none` it would retry every 30 s with
-  wrong advice), the drift notice and the remote-tracking fallback (the only mid-session drift report; the only path
-  when git auth lives in `.git/config`).
+- `test/` 3830 -> 3815, `CHANGELOG.md` 1090 -> 950; `hooks/` stays 1950: the comment cuts meant to pay for a drop were
+  line joins. `raisedIn` stays 0.19.0 while `hooks/` and `test/` sit above their 0.18.1 ceilings (1830, 3750), #161's
+  remainder. Kept on purpose: the lock's dead-pid check (age alone: 6 s a call for 20 s after a killed hook), `absent`
+  apart from `none` (else a 30 s retry with wrong advice), the drift notice and the remote-tracking fallback.
 
 ## 0.19.0
 

@@ -102,19 +102,16 @@ describe('routines/', () => {
   test('the other prompts keep their boundaries', () => {
     const nuclear = read('nuclear-review.md');
     for (const s of ['/shopify-app-kit:review', 'never a PR', 'same title prefix', 'blocker or major']) assert.ok(nuclear.toLowerCase().includes(s.toLowerCase()), `nuclear-review: ${s}`);
-    const steward = read('pr-steward.md');
-    for (const s of ['never merge', 'Merge conflict', 'Red CI', 'Never skip, disable or quarantine', 'force-push']) assert.ok(steward.includes(s), `pr-steward: ${s}`);
-    const health = read('kit-health.md');
-    for (const s of ['/shopify-app-kit:doctor', 'git ls-remote --tags', 'shopify-dev', '3 months', 'kit.portfolioId', "latest failed job's log", 'not only the title prefix']) assert.ok(health.includes(s), `kit-health: ${s}`);
-    const graph = read('graphify-refresh.md');
-    for (const s of ['`graph` branch', '--force-with-lease', 'graphify-out/', '.claudeignore', 'nothing merged since']) assert.ok(graph.includes(s), `graphify-refresh: ${s}`);
-    assert.doesNotMatch(graph, /force-with-lease origin (main|master)\b/);
-    const deps = read('dependency-wave.md');
-    for (const s in { '--audit-level=high': 1, 'dependabot.yml': 1, 'semver-major': 1, '`dependencies`, `agent:ci`': 1 }) assert.ok(deps.includes(s), `dependency-wave: ${s}`);
-    const parity = read('dev-parity.md');
-    for (const s of ['shopifyCli.configs', 'paths.appTomls', 'deploy.targets.beta', 'branches.promotion', 'billing.testFlag', 'checks.tripwireDir', 'repo preamble', 'unverified', 'first 7 days', 'dev-parity: <the drift in six words>', 'for that title prefix', '`human:account`', 'never with a closing', 'no workflow dispatch of any kind', 'no Shopify CLI', 'no Fly CLI', 'raw health response', 'No PR and no push']) assert.ok(parity.includes(s), `dev-parity: ${s}`);
-    const tidy = read('kit-tidy.md');
-    for (const s of ['Step 1, the suite', 'Step 2, duplicated prose', 'Step 3, things nothing reads', 'Step 4, the size trend', 'Step 5, docs that restate a test', 'Step 6, mechanical drift', 'Step 7, the portfolio', 'Step 8, deprecation candidates', 'this routine deprecates\nnothing', 'At most one PR per run', 'Never a deletion', 'no-repo-literals', 'kit-tidy: <the finding in six words>', 'that title prefix', 'never with a closing']) assert.ok(tidy.includes(s), `kit-tidy: ${s}`);
+    assert.doesNotMatch(read('graphify-refresh.md'), /force-with-lease origin (main|master)\b/);
+    // { routine, the strings its prompt must carry }
+    for (const [routine, strs] of [
+      ['pr-steward', ['never merge', 'Merge conflict', 'Red CI', 'Never skip, disable or quarantine', 'force-push']],
+      ['kit-health', ['/shopify-app-kit:doctor', 'git ls-remote --tags', 'shopify-dev', '3 months', 'kit.portfolioId', "latest failed job's log", 'not only the title prefix']],
+      ['graphify-refresh', ['`graph` branch', '--force-with-lease', 'graphify-out/', '.claudeignore', 'nothing merged since']],
+      ['dependency-wave', ['--audit-level=high', 'dependabot.yml', 'semver-major', '`dependencies`, `agent:ci`']],
+      ['dev-parity', ['shopifyCli.configs', 'paths.appTomls', 'deploy.targets.beta', 'branches.promotion', 'billing.testFlag', 'checks.tripwireDir', 'repo preamble', 'unverified', 'first 7 days', 'dev-parity: <the drift in six words>', 'for that title prefix', '`human:account`', 'never with a closing', 'no workflow dispatch of any kind', 'no Shopify CLI', 'no Fly CLI', 'raw health response', 'No PR and no push']],
+      ['kit-tidy', ['Step 1, the suite', 'Step 2, duplicated prose', 'Step 3, things nothing reads', 'Step 4, the size trend', 'Step 5, docs that restate a test', 'Step 6, mechanical drift', 'Step 7, the portfolio', 'Step 8, deprecation candidates', 'this routine deprecates\nnothing', 'At most one PR per run', 'Never a deletion', 'no-repo-literals', 'kit-tidy: <the finding in six words>', 'that title prefix', 'never with a closing']],
+    ]) { const t = read(`${routine}.md`); for (const s of strs) assert.ok(t.includes(s), `${routine}: ${s}`); }
   });
 
   test('every routine step can run as written (#118)', () => {

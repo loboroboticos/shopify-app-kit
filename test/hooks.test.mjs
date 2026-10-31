@@ -522,7 +522,11 @@ describe('guard-protected-branch.sh against the default branch on origin', () =>
     fs.writeFileSync(path.join(noBranch, '.claude', 'shopify-app.json'), JSON.stringify({ ...JSON.parse(fs.readFileSync(npmRoot, 'utf8')), branches: { default: 'nope', protected: ['main'] } }));
     assert.match(inClone(noBranch, { cmd: 'git push origin main' }).stderr, /Protections checked: this checkout's manifest only \(origin has no branch nope\)\./);
     // a block decided by drift names the keys; the drift case itself is asserted above (purge.yml, release)
-    assert.match(inClone(staleClone(addPurge).clone, { cmd: 'git push origin release' }).stderr, /Protections checked: this checkout's manifest and origin\/beta at [0-9a-f]+ \(fetched \d+ s ago\); origin differs on branches\.protected, deploy\.protectedWorkflows\./);
+    const { clone: drifted } = staleClone(addPurge), stamp = path.join(drifted, '.git', 'kit', 'origin-v1.ok');
+    assert.match(inClone(drifted, { cmd: 'git push origin release' }).stderr, /Protections checked: this checkout's manifest and origin\/beta at [0-9a-f]+ \(fetched \d+ s ago\); origin differs on branches\.protected, deploy\.protectedWorkflows\./);
+    // a stamp ahead of the hook's clock (the fetch's own read fell on the next second, or skew) is 0 s old, never negative
+    fs.writeFileSync(stamp, fs.readFileSync(stamp, 'utf8').replace(/^\d+/, String(Math.floor(Date.now() / 1000) + 3600)));
+    assert.match(inClone(drifted, { cmd: 'git push origin release' }).stderr, /\(fetched 0 s ago\); origin differs on/);
   });
 
   test('origin unreachable with no private copy yet: the remote-tracking copy decides, and the block names it', () => {
