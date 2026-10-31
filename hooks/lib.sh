@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shopify-app-kit v0.19.1
+# shopify-app-kit v0.19.2
 # hooks/lib.sh: shared helpers for the shopify-app-kit guard hooks. Sourced, never executed.
 # Vendored into consumers at .claude/hooks/kit/lib.sh by /shopify-app-kit:sync, next to the guards.
 #
@@ -23,7 +23,7 @@
 #   kit_walk_commands CMD CB  -> calls CB "<effective dir>" <prog> <args...> for every simple command in CMD, as the
 #                                shell would read it (an awk lexer), with cd/pushd/popd tracking   [needs awk]
 
-KIT_VERSION="0.19.1"
+KIT_VERSION="0.19.2"
 KIT_HOOK_NAME="${KIT_HOOK_NAME:-hook}"
 KIT_MANIFEST_RULE="Add or repair .claude/shopify-app.json (the repo manifest the kit's guard hooks read; schema: shopify-app-kit schemas/shopify-app.v1.schema.json)."
 
@@ -803,12 +803,13 @@ kit_origin_load() {
     if kit__origin_lock "$kd"; then kit__origin_fetch "$url" "$b" "$s"; rm -rf "$kd/lock"; fi
     { read -r t sha <"$s.ok"; read -r f <"$s.fail"; } 2>/dev/null
   fi
-  kit_origin_src="origin/$b at ${sha:-?}"; local n="this checkout's manifest"
-  if [ $((now - ${t:-0})) -lt "$ttl" ] && [ "${t:-0}" -ge "${f:-0}" ]; then
+  # the age: a stamp ahead of the clock (the fetch's own read fell on the next second, or skew) is 0 s old, never negative
+  kit_origin_src="origin/$b at ${sha:-?}"; local n="this checkout's manifest" age=$((now > ${t:-0} ? now - ${t:-0} : 0))
+  if [ "$age" -lt "$ttl" ] && [ "${t:-0}" -ge "${f:-0}" ]; then
     if [ "$sha" = absent ]; then kit_origin=absent; kit_origin_note="$n only (origin has no branch $b)"
-    else kit_origin=ok; kit_origin_note="$n and $kit_origin_src (fetched $((now - t)) s ago)"; fi
+    else kit_origin=ok; kit_origin_note="$n and $kit_origin_src (fetched $age s ago)"; fi
   elif git --git-dir="$kit_origin_git" rev-parse -q --verify "$kit_origin_ref" >/dev/null 2>&1 && [ "$sha" != absent ]; then
-    kit_origin=stale; kit_origin_note="$n and $kit_origin_src, a copy from $(((now - t) / 60)) min ago: origin could not be fetched"
+    kit_origin=stale; kit_origin_note="$n and $kit_origin_src, a copy from $((age / 60)) min ago: origin could not be fetched"
   elif kit_origin_git="$(git -C "$root" rev-parse --absolute-git-dir 2>/dev/null)" && git -C "$root" rev-parse -q --verify "refs/remotes/origin/$b" >/dev/null 2>&1; then
     kit_origin=stale; kit_origin_ref="refs/remotes/origin/$b"; kit_origin_src="origin/$b at $(git -C "$root" rev-parse --short "$kit_origin_ref")"
     kit_origin_note="$n and $kit_origin_src, its remote-tracking copy: origin could not be fetched"
