@@ -192,10 +192,7 @@ describe('scripts/apply-overlay.mjs on a stand-in template', () => {
     assert.match(claude, new RegExp(`<!-- shopify-app-kit overlay: begin \\(kit v${KIT_VERSION.replace(/\./g, '\\.')}\\) -->`));
     assert.match(claude, /<!-- shopify-app-kit overlay: end -->\n$/);
     assert.equal((claude.match(/overlay: begin/g) ?? []).length, 1);
-    assert.equal(read('.gitignore'), before['.gitignore']);
-    assert.equal(read('README.md'), before['README.md']);
-    assert.equal(read('AGENTS.md'), before['AGENTS.md']);
-    assert.equal(read('shopify.app.toml'), before['shopify.app.toml']);
+    for (const f of ['.gitignore', 'README.md', 'AGENTS.md', 'shopify.app.toml']) assert.equal(read(f), before[f], f);
   });
 
   test('vendors lib.sh and every guard with the kit header, executable', () => {

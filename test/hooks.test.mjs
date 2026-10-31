@@ -275,27 +275,22 @@ const protectedCases = [
   { fixture: npmRoot, cmd: `cd ${onMain} && git push`, exit: 2, stderr: /checkout on a protected branch/ },
   { fixture: npmRoot, cmd: 'cd "$dir" && git push', exit: 2, stderr: /cannot be read from a literal path/ },
   { fixture: npmRoot, cmd: 'git status && git push origin main', exit: 2, stderr: /protected branch/ },
-  { fixture: npmRoot, cmd: 'gh pr merge 12 --squash', base: 'main', exit: 2, stderr: /gh pr merge 12 merges into main/ },
-  { fixture: npmRoot, cmd: 'gh pr merge 12 --squash', base: '', exit: 2, stderr: /base branch could not be resolved/ },
+  // a merge whose base resolves to main, and one whose base cannot be resolved
+  ...[['gh pr merge 12 --squash', /gh pr merge 12 merges into main/, /base branch could not be resolved/], ['gh api -X PUT repos/o/r/pulls/12/merge', /merge of PR #12 into main/, /could not be resolved/]]
+    .flatMap(([cmd, hit, miss]) => [{ fixture: npmRoot, cmd, base: 'main', exit: 2, stderr: hit }, { fixture: npmRoot, cmd, base: '', exit: 2, stderr: miss }]),
   { fixture: npmRoot, cmd: 'gh pr merge --auto -R o/r 12', base: 'main', exit: 2, stderr: /merges into main/ },
-  { fixture: npmRoot, cmd: 'gh pr edit 12 --base main', exit: 2, stderr: /retargets a PR at a protected branch/ },
-  { fixture: npmRoot, cmd: 'gh pr edit 12 --base=main', exit: 2, stderr: /retargets a PR at a protected branch/ },
-  { fixture: npmRoot, cmd: 'gh workflow run deploy.yml', exit: 2, stderr: /protected workflow \(deploy\.yml\)/ },
-  { fixture: npmRoot, cmd: 'gh workflow run .github/workflows/shopify-deploy.yml -f dump=true', exit: 2, stderr: /protected workflow/ },
-  { fixture: npmRoot, cmd: 'gh workflow run "Shopify Deploy"', exit: 2, stderr: /protected workflow \(Shopify Deploy\)/ },
-  { fixture: npmRoot, cmd: 'gh workflow run Deploy --ref main', exit: 2, stderr: /protected workflow \(Deploy\)/ },
-  { fixture: npmRoot, cmd: 'gh api -X PUT repos/o/r/git/refs/heads/main -f sha=abc', exit: 2, stderr: /write to git\/refs\/heads\/main/ },
-  { fixture: npmRoot, cmd: 'gh api --method=patch repos/o/r/git/refs/heads/main --input body.json', exit: 2, stderr: /write to git\/refs\/heads\/main/ },
-  { fixture: npmRoot, cmd: 'gh api repos/o/r/merges -f base=main -f head=beta', exit: 2, stderr: /\/merges into main/ },
-  ...['gh api repos/o/r/git/refs/heads/main -fsha=abc', 'gh api repos/o/r/git/refs/heads/main --field=sha=abc'].map((cmd) => ({ fixture: npmRoot, cmd, exit: 2, stderr: /write to git\/refs\/heads\/main/ })),
-  // a value attached to its field flag (-fbase=main) is read like a spaced one
-  { fixture: npmRoot, cmd: 'gh api repos/o/r/merges -fbase=main -fhead=beta', exit: 2, stderr: /\/merges into main/ },
-  { fixture: npmRoot, cmd: 'gh api -X PATCH repos/o/r/pulls/12 -fbase=main', exit: 2, stderr: /retargets a PR at a protected branch \(main\)/ },
-  { fixture: npmRoot, cmd: 'gh api repos/o/r/git/refs -fref=refs/heads/main -fsha=abc', exit: 2, stderr: /creates or moves refs\/heads\/main/ },
-  { fixture: npmRoot, cmd: 'gh api -X PUT repos/o/r/contents/a.txt -Fbranch=main -fmessage=m', exit: 2, stderr: /writes a file to main/ },
+  ...['--base main', '--base=main', '-Bmain', '-B=main'].map((b) => ({ fixture: npmRoot, cmd: `gh pr edit 12 ${b}`, exit: 2, stderr: /retargets a PR at a protected branch/ })),
+  // a protected workflow by file name, path, quoted display name and bare display name
+  ...[['deploy.yml', /protected workflow \(deploy\.yml\)/], ['.github/workflows/shopify-deploy.yml -f dump=true', /protected workflow/], ['"Shopify Deploy"', /protected workflow \(Shopify Deploy\)/], ['Deploy --ref main', /protected workflow \(Deploy\)/]]
+    .map(([wf, stderr]) => ({ fixture: npmRoot, cmd: `gh workflow run ${wf}`, exit: 2, stderr })),
+  ...['gh api -X PUT repos/o/r/git/refs/heads/main -f sha=abc', 'gh api --method=patch repos/o/r/git/refs/heads/main --input body.json', 'gh api repos/o/r/git/refs/heads/main -fsha=abc', 'gh api repos/o/r/git/refs/heads/main --field=sha=abc'].map((cmd) => ({ fixture: npmRoot, cmd, exit: 2, stderr: /write to git\/refs\/heads\/main/ })),
+  // a field flag spaced (-f base=main), attached (-fbase=main) or long (--raw-field=base=main) reads alike: a merge base, a PR retarget, a ref, a file's branch
+  ...[[/\/merges into main/, 'gh api repos/o/r/merges -f base=main -f head=beta', 'gh api repos/o/r/merges -fbase=main -fhead=beta', 'gh api repos/o/r/merges --raw-field=base=main -f head=beta'],
+    [/retargets a PR at a protected branch \(main\)/, 'gh api -X PATCH repos/o/r/pulls/12 -fbase=main', 'gh api repos/o/r/pulls/12 -X PATCH -f base=main'],
+    [/creates or moves refs\/heads\/main/, 'gh api repos/o/r/git/refs -fref=refs/heads/main -fsha=abc', 'gh api -X POST repos/o/r/git/refs -f ref=refs/heads/main -f sha=abc'],
+    [/writes a file to main/, 'gh api -X PUT repos/o/r/contents/a.txt -Fbranch=main -fmessage=m', 'gh api -X PUT repos/o/r/contents/a.md -f message=m -f content=eA== -f branch=main']]
+    .flatMap(([stderr, ...cmds]) => cmds.map((cmd) => ({ fixture: npmRoot, cmd, exit: 2, stderr }))),
   { fixture: npmRoot, cmd: "gh api graphql -f query='mutation { mergePullRequest(input: {}) { clientMutationId } }'", exit: 2, stderr: /mergePullRequest/ },
-  { fixture: npmRoot, cmd: 'gh api -X PUT repos/o/r/pulls/12/merge', base: 'main', exit: 2, stderr: /merge of PR #12 into main/ },
-  { fixture: npmRoot, cmd: 'gh api -X PUT repos/o/r/pulls/12/merge', base: '', exit: 2, stderr: /could not be resolved/ },
   // gh pr view refused (the cloud proxy's GraphQL 403): the base comes from REST, per selector; unresolved stays blocked.
   ...[['gh pr merge 12 --squash', 'repos/{owner}/{repo}/pulls/12'], ['gh pr merge https://github.com/o/r/pull/12', 'repos/o/r/pulls/12'], ['gh pr merge feat -R o/r', 'repos/o/r/pulls?state=open&head=o:feat'], ['gh pr merge', 'repos/{owner}/{repo}/pulls?state=open&head={owner}:feat'], ['gh api -X PUT repos/o/r/pulls/12/merge', 'repos/o/r/pulls/12']]
     .flatMap(([cmd, ep]) => [{ fixture: npmRoot, cmd, cwd: onFeat, base: 'ERROR', paths: { [ep]: 'main' }, exit: 2, stderr: /into main/ }, { fixture: npmRoot, cmd, cwd: onFeat, base: 'ERROR', paths: { [ep]: 'beta' }, exit: 0 }]),
@@ -334,9 +329,7 @@ const protectedCases = [
   { fixture: npmRoot, cmd: "gh pr create --base main --head beta --title 'Promote beta'", exit: 0 },
   { fixture: npmRoot, cmd: 'gh pr edit 12 --base beta', exit: 0 },
   { fixture: npmRoot, cmd: 'gh pr view 12 --json baseRefName', exit: 0 },
-  { fixture: npmRoot, cmd: 'gh workflow run qa.yml -f suite=v3', exit: 0 },
-  { fixture: npmRoot, cmd: 'gh workflow run deploy-beta.yml', exit: 0 },
-  { fixture: npmRoot, cmd: 'gh workflow run QA', exit: 0 },
+  ...['qa.yml -f suite=v3', 'deploy-beta.yml', 'QA'].map((wf) => ({ fixture: npmRoot, cmd: `gh workflow run ${wf}`, exit: 0 })),
   { fixture: npmRoot, cmd: 'gh api repos/o/r/git/refs/heads/main', exit: 0 },
   { fixture: npmRoot, cmd: 'gh api repos/o/r/pulls/12', exit: 0 },
   // any method against pulls/<n>/merge is treated as a merge attempt (fail closed), like the donor guard
@@ -362,18 +355,12 @@ const protectedCases = [
   { fixture: npmRoot, cmd: 'git push origin feat', cwd: toUpstream, exit: 2, stderr: /goes to its upstream main/ },
   { fixture: npmRoot, cmd: 'git push origin', cwd: toRefspec, exit: 2, stderr: /configured push refspec HEAD:refs\/heads\/main into main/ },
   { fixture: npmRoot, cmd: 'git push origin feat:feat', cwd: toUpstream, exit: 0 },
-  { fixture: npmRoot, cmd: 'gh pr edit 12 -Bmain', exit: 2, stderr: /retargets a PR at a protected branch/ },
-  { fixture: npmRoot, cmd: 'gh pr edit 12 -B=main', exit: 2, stderr: /retargets a PR at a protected branch/ },
   { fixture: npmRoot, cmd: 'gh workflow run 4242', paths: { 'repos/{owner}/{repo}/actions/workflows/4242': '.github/workflows/deploy.yml' }, exit: 2, stderr: /protected workflow \(deploy\.yml\)/ },
   { fixture: npmRoot, cmd: 'gh workflow run 4242', exit: 2, stderr: /workflow id 4242: gh could not map it/ },
   { fixture: npmRoot, cmd: 'gh run rerun 99 -R o/r', paths: { 'repos/o/r/actions/runs/99': '.github/workflows/deploy.yml' }, exit: 2, stderr: /gh run rerun of a run of a protected workflow/ },
   { fixture: npmRoot, cmd: 'gh run cancel 99', exit: 2, stderr: /run 99: its workflow could not be resolved/ },
   { fixture: npmRoot, cmd: 'gh run rerun 7 -R o/r', paths: { 'repos/o/r/actions/runs/7': '.github/workflows/ci.yml' }, exit: 0 },
   { fixture: npmRoot, cmd: 'gh api -X POST repos/o/r/actions/workflows/deploy.yml/dispatches -f ref=main', exit: 2, stderr: /workflow dispatch of a protected workflow/ },
-  { fixture: npmRoot, cmd: 'gh api repos/o/r/pulls/12 -X PATCH -f base=main', exit: 2, stderr: /retargets a PR at a protected branch \(main\)/ },
-  { fixture: npmRoot, cmd: 'gh api repos/o/r/merges --raw-field=base=main -f head=beta', exit: 2, stderr: /\/merges into main/ },
-  { fixture: npmRoot, cmd: 'gh api -X PUT repos/o/r/contents/a.md -f message=m -f content=eA== -f branch=main', exit: 2, stderr: /writes a file to main/ },
-  { fixture: npmRoot, cmd: 'gh api -X POST repos/o/r/git/refs -f ref=refs/heads/main -f sha=abc', exit: 2, stderr: /creates or moves refs\/heads\/main/ },
   { fixture: npmRoot, cmd: "gh api graphql -f query='mutation { enablePullRequestAutoMerge(input: {}) { clientMutationId } }'", exit: 2, stderr: /enablePullRequestAutoMerge/ },
   { fixture: npmRoot, cmd: 'gh api graphql -F query=@merge.graphql', exit: 2, stderr: /query in a file/ },
   { fixture: npmRoot, cmd: 'gh api -X PUT repos/o/r/contents/a.md -f message=m -f content=eA== -f branch=beta', exit: 0 },
@@ -436,12 +423,9 @@ const mcpCases = [
   { fixture: npmRoot, tool: gh('delete_file'), input: { ...repo, path: 'a' }, exit: 2, stderr: /names no branch/ },
   { fixture: npmRoot, tool: gh('create_branch'), input: { ...repo, branch: 'main' }, exit: 2, stderr: /create_branch writes to a protected branch \(main\)/ },
   { fixture: npmRoot, tool: gh('update_pull_request'), input: { ...repo, pullNumber: 12, base: 'main' }, exit: 2, stderr: /retargets PR #12 at a protected branch \(main\)/ },
-  { fixture: npmRoot, tool: gh('merge_pull_request'), input: { ...repo, pullNumber: 12 }, base: 'main', exit: 2, stderr: /merge_pull_request of PR #12 merges into main/ },
-  { fixture: npmRoot, tool: gh('merge_pull_request'), input: { ...repo, pullNumber: 12 }, base: '', exit: 2, stderr: /base branch could not be resolved with gh/ },
-  { fixture: npmRoot, tool: gh('enable_pr_auto_merge'), input: { ...repo, pullNumber: 12 }, base: 'main', exit: 2, stderr: /enable_pr_auto_merge of PR #12 merges into main/ },
+  ...[['merge_pull_request', 'main'], ['merge_pull_request', ''], ['enable_pr_auto_merge', 'main']].map(([v, base]) => ({ fixture: npmRoot, tool: gh(v), input: { ...repo, pullNumber: 12 }, base, exit: 2, stderr: base ? new RegExp(`${v} of PR #12 merges into main`) : /base branch could not be resolved with gh/ })),
   ...['merge_pull_request', 'enable_pr_auto_merge'].flatMap((v) => ['main', 'beta'].map((b) => ({ fixture: npmRoot, tool: gh(v), input: { ...repo, pullNumber: 12 }, base: 'ERROR', paths: { 'repos/o/r/pulls/12': b }, exit: b === 'main' ? 2 : 0, stderr: /merges into main/ }))),
-  { fixture: npmRoot, tool: gh('actions_run_trigger'), input: { ...repo, method: 'run_workflow', workflow_id: 'deploy.yml', ref: 'main' }, exit: 2, stderr: /run_workflow of a protected workflow \(deploy\.yml\)/ },
-  { fixture: npmRoot, tool: gh('actions_run_trigger'), input: { ...repo, method: 'run_workflow', workflow_id: '.github/workflows/shopify-deploy.yml', ref: 'main' }, exit: 2, stderr: /protected workflow/ },
+  ...[['deploy.yml', /run_workflow of a protected workflow \(deploy\.yml\)/], ['.github/workflows/shopify-deploy.yml', /protected workflow/]].map(([wf, stderr]) => ({ fixture: npmRoot, tool: gh('actions_run_trigger'), input: { ...repo, method: 'run_workflow', workflow_id: wf, ref: 'main' }, exit: 2, stderr })),
   { fixture: npmRoot, tool: gh('actions_run_trigger'), input: { ...repo, method: 'run_workflow', workflow_id: '4242', ref: 'main' }, paths: { 'repos/o/r/actions/workflows/4242': '.github/workflows/deploy.yml' }, exit: 2, stderr: /protected workflow \(deploy\.yml\)/ },
   { fixture: npmRoot, tool: gh('actions_run_trigger'), input: { ...repo, method: 'run_workflow', workflow_id: '4242', ref: 'main' }, exit: 2, stderr: /workflow id 4242: gh could not map it/ },
   { fixture: npmRoot, tool: gh('actions_run_trigger'), input: { ...repo, method: 'run_workflow', ref: 'main' }, exit: 2, stderr: /names no workflow/ },
@@ -527,6 +511,25 @@ describe('guard-protected-branch.sh against the default branch on origin', () =>
     assert.equal(inClone(clone, { ...purge, input: { ...purge.input, workflow_id: 'qa.yml' } }).status, 0);
     assert.equal(log(), before, 'no commit lost or gained');
     for (const f of ['shallow', 'FETCH_HEAD']) assert.ok(!fs.existsSync(path.join(clone, '.git', f)), `.git/${f}`);
+  });
+
+  test('"Protections checked" is named only when origin differs on a guard-read key or was not read cleanly', () => {
+    const { clone } = staleClone(), plain = inClone(clone, { cmd: 'git push origin main' });
+    assert.equal(plain.status, 2, plain.stderr); assert.match(plain.stderr, /protected branch \(main\)/); assert.doesNotMatch(plain.stderr, /Protections checked/, 'equal manifests: a plain block');
+    git(clone, 'remote', 'set-url', 'origin', '/nonexistent/origin.git');
+    assert.match(inClone(clone, { cmd: 'git push origin main' }, { SHOPIFY_APP_KIT_ORIGIN_TTL: '0' }).stderr, /protected branch \(main\)[\s\S]*Protections checked: this checkout's manifest and origin\/beta at [0-9a-f]+, a copy from \d+ min ago: origin could not be fetched\./);
+    const { clone: noBranch } = staleClone();
+    fs.writeFileSync(path.join(noBranch, '.claude', 'shopify-app.json'), JSON.stringify({ ...JSON.parse(fs.readFileSync(npmRoot, 'utf8')), branches: { default: 'nope', protected: ['main'] } }));
+    assert.match(inClone(noBranch, { cmd: 'git push origin main' }).stderr, /Protections checked: this checkout's manifest only \(origin has no branch nope\)\./);
+    // a block decided by drift names the keys; the drift case itself is asserted above (purge.yml, release)
+    assert.match(inClone(staleClone(addPurge).clone, { cmd: 'git push origin release' }).stderr, /Protections checked: this checkout's manifest and origin\/beta at [0-9a-f]+ \(fetched \d+ s ago\); origin differs on branches\.protected, deploy\.protectedWorkflows\./);
+  });
+
+  test('origin unreachable with no private copy yet: the remote-tracking copy decides, and the block names it', () => {
+    const { clone } = staleClone(addPurge);
+    git(clone, 'fetch', '-q', 'origin'); git(clone, 'remote', 'set-url', 'origin', '/nonexistent/origin.git');
+    const r = inClone(clone, { cmd: 'gh workflow run purge.yml' });
+    assert.equal(r.status, 2, r.stderr); assert.match(r.stderr, /protected workflow \(purge\.yml\)[\s\S]*Protections checked: this checkout's manifest and origin\/beta at [0-9a-f]+, its remote-tracking copy: origin could not be fetched; origin differs on/);
   });
 
   test('a protection origin removed stays enforced; bindings stay local; the drift notice appears only when they differ', () => {

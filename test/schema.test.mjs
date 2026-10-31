@@ -88,20 +88,12 @@ describe('schema v1', () => {
       for (const method of ['billing-api', 'app-pricing', 'none']) assert.deepEqual(validate(mutate('multi-tenant-app.json', (m) => { m.billing.method = method; }), schema), [], method);
     });
 
-    test('an unknown billing.method is rejected', () => {
-      const errs = validate(mutate('multi-tenant-app.json', (m) => { m.billing.method = 'managed-pricing'; }), schema);
-      assert.ok(errs.some((e) => /billing\.method: must be one of billing-api \| app-pricing \| none/.test(e)), JSON.stringify(errs));
-    });
-
-    test('auth.expiringOfflineTokens must be a boolean', () => {
-      const errs = validate(mutate('multi-tenant-app.json', (m) => { m.auth.expiringOfflineTokens = 'yes'; }), schema);
-      assert.ok(errs.some((e) => /auth\.expiringOfflineTokens: expected type boolean/.test(e)), JSON.stringify(errs));
-    });
-
-    test('docs.* must be strings', () => {
-      const errs = validate(mutate('multi-tenant-app.json', (m) => { m.docs.adrDir = ['docs/adr']; }), schema);
-      assert.ok(errs.some((e) => /docs\.adrDir: expected type string/.test(e)), JSON.stringify(errs));
-    });
+    // { title, edit (one wrong value), re (the error the validator must name) }
+    for (const [title, edit, re] of [
+      ['an unknown billing.method is rejected', (m) => { m.billing.method = 'managed-pricing'; }, /billing\.method: must be one of billing-api \| app-pricing \| none/],
+      ['auth.expiringOfflineTokens must be a boolean', (m) => { m.auth.expiringOfflineTokens = 'yes'; }, /auth\.expiringOfflineTokens: expected type boolean/],
+      ['docs.* must be strings', (m) => { m.docs.adrDir = ['docs/adr']; }, /docs\.adrDir: expected type string/],
+    ]) test(title, () => { const errs = validate(mutate('multi-tenant-app.json', edit), schema); assert.ok(errs.some((e) => re.test(e)), JSON.stringify(errs)); });
 
     test('the older fixtures carry none of the additive keys', () => {
       const m = load('npm-root-app.json');
@@ -134,19 +126,11 @@ describe('schema v1', () => {
       assert.deepEqual(validate(mutate('multi-tenant-app.json', withClassify), schema), []);
     });
 
-    test('an unknown provider is rejected', () => {
-      const errs = validate(mutate('multi-tenant-app.json', (m) => { withClassify(m); m.classify.provider = 'gpt'; }), schema);
-      assert.ok(errs.some((e) => /classify\.provider: must be one of jev/.test(e)), JSON.stringify(errs));
-    });
-
-    test('a labelSet needs at least two labels', () => {
-      const errs = validate(mutate('multi-tenant-app.json', (m) => { withClassify(m); m.classify.labelSets.supportIntent.labels = ['only-one']; }), schema);
-      assert.ok(errs.some((e) => /classify\.labelSets\.supportIntent\.labels: fewer than 2 items/.test(e)), JSON.stringify(errs));
-    });
-
-    test('a labelSet needs its labels array', () => {
-      const errs = validate(mutate('multi-tenant-app.json', (m) => { withClassify(m); delete m.classify.labelSets.supportIntent.labels; }), schema);
-      assert.ok(errs.some((e) => /classify\.labelSets\.supportIntent: missing required labels/.test(e)), JSON.stringify(errs));
-    });
+    // { title, edit (applied after withClassify), re (the error the validator must name) }
+    for (const [title, edit, re] of [
+      ['an unknown provider is rejected', (m) => { m.classify.provider = 'gpt'; }, /classify\.provider: must be one of jev/],
+      ['a labelSet needs at least two labels', (m) => { m.classify.labelSets.supportIntent.labels = ['only-one']; }, /classify\.labelSets\.supportIntent\.labels: fewer than 2 items/],
+      ['a labelSet needs its labels array', (m) => { delete m.classify.labelSets.supportIntent.labels; }, /classify\.labelSets\.supportIntent: missing required labels/],
+    ]) test(title, () => { const errs = validate(mutate('multi-tenant-app.json', (m) => { withClassify(m); edit(m); }), schema); assert.ok(errs.some((e) => re.test(e)), JSON.stringify(errs)); });
   });
 });

@@ -3,7 +3,9 @@
 1. Bump `version` in `.claude-plugin/plugin.json`, `KIT_VERSION` in `hooks/lib.sh` (the `Cases:` line reads it)
    and every `# shopify-app-kit vX.Y.Z` header on line 2 of `hooks/*.sh` (the header test fails otherwise).
    `grep -rn "<old version>"` should then hit only `CHANGELOG.md`.
-2. Add a `## X.Y.Z` section to `CHANGELOG.md`; the release notes are extracted from it verbatim.
+2. Add a `## X.Y.Z` section to `CHANGELOG.md`; the release notes are extracted from it verbatim. An old section may be
+   compacted to a few lines when every `## X.Y.Z` heading, every `### Budget` section `raisedIn` can name and every
+   fact another file cites (the personas' upstream commit) survive; `git log -p CHANGELOG.md` keeps the rest.
 3. Open a PR to `main`; merge when CI is green. Read the diff once more for repo literals (business names, store
    handles, product names), a reference not linked from its SKILL.md, and a stale `# shopify-app-kit v` header.
 4. Do not tag. `.github/workflows/release-tag.yml` runs on the push to `main`, creates the annotated tag
