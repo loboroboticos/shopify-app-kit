@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shopify-app-kit v0.19.0
+# shopify-app-kit v0.19.1
 # hooks/guard-shopify-cli.sh: PreToolUse(Bash) guard for Shopify CLI commands, driven by .claude/shopify-app.json.
 #
 #   shopify app dev [clean]     per shopifyCli.devPolicy      (config-required: --config must equal configs.dev)
@@ -10,6 +10,10 @@
 #
 # operator-only blocks outright: ask the maintainer to run it from their terminal. Anything the guard cannot read
 # (no jq, no manifest, a cd to a non-literal path before theme dev) fails closed.
+# The policies are this checkout's only, never origin's (#162: decided, with the cold-start rule that keeps this guard
+# off the network): a checkout that predates a stricter policy enforces the older one until its manifest is updated
+# from origin/<default>; the doctor reports the difference at session start, the drift notice after the next guarded
+# git or gh call.
 # Vendored into consumers at .claude/hooks/kit/guard-shopify-cli.sh by /shopify-app-kit:sync.
 set -uo pipefail
 

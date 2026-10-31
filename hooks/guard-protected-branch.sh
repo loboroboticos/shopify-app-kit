@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shopify-app-kit v0.19.0
+# shopify-app-kit v0.19.1
 # hooks/guard-protected-branch.sh: PreToolUse(Bash and GitHub MCP) guard that keeps a session off the protected branches named in
 # .claude/shopify-app.json (branches.protected, branches.default, branches.promotion, deploy.protectedWorkflows).
 #
@@ -26,9 +26,9 @@
 # Allowed on purpose: gh pr create --base <protected> (a promotion PR), pushes to the default or a feature branch,
 # git status/commit/log, gh api reads, gh workflow run of any other workflow. Anything the guard cannot read
 # (no jq, no manifest, an unresolvable PR base, a cd to a non-literal path before an implicit push) fails closed.
-# The protected lists also take the default branch's manifest on origin (origin_union, lib.sh kit_origin_load; fetched
-# with the environment's and user's git config, not the clone's .git/config), and a fetch that finds it different adds
-# a drift notice (notice). Origin never reached, no copy: a dispatch, rerun, cancel or merge fails closed, a push passes.
+# The protected lists also take origin's default-branch manifest (origin_union, lib.sh kit_origin_load; fetched with the
+# environment's and user's git config, not the clone's); a difference adds a drift notice (notice). Origin never reached,
+# no copy: dispatch, rerun, cancel and merge fail closed, a push passes.
 # Vendored into consumers at .claude/hooks/kit/guard-protected-branch.sh by /shopify-app-kit:sync.
 set -uo pipefail
 
@@ -90,20 +90,17 @@ rules() {
 }
 rules
 
-# origin_union: the first time a guarded verb is seen, add the protections the default branch's manifest on origin
-# lists (kit_origin_load, lib.sh); plain names only. One that origin removed stays: this checkout still lists it.
+# origin_union: once, on the first guarded verb, add the protections origin's manifest lists; one origin removed stays.
 origin_union() {
-  [ -z "$kit_origin" ] || return 0
+  local l; [ -z "$kit_origin" ] || return 0
   kit_origin_load
   case "$kit_origin" in ok | stale) ;; *) return 0 ;; esac
-  local o l; o="$(kit_origin_show "$kit_origin_mf")"
-  while IFS= read -r l; do case "$l" in b*) PROTECTED+=("${l#b}") ;; w*) WORKFLOWS+=("${l#w}") ;; esac; done < <(jq -r \
-    '(.branches.protected[]? | strings | "b" + .), (.deploy.protectedWorkflows[]? | strings | "w" + .) | select(test("^[bw][A-Za-z0-9._][A-Za-z0-9._/-]*$") and (test("[.][.]") | not))' <<<"$o" 2>/dev/null)
+  while IFS= read -r l; do case "$l" in b*) PROTECTED+=("${l#b}") ;; w*) WORKFLOWS+=("${l#w}") ;; esac; done < <(kit_origin_show "$kit_origin_mf" | jq -r \
+    '(.branches.protected[]? | strings | "b" + .), (.deploy.protectedWorkflows[]? | strings | "w" + .) | select(test("^[bw][A-Za-z0-9._][A-Za-z0-9._/-]*$") and (test("[.][.]") | not))' 2>/dev/null)
   rules
 }
 
-# irreversible WHAT: a dispatch, rerun, cancel, merge or auto-merge is refused while origin was never reachable
-# (kit_origin none: no copy of its protections ever obtained); a push goes ahead on this checkout's own.
+# irreversible WHAT: refuse WHAT while origin was never reachable (kit_origin none); a push goes ahead on this checkout's.
 irreversible() { origin_union; [ "$kit_origin" != none ] || block "$1 cannot be checked against origin's protected branches and workflows (fail closed)" "This is origin being unreachable, not a protected target: make it reachable (git fetch origin ${default_branch:-<default>}) and retry; a failed lookup is retried after 30 s. Pushes still go ahead on this checkout's protections."; }
 
 is_protected() {
@@ -495,8 +492,7 @@ check_mcp() {
   esac
 }
 
-# The drift notice: after a fetch this call made, a guard-read key on which origin's manifest differs from this
-# checkout's reaches the session as PreToolUse additionalContext (the call itself goes ahead), once per origin tip.
+# notice: a guard-read key on which origin differs reaches the session as PreToolUse additionalContext, once per origin tip.
 notice() {
   local d; [ "$kit_origin_fresh" -eq 1 ] && d="$(kit_origin_drift)" && [ -n "$d" ] || exit 0
   [ "$(cat "$kit_origin_stamp.noticed" 2>/dev/null)" != "$kit_origin_src $d" ] && printf '%s\n' "$kit_origin_src $d" >"$kit_origin_stamp.noticed" 2>/dev/null || exit 0
@@ -505,6 +501,5 @@ notice() {
   exit 0
 }
 
-if [ -n "$mcp_verb" ]; then check_mcp; notice; fi
-kit_walk_commands "$cmd" on_command
+if [ -n "$mcp_verb" ]; then check_mcp; else kit_walk_commands "$cmd" on_command; fi
 notice
