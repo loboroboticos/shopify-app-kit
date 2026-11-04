@@ -24,6 +24,11 @@ Platform facts stay with the companion plugin; the kit links the requirements pa
   web components only; `storefront-extension-reviewer` check 4 is asset size, loading and page scope and points at
   `storefront-qa`, whose performance budget defers its numbers to the requirements page and gains a clean-uninstall
   smoke (#129); `billing-live-posture`: a plan-gated control is disabled and refused from one entitlement read.
+- `tripwire-patterns`: "Embedded document conformance" (every own-`<html>` or out-of-layout route renders
+  `AppProvider` or sits in a shrinking allowlist, no App Bridge v3 dependency, one `rel="home"` nav link with
+  resolving hrefs and no nesting, and the static UI checks a consumer owns); the manifest tripwire refuses
+  theme-write and script-tag scopes and checks the production name and one scope source; the default-deny audit
+  checks the `frame-ancestors` header. Neighbouring prose tightened to pay for it.
 
 ### Budget
 
