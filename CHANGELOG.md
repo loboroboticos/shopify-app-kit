@@ -29,6 +29,10 @@ Platform facts stay with the companion plugin; the kit links the requirements pa
   resolving hrefs and no nesting, and the static UI checks a consumer owns); the manifest tripwire refuses
   theme-write and script-tag scopes and checks the production name and one scope source; the default-deny audit
   checks the `frame-ancestors` header. Neighbouring prose tightened to pay for it.
+- `release-readiness`: `app-store-review` is a real dimension for a public app (`app.kind` is not `custom-app`,
+  replacing the README/toml heuristic and the `appPublic` scope field), `review-correctness`'s Auth boundaries and
+  Scopes checks over the whole checkout; the note special case is gone. Its checklist line asks for the companion
+  summary (or "companion not installed") and the design walk on desktop and in the Shopify mobile app.
 
 ### Budget
 

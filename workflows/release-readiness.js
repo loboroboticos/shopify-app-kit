@@ -32,7 +32,7 @@ const VERIFY_CAP = 12 // skeptics per run; the rest are reported unverified, nev
 // @end
 
 // The dimensions, the kit agent each runs as (name resolves as shopify-app-kit:<name>, agents/<name>.md) and when
-// it runs. app-store-review launches nothing: it is one note telling the operator to run the companion's skill.
+// it runs. app-store-review reads the whole checkout, not the range: the App Store gates hold for every release.
 const DIMENSIONS = [
   { name: 'review-correctness', dimension: 'api-version', when: 'apiVersion' },
   { name: 'review-correctness', dimension: 'webhooks', when: 'webhooks' },
@@ -40,7 +40,7 @@ const DIMENSIONS = [
   { name: 'qa-review-security-governance', dimension: 'branch-model', when: 'always' },
   { name: 'review-correctness', dimension: 'billing', when: 'billing' },
   { name: 'storefront-extension-reviewer', dimension: 'extension', when: 'extensions' },
-  { name: '', dimension: 'app-store-review', when: 'public' },
+  { name: 'review-correctness', dimension: 'app-store-review', when: 'public' },
 ]
 
 const opts = args && typeof args === 'object' ? args : {}
@@ -83,7 +83,7 @@ const SCOPE_SCHEMA = {
     billingLive: { type: 'boolean' },
     billingMethod: { type: 'string' },
     billingTestFlag: { type: 'string' },
-    appPublic: { type: 'boolean' },
+    appKind: { type: 'string' },
     prodHandle: { type: 'string' },
     refsResolved: { type: 'boolean' },
     notes: { type: 'string' },
@@ -91,7 +91,7 @@ const SCOPE_SCHEMA = {
   required: ['manifestFound', 'from', 'to', 'headRef', 'baseRef', 'pr', 'prBody', 'changedFiles', 'migrations', 'prismaPath',
     'touchesPrisma', 'apiVersionExpected', 'pinFiles', 'tomls', 'webhookTopics', 'webhooksCompliance', 'webhookHandlers',
     'extensions', 'extensionFiles', 'workflowFiles', 'protectedWorkflows', 'deployTargets', 'scaleToZeroBeforeMigrate',
-    'billingLive', 'billingMethod', 'billingTestFlag', 'appPublic', 'prodHandle', 'refsResolved', 'notes'],
+    'billingLive', 'billingMethod', 'billingTestFlag', 'appKind', 'prodHandle', 'refsResolved', 'notes'],
 }
 
 // The same finding shape as pre-pr-review, so the two workflows' outputs look alike.
@@ -148,7 +148,7 @@ and return them in the structured shape requested.
    (webhookHandlers), \`paths.extensions\` (extensions), \`deploy.protectedWorkflows\` (protectedWorkflows),
    \`deploy.targets\` as one line "<name>: <workflow>" per target (deployTargets), \`deploy.scaleToZeroBeforeMigrate\`
    (scaleToZeroBeforeMigrate), \`billing.live\` (billingLive), \`billing.method\` (billingMethod),
-   \`billing.testFlag\` (billingTestFlag), \`app.handles.prod\` (prodHandle).
+   \`billing.testFlag\` (billingTestFlag), \`app.kind\` (appKind), \`app.handles.prod\` (prodHandle).
 2. The promotion range: from = ${opts.head ? `"${opts.head}" (the operator's choice)` : '`branches.promotion.from`, else `branches.default`, else the current branch'};
    to = ${opts.base ? `"${opts.base}" (the operator's choice)` : '`branches.promotion.to`, else the first entry of `branches.protected`, else `main`'}.
    Fetch both (\`git fetch origin <from> <to>\`); report the refs you diffed as headRef (\`origin/<from>\` when the
@@ -159,11 +159,9 @@ and return them in the structured shape requested.
    directories. workflowFiles: changed files under .github/workflows/.
 4. PR: ${opts.pr ? `"${opts.pr}"` : 'the number of the open PR from <from> into <to> (`gh pr list --base <to> --head <from> --json number,body` when gh is installed and authenticated), else ""'};
    prBody: that PR's body when one exists, else "" (truncate to about 6000 characters and say so in notes).
-5. appPublic: true when \`billing.method\` is app-pricing, or the app's toml or README says it is listed on the
-   App Store or distributed publicly; false otherwise.
-6. refsResolved: true only when \`git rev-parse --verify\` succeeded on both headRef and baseRef and the diff ran;
+5. refsResolved: true only when \`git rev-parse --verify\` succeeded on both headRef and baseRef and the diff ran;
    false when either ref is missing or the diff failed (an empty changedFiles then means "unknown", not "nothing").
-7. notes: anything a dimension should know (no manifest, gh missing, a ref that would not fetch, an empty range).`,
+6. notes: anything a dimension should know (no manifest, gh missing, a ref that would not fetch, an empty range).`,
   { label: 'scope', phase: 'Scope', effort: 'low', model: MODELS.scope, schema: SCOPE_SCHEMA })
 
 if (!scope) throw new Error('scoping pass returned nothing; cannot choose a range or the dimensions')
@@ -186,6 +184,7 @@ log(`${scope.headRef} -> ${scope.baseRef}: ${scope.changedFiles.length} files; $
 
 // ---------------------------------------------------------------------------------------------------------
 // Pick the dimensions the manifest enables.
+const appPublic = scope.appKind !== 'custom-app'
 const wanted = Array.isArray(opts.dimensions) && opts.dimensions.length ? new Set(opts.dimensions) : null
 const skipped = []
 const selected = DIMENSIONS.filter((d) => {
@@ -198,7 +197,7 @@ const selected = DIMENSIONS.filter((d) => {
     case 'prisma': return scope.touchesPrisma ? true : skip('the range does not touch paths.prisma, a schema.prisma or a migrations directory')
     case 'billing': return scope.billingLive ? true : skip('billing.live is false or absent')
     case 'extensions': return scope.extensions.length > 0 ? true : skip('paths.extensions is empty or absent')
-    case 'public': return (scope.billingMethod === 'app-pricing' || scope.appPublic) ? true : skip('not a public app (billing.method is not app-pricing)')
+    case 'public': return appPublic ? true : skip('not a public app (app.kind is custom-app)')
     default: return false
   }
 })
@@ -254,31 +253,27 @@ stay untouched in production configuration (a hard-coded or defaulted-on flag in
 Settings-schema backward compatibility for every changed block schema; when the manifest names a vendored-copy
 parity check under checks.tripwireDir, run it read-only and report; the released version will be
 ${scope.prodHandle || '<handle>'}-<N> and must be verified in an asset URL after deploy (a finding of severity note).`,
+  'app-store-review': `app-store-review. Run your Auth boundaries and Scopes checks over the whole checkout, not the promotion range:
+every document the admin iframe renders, every app toml and every scope source, whether or not this range touched it.
+In the checked paragraph, say which documents and scope files you read.`,
 }
 
 // ---------------------------------------------------------------------------------------------------------
 // Dimensions: a barrier is right here, because dedupe below needs every dimension's findings at once.
 phase('Dimensions')
-const launched = selected.filter((d) => d.name)
-const reports = await parallel(launched.map((d) => () =>
+const reports = await parallel(selected.map((d) => () =>
   agent(common + PROMPTS[d.dimension], { agentType: `shopify-app-kit:${d.name}`, label: d.dimension, phase: 'Dimensions', model: modelFor(d.name), schema: FINDINGS_SCHEMA })
     .then((out) => ({ dimension: d.dimension, out }))))
 
 const dimensions = []
 const failed = []
 const raw = []
-for (let i = 0; i < launched.length; i++) {
+for (let i = 0; i < selected.length; i++) {
   const rep = reports[i]
-  const d = launched[i]
+  const d = selected[i]
   if (!rep || !rep.out) { failed.push(d.dimension); dimensions.push({ dimension: d.dimension, agent: d.name, status: 'failed' }); continue }
   dimensions.push({ dimension: d.dimension, agent: d.name, status: 'ran', headline: rep.out.headline, checked: rep.out.checked, count: rep.out.findings.length })
   for (const f of rep.out.findings) raw.push({ ...f, dimension: d.dimension, reviewer: d.name })
-}
-if (selected.some((d) => d.dimension === 'app-store-review')) {
-  dimensions.push({ dimension: 'app-store-review', agent: '', status: 'note' })
-  raw.push({ severity: 'note', claim: 'Run the companion\'s shopify-app-store-review skill on this range before opening the promotion PR and attach its summary to the PR body',
-    file: '', line: 0, section: 'app-store-review', evidence: `billing.method ${scope.billingMethod || 'unset'}; appPublic ${scope.appPublic}`,
-    fix: 'Install shopify-ai-toolkit@claude-plugins-official when absent and say "companion not installed" in the PR body otherwise', dimension: 'app-store-review', reviewer: 'release-readiness' })
 }
 for (const f of failed) log(`dimension ${f} returned nothing (skipped or failed); it is uncovered and the verdict cannot be go`)
 log(`${raw.length} raw findings from ${dimensions.length} dimensions`)
@@ -386,8 +381,8 @@ const checklist = [
   `${box('webhooks')} Webhook topics subscribed and handled; compliance handlers present${ran('webhooks') ? '' : na('webhooks', 'no webhooks section')}`,
   `${box('branch-model')} Branch model: range is ${scope.from} -> ${scope.to}; protected workflows untouched or reviewed${ran('branch-model') ? '' : na('branch-model', '')}`,
   ran('app-store-review') || unchecked('app-store-review')
-    ? `- [ ] App Store review check (public app): summary attached / companion not installed${ran('app-store-review') ? '' : na('app-store-review', '')}`
-    : `- [x] App Store review check: not applicable (billing.method ${scope.billingMethod || 'unset'}, not a public app)`,
+    ? `- [ ] App Store review: companion summary attached, or companion not installed; BFS design walk done on desktop and in the Shopify mobile app${ran('app-store-review') ? '' : na('app-store-review', '')}`
+    : '- [x] App Store review: not applicable (app.kind custom-app)',
   ran('migrations') || unchecked('migrations')
     ? `${box('migrations')} Migration in this release: ${scope.migrations.length} file(s); scale to zero first (scaleToZeroBeforeMigrate): ${scope.scaleToZeroBeforeMigrate ? 'yes' : 'no'}${ran('migrations') ? '' : na('migrations', '')}`
     : '- [x] Migration in this release: none',
