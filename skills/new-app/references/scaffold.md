@@ -86,10 +86,12 @@ aligns the config names with the tomls the CLI wrote, or renames the tomls; the 
 ## Post-scaffold edits
 
 - `future.expiringOfflineAccessTokens: true` in the Shopify server module and `refreshToken String?` /
-  `refreshTokenExpires DateTime?` on the session model: required for public apps created on or after
-  2026-04-01 and for all public apps from 2027-01-01 (`tenancy`'s `expiring-tokens.md`). The overlay inserts
-  the flag into an existing `future:` block or adds one after `shopifyApp({`, and adds the columns before the
-  model's closing brace. Confirm both by reading the files.
+  `refreshTokenExpires DateTime?` on the session model (`tenancy`'s `expiring-tokens.md`, which also migrates
+  existing installs). The overlay inserts the flag into an existing `future:` block or adds one after
+  `shopifyApp({`, and adds the columns before the model's closing brace. Confirm both by reading the files.
+- The template's demo leftovers go: the "Additional page" nav link and `app.additional` route, the Inter
+  stylesheet link in `root.tsx`, the index route's shop-domain form (a redirect to `/app` instead); the Home link
+  becomes the nav's one `rel="home"` (`tripwire`'s "Embedded document conformance").
 - The Prisma datasource becomes `postgresql` with `url = env("DATABASE_URL")` (runtime role) and
   `directUrl = env("DIRECT_DATABASE_URL")` (owner role, migrations only). The template's SQLite migration
   cannot run on Postgres and is deleted; the first Postgres migration is generated once the database project

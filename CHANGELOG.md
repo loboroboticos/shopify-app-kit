@@ -33,6 +33,14 @@ Platform facts stay with the companion plugin; the kit links the requirements pa
   replacing the README/toml heuristic and the `appPublic` scope field), `review-correctness`'s Auth boundaries and
   Scopes checks over the whole checkout; the note special case is gone. Its checklist line asks for the companion
   summary (or "companion not installed") and the design walk on desktop and in the Shopify mobile app.
+- `expiring-tokens`: "Migrating existing installs" (a row without a refresh token is pre-flag; a guarded one-shot
+  exchange with `expiring=1` and a dry run, the production run `human:decision`, done when no active shop lacks a
+  refresh token; app-1 may hold pre-flag tokens). The platform dates and lifetimes leave the kit (`new-app`, the
+  schema's `auth.expiringOfflineTokens`, the README, `prisma-migration-reviewer`): the companion's `shopify-dev`.
+- `new-app`'s overlay removes the template's demo leftovers app-2 shipped (the "Additional page" link and route,
+  the Inter stylesheet, the index route's shop-domain form, now a redirect to `/app`) and marks Home `rel="home"`.
+  Templates: seeds 3, 11 and 12 ask about theme writes, tier gating and the listing category; the billing rule
+  seed drops its distribution restatement.
 
 ### Budget
 

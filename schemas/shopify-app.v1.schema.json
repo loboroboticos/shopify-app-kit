@@ -155,7 +155,7 @@
       "type": "object",
       "properties": {
         "expiringOfflineTokens": {
-          "description": "True when the app runs future.expiringOfflineAccessTokens in its Shopify server module and its session table carries refreshToken and refreshTokenExpires. Shopify requires expiring offline access tokens for public apps created on or after 2026-04-01 and for all public apps from 2027-01-01 (60-minute access token, 90-day refresh token; obtaining a new token invalidates the previous refresh token, so one live refreshable token per app per store).",
+          "description": "True when the app runs future.expiringOfflineAccessTokens in its Shopify server module and its session table carries refreshToken and refreshTokenExpires. Which apps must and from when: the tenancy skill's expiring-tokens.md (\"Migrating existing installs\" covers shops installed before the flag).",
           "type": "boolean"
         }
       }

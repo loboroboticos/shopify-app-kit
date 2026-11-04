@@ -1,17 +1,17 @@
 # Expiring offline access tokens
 
-Offline access tokens used to live forever. For public apps they now expire, and a refresh is a one-shot
-operation that invalidates its predecessor, which turns token refresh into a concurrency problem.
+Offline access tokens used to live forever; for public apps they now expire (which apps, from when, and the
+lifetimes are the companion's `shopify-dev` facts). Obtaining a new token immediately invalidates the previous
+refresh token, so there is one live refreshable token per app per store and refresh is a concurrency problem.
+The manifest records the posture as `auth.expiringOfflineTokens`; the `doctor` prints it.
 
-## The requirement and its dates
+## Migrating existing installs
 
-Shopify requires expiring offline access tokens for public apps created on or after 2026-04-01 and for all
-public apps from 2027-01-01. An access token lives 60 minutes; the refresh token lives 90 days. Obtaining a new
-token immediately invalidates the previous refresh token, so there is exactly one live refreshable token per app
-per store at any moment. The manifest records the posture as `auth.expiringOfflineTokens`; the `doctor` prints it.
-
-Rule: a public app created in 2026 sets `auth.expiringOfflineTokens: true` from the first commit; retrofitting
-means a session-table migration and a token-refresh path under load.
+A session row with no refresh token is pre-flag: that shop still holds a non-expiring offline token. Migrate
+them with a guarded one-shot script: for each active shop without a refresh token, a token exchange with
+`expiring=1` against the stored token, the result persisted through the refresh chokepoint below. Its dry run
+lists the shops it would touch and writes nothing; the production run is a `human:decision` issue, since a
+failed exchange strands a shop until it re-authorizes. Done when no active shop lacks a refresh token.
 
 ## The library flag and the session columns
 
@@ -38,7 +38,7 @@ that one file only.
 
 ## Dead-session purge keys on refresh-token expiry
 
-A session whose access token expired is alive: the refresh token can mint a new one for up to 90 days. A purge
+A session whose access token expired is alive: the refresh token can mint a new one until it expires. A purge
 that deletes sessions on `expires` throws away shops that merely went quiet for an hour. The purge keys on
 `refreshTokenExpires`; only a session whose refresh token has expired (or whose shop uninstalled) is dead.
 
