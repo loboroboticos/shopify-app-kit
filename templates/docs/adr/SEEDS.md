@@ -1,7 +1,7 @@
 <!-- docs/adr/SEEDS.md (shopify-app-kit template)
      The decisions a new Shopify app takes before Phase 1, one record each, even when the answer is the family
-     default. Titles and questions only; the answers are the records. Drawn from the adr-seed rows of the kit's
-     lessons/INDEX.md and the tenancy and mcp-connector skills. Delete an entry here once its record exists. -->
+     default. Titles and questions only; the answers are the records. Drawn from the kit's admin-api, tenancy
+     and mcp-connector references. Delete an entry here once its record exists. -->
 
 # Seed decisions
 

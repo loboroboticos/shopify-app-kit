@@ -5,13 +5,13 @@
     "agents": 760,
     "docs": 190,
     "hooks": 1950,
-    "lessons": 200,
+    "lessons": 45,
     "routines": 715,
     "schemas": 270,
     "scripts": 70,
     "skills": 3380,
     "templates": 1285,
-    "test": 3815,
+    "test": 3750,
     "workflows": 1035
   },
   "files": {

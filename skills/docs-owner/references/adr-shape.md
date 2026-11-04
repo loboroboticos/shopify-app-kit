@@ -52,7 +52,7 @@ status pointing at its successor; records are never deleted.
 
 ## Seeds for a new app
 
-The kit's lessons index (`lessons/INDEX.md`) marks some lessons `adr-seed`: decisions every new Shopify app in
+The kit's `templates/docs/adr/SEEDS.md` lists the `adr-seed` lessons: decisions every new Shopify app in
 this family must take before the first install (distribution type, registration model, tenant isolation, webhook
 intake shape). A new repo starts its tooling series by writing one record per seed, even when the answer is the
 family default, so the alternative rejected is on file.

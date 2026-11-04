@@ -33,32 +33,14 @@ that uses the project-directory variable in braces, which the loader fills with 
 
 Every SKILL.md stays at or under 60 lines (the parity test enforces it); numbered steps that read the manifest first,
 with the depth in `skills/<name>/references/<topic>.md`: plain markdown, no frontmatter, one `#`
-title, `##` sections whose headings become the anchors `lessons/INDEX.md` points at, and a final
-`Sources: app-1 (...); app-2 (...).` line. Every reference file must be linked from its SKILL.md (the parity test enforces it); a lesson row is added only
-when something a session reads cites it by id.
+title, `##` sections, and a final `Sources: app-1 (...); app-2 (...).` line naming labels from `lessons/README.md`'s
+Sources table. Every reference file must be linked from its SKILL.md (the parity test enforces it).
 
 A skill that must do the same thing every time (copy, substitute, validate) puts the mechanics in
 `skills/<name>/scripts/` as `.mjs` (node: builtins only) or `.sh` files, each starting with a comment that names
 the file and what it does, linked from the SKILL.md, and covered by a test that runs it against a fixture
 (`test/new-app.test.mjs` for `skills/new-app/scripts/`). The parity test syntax-checks every script. `kit-dev`'s own references are maintainer procedures, not lessons: they
-carry no `Sources:` line and need no row in `lessons/INDEX.md` (both tests exempt them).
-
-## Add a lesson
-
-Lessons are facts a session needs more than once, written generically and cited by a source label from
-`lessons/README.md`'s Sources table (a product's `kit.portfolioId`, or a founding `app-N` label; never a name).
-A lesson arrives as a lesson-proposal issue (`.github/ISSUE_TEMPLATE/lesson-proposal.md`) with the evidence and
-the artifact that will cite it. One owner per fact:
-
-1. Find or create the section in the owning reference file (or the agent section, for a `lens`); write the rule
-   in the present tense with the mechanism and the failure it prevents. Update the file's `Sources:` line.
-2. Add one row to `lessons/INDEX.md`: `id | rule | class | home#anchor | source`, using the file's id prefix and
-   the next number; class is `rule`, `recipe`, `lens` or `adr-seed`.
-3. Cite the id from the artifact that needs it (the skill step, agent section, template rule seed, workflow or
-   routine prompt that would otherwise restate the rule); `test/lessons-index.test.mjs` fails on an uncited row.
-4. `node --test test/lessons-index.test.mjs`, then bump the version (`lessons/` is plugin-visible).
-5. To retire a lesson, or when nothing cites it any more, move its row to `## History` under a dated subsection
-   with a `reason` column; never delete it.
+carry no `Sources:` line (the parity test exempts them).
 
 ## Add an agent or workflow
 

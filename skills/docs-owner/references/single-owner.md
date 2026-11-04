@@ -38,7 +38,7 @@ rule), whether it is superseded history (then delete it; the PR description is t
 For a repo that adopts this kit, the manifest (`.claude/shopify-app.json`) owns the tooling facts (configs,
 branches, policies, pins, topics, targets), the vendored hooks enforce them, and the review agents check them.
 A doc that restates a manifest value is a second owner; link the manifest key instead. Lessons the kit ships
-(`lessons/INDEX.md`) are owned by the kit's reference files; a consumer's rules file seeds from them and points
+are owned by the kit's reference files; a consumer's rules file seeds from them and points
 back rather than copying the rationale.
 
 Sources: app-1 (architecture doc, ops doc); app-2 (contributor guide); app-3 (ADR series).

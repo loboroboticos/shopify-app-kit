@@ -52,7 +52,7 @@ The repo root is the plugin root and its own marketplace.
 | `labels.json` + `scripts/sync-labels.mjs` | The label set every consumer carries (eight work types, three priorities, five ROI buckets, gating and origin labels) with the `ladder` array, and the zero-dependency script that creates or updates them through `gh label create --force` (`--dry-run`, `--repo <owner>/<repo>`; never deletes). |
 | `routines/` | The committed prompt texts of the scheduled Routines (`triage`, `nuclear-review`, `pr-steward`, `kit-health`, `graphify-refresh`, `dependency-wave`, `dev-parity`, `kit-tidy`), each with its cadence, environment, tools and boundaries, and `REGISTRY.md` with the table and the maintainer's step for creating a routine. |
 | `/shopify-app-kit:kit-dev` | Maintainer guide for this repo, including how to add a routine. |
-| `lessons/INDEX.md` | One row per lesson extracted from the consumer apps, pointing at the reference file or agent section that owns it. See [Lessons](#lessons). |
+| `lessons/README.md` | How a lesson from the consumer apps enters the kit, its classes and the source labels. See [Lessons](#lessons). |
 | `schemas/shopify-app.v1.schema.json` | The manifest contract (JSON Schema, draft 2020-12). |
 
 ## Adopting the kit in an app repo
@@ -291,13 +291,11 @@ Every `agent()` call in the three workflows names its model by role: `judgment` 
 
 ## Lessons
 
-`lessons/INDEX.md` is a table with one row per lesson the consumer apps taught the kit: an id, a one-line rule,
-its class (`rule`, `recipe`, `lens` or `adr-seed`), its home (the section of a skill reference file or review
-agent that owns the text) and its source (a product's `kit.portfolioId` or a founding `app-N` label, from the Sources table in
-`lessons/README.md`). The index never carries the text; the home does. A row stays in the live table only while
-something a session reads cites its id (a skill step, an agent, a template rule seed, a workflow, a routine
-prompt); rows nothing cites sit in the index's History section with the reason, and a new lesson enters with
-its citation. `lessons/README.md` has the extraction discipline; `test/lessons-index.test.mjs` keeps it honest.
+What the consumer apps taught the kit lives as text in the skill reference files and review agents that own it,
+each with its class (`rule`, `recipe`, `lens` or `adr-seed`) and a `Sources:` line naming a product's
+`kit.portfolioId` or a founding `app-N` label from the Sources table in `lessons/README.md`. There is no separate
+catalogue: a lesson lives while a skill or agent sends a session to its home. `lessons/README.md` has the
+extraction discipline and the lesson-proposal door.
 
 ## The operating layer
 
@@ -363,7 +361,7 @@ claude plugin validate skills --strict
 claude --plugin-dir .                # /shopify-app-kit:doctor should be listed
 ```
 
-See `/shopify-app-kit:kit-dev` (skills/kit-dev/SKILL.md) for how to add hooks, skills, agents and lessons, and
+See `/shopify-app-kit:kit-dev` (skills/kit-dev/SKILL.md) for how to add hooks, skills, agents and routines, and
 how to release. Any change under `skills/`, `agents/`, `hooks/`, `workflows/`, `schemas/`, `lessons/`
 or `.claude-plugin/` needs a version bump; CI checks it on PRs to `main`.
 

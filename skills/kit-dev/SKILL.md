@@ -1,6 +1,6 @@
 ---
 name: kit-dev
-description: Maintainer guide for the shopify-app-kit repo itself, covering how to add a skill, hook, agent or lesson, run the tests, bump the version and release (tags are created on merge). Use when changing the kit's own files rather than a consumer app.
+description: Maintainer guide for the shopify-app-kit repo itself, covering how to add a skill, hook, agent or routine, run the tests, bump the version and release (tags are created on merge). Use when changing the kit's own files rather than a consumer app.
 disable-model-invocation: true
 allowed-tools: Read, Write, Edit, Grep, Glob, Bash(node *), Bash(npm *), Bash(git *), Bash(claude plugin *), Bash(bash *), Bash(jq *)
 ---
@@ -24,7 +24,7 @@ depth in `references/`, mechanics in `scripts/`), `agents/`, `workflows/`, `less
 
 ## Procedures
 
-- Add a guard hook, a skill, a lesson, an agent or workflow, a routine: `references/add.md`.
+- Add a guard hook, a skill, an agent or workflow, a routine: `references/add.md`; a lesson: `lessons/README.md`.
 - Remove a skill, agent, hook, workflow or routine (deprecate in one minor, delete in the next): `references/remove.md`.
 - Re-sync the review personas from upstream: `references/personas.md`.
 - Release (the version sites, the CHANGELOG section, the tag on merge): `references/release.md`.

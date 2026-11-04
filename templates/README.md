@@ -6,7 +6,7 @@ that opens issues instead of failing silently, an issue template that names who 
 `.env.example` that says which value is public, a docs map with the test that keeps it honest, the ADR shape and
 the decisions a new app must take first, and the `.claude/` wiring that pins this kit.
 
-Every file is generic and written from the kit's own lessons (`lessons/INDEX.md`), never copied from a consumer.
+Every file is generic and written from the kit's own lessons (its skill references), never copied from a consumer.
 Every file starts with a short header saying what it is and which manifest key it reads or which test guards it.
 `test/templates.test.mjs` checks this directory: every file is listed below, every placeholder used is in the
 table, the starter manifest validates against the schema once the placeholders are substituted, JSON and YAML
@@ -51,7 +51,7 @@ the guards and stamping the manifest. The same script works by hand:
 | `test/docs-consistency.test.mjs` | Fails when a file under `docs/` is missing from the map or a reference doc carries a dated heading; allowlist that only shrinks; repair string in every message. | `docs.*` |
 | `docs/adr/README.md` | The ADR series index and its rules (MADR-lite, one decision per file, newest number wins). | `docs.adrDir` |
 | `docs/adr/0000-template.md` | The record to copy for a new decision. | `docs/adr/README.md` |
-| `docs/adr/SEEDS.md` | The decisions a new Shopify app takes before Phase 1, each as a title and a question, no answers. | `lessons/INDEX.md` (`adr-seed` rows) |
+| `docs/adr/SEEDS.md` | The decisions a new Shopify app takes before Phase 1, each as a title and a question, no answers. | `skills/docs-owner/references/adr-shape.md` |
 | `.claude/settings.json` | Pins the kit marketplace and plugin, registers the four vendored guards and the bootstrap hook. | `.claude/hooks/kit/*.sh` |
 | `.claude/hooks/kit-bootstrap.sh` | SessionStart hook for remote sessions: installs the kit and the official Shopify companion plugin when absent, writes the telemetry opt-out, installs the graphify companion (`pip install graphifyy==<pin> && graphify install`, the pin equal to the doctor's) when absent, never fails the session. | `.claude/settings.json`, `hooks/doctor.sh` |
 | `.claudeignore` | Paths a session never reads: `graphify-out/`, the knowledge graph the `graphify-refresh` routine commits on the `graph` branch only. Add the same line to the repo's `.gitignore` (the template's own `.gitignore` is upstream's and is not overlaid). | `routines/graphify-refresh.md` |
