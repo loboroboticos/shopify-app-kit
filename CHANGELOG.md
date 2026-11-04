@@ -13,6 +13,17 @@ Platform facts stay with the companion plugin; the kit links the requirements pa
 
 - `lessons/INDEX.md` and `test/lessons-index.test.mjs` retired (#144): nothing cited a row; the lessons are text in
   their references, `lessons/README.md` keeps the discipline and the source labels. 0.7.0 to 0.9.0 here compacted.
+- Review lenses. `review-correctness`: every document in the admin iframe, error boundaries and bounce landings
+  included, carries the package's App Bridge shell once, first, with an API key (app-1's layout ErrorBoundary served
+  one without); no login between install and first use; storefront output only through a theme app extension, a
+  ScriptTag, theme write or paste-into-theme copy P0 without an exemption ADR; `auth.expiringOfflineTokens` equals
+  the server flag. `qa-review-usability` walks the admin against the design requirements through the companion's
+  `shopify-polaris-app-home` and lists what a diff shows (app-1's modal actions outside the slots, toast-only
+  errors); `design-review-product-intent` names surfaces outside the admin and category exposure (app-2's worker
+  surface); `qa-review-technical-integrity` an embedded route's first paint; `review-quality` the shell and Polaris
+  web components only; `storefront-extension-reviewer` check 4 is asset size, loading and page scope and points at
+  `storefront-qa`, whose performance budget defers its numbers to the requirements page and gains a clean-uninstall
+  smoke (#129); `billing-live-posture`: a plan-gated control is disabled and refused from one entitlement read.
 
 ### Budget
 

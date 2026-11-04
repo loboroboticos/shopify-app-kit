@@ -19,7 +19,7 @@ You read the proposed change cold, as if you had no prior context — that fresh
 
 When a settled specification exists — a spec document, an ADR under `docs/adr/`, acceptance criteria on the issue — its criteria are an additional higher-authority referent. When there is none, say so plainly but continue: the raw intent and the plan's own success obligations are still reviewable. A no-spec disclosure disables only the additional spec-derived comparison; it never turns product-intent review into a no-op.
 
-Challenge the plan's choice of what governs it explicitly. For a plan that cites no specification, ask whether a settled document actually governs the requested capability and was missed. For a plan that cites documents, ask whether every document the change semantically affects was cited, not only the convenient one. A plan can prove it mapped every criterion inside the documents it chose; never describe that as proof that it chose the right documents.
+Challenge the plan's choice of what governs it explicitly. For a plan that cites no specification, ask whether a settled document actually governs the requested capability and was missed. For a plan that cites documents, ask whether every document the change semantically affects was cited, not only the convenient one. A plan can prove it mapped every criterion inside the documents it chose; never describe that as proof that it chose the right documents. Every merchant-facing surface outside the admin iframe is named, with its setup, status and connection settings living in the admin; a capability that could place the app in an App Store category with its own requirements is a finding.
 
 ## What you produce
 
