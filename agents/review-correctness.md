@@ -22,7 +22,13 @@ webhook topic that is declared but no longer handled, a migration the deploy wor
 Run every check whose manifest section is present. Quote the manifest key next to each finding. When the manifest is
 absent, say so once and run the generic sections only.
 
-**Auth boundaries** (`paths.shopifyServer`, `paths.webhookHandlers`)
+**Auth boundaries** (`paths.shopifyServer`, `paths.webhookHandlers`;
+https://shopify.dev/docs/apps/launch/built-for-shopify/requirements, platform wording via the companion)
+- Every document the admin iframe renders, error boundaries and bounce landings included, carries the package's
+  shell (`AppProvider`): the CDN `app-bridge.js` script exactly once, before every other script, with a non-empty
+  API key. A document without it, or a second or late copy, is P0. No external page is embedded in the app.
+- No password, email, magic-link or third-party login between install and first use; the non-embedded login
+  route serves only non-embedded entry. A login step on the install path is P0.
 - Every admin route loader/action calls the admin authenticator from the single Shopify server module before
   touching shop data. Webhook routes use the webhook authenticator; app-proxy routes the app-proxy authenticator;
   checkout and customer-account endpoints the matching public authenticator. A new route with none of these is P0.
@@ -47,6 +53,10 @@ absent, say so once and run the generic sections only.
 **Scopes** (`scopes.required`, `scopes.optional`)
 - Scopes in every app TOML are a subset of `required ∪ optional`. A scope added in code or TOML but not in the
   manifest is P1. Optional scopes are requested through the scopes-update flow, never assumed granted.
+- Storefront output reaches the theme only through a theme app extension. A ScriptTag call, a theme-file write, a
+  theme-write or script-tag scope, or copy telling the merchant to paste code into theme files is P0 unless an ADR
+  under `docs.adrDir` records an approved exemption.
+- `auth.expiringOfflineTokens` equals the `future.expiringOfflineAccessTokens` flag in `paths.shopifyServer`; P1.
 
 **Shopify CLI configs** (`shopifyCli.configs`, `paths.appTomls`)
 - The app TOMLs in `paths.appTomls` stay structurally equal (scopes, webhooks, access, application_url shape)
@@ -97,11 +107,9 @@ code, fixtures, logs or tests. Environment variables are read in one place.
 **Devex.** Changes to how secrets are read, environment variable names, ports, or new scripts that must run for
 existing flows to keep working are findings; document what a developer must now do differently.
 
-**Intended breakage.** If the branch clearly intends a high-risk change and its scope is contained, do not report
-it, unless the author seems unaware of the full implications or the change looks malicious.
-
-**Over-reporting.** A P0 that is not a P0 costs the reviewer's credibility. Finish the research before writing a
-finding; never write "if the other side handles it this is fine" when you can read the other side.
+**Intended breakage and over-reporting.** A clearly intended, contained high-risk change is not reported unless
+the author seems unaware of its implications or it looks malicious. A P0 that is not a P0 costs credibility: finish
+the research first; never write "if the other side handles it this is fine" when you can read the other side.
 
 ## Order of work
 
@@ -118,16 +126,13 @@ finding; never write "if the other side handles it this is fine" when you can re
 
 ### Findings
 - [P0] path:line — one-sentence claim. Evidence (what you read, what happens). Manifest: <key or "generic">. Fix: <concrete change>.
-- [P1] ...
-- [P2] ...
+- [P1] ... / [P2] ...
 
 ### Manifest checks
-| Section | Checked | Result |
-| auth | 4 new routes | ok / finding #2 |
-...
+| Section | Checked | Result |   (e.g. | auth | 4 new routes | ok / finding #2 |)
 
 ### Not reported
-- <intended breakage or pre-existing issue you chose not to report, one line each>
+- <intended breakage or pre-existing issue, one line each>
 ```
 
 P0 blocks. P1 needs changes before merge. P2 is worth fixing but not blocking. Cite file and line for every finding.

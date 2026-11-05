@@ -64,16 +64,15 @@ Three facts about the cloud image, each checked in a cloud session running Playw
    `certutil -L -d sql:$HOME/.pki/nssdb` (the proxy's CA should be listed). When `certutil` is missing, the
    environment's setup script installs `libnss3-tools` and imports the proxy's CA bundle into that store.
 
-## A Lighthouse budget for the block
+## A performance budget for the block
 
-The App Store review requirement: installing the app must not drop the storefront's weighted Lighthouse
-performance score (Home 17%, Product 40%, Collection 43%) by more than 10 points.
-
-- Score each page on two **unpublished copies** of the live theme, one with the block and one without, several
-  runs each; compare medians. A negative delta (enabled − baseline) is a regression.
-- A block that renders only on product templates has zero Home and Collection deltas, so the budget reduces to
-  `|0.40 × ΔProduct| < 10`.
-- Keep the weighting and the pass test in a pure module with a unit test; the Lighthouse run itself needs a browser.
+The limit and its weights: https://shopify.dev/docs/apps/launch/built-for-shopify/requirements (the companion's
+`shopify-app-store-review` skill). Measure the way the reviewer does: product and collection pages with the
+feature on and off, several runs each, the median, on the reviewer's own theme (an unpublished copy). Re-run
+whenever the shipped bytes grow. Scoring only the product page holds only while every block is product-only.
+Keep the pass test in a pure module with a unit test; the run itself needs a browser.
+- **Clean uninstall smoke.** Install, place every block, uninstall, pull the theme's template JSON
+  (`shopify theme pull`), and confirm no block reference or asset remains.
 
 ## CI shape
 

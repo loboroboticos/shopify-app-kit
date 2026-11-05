@@ -22,6 +22,8 @@ without migrating the stored names orphans every existing subscriber into "no pl
 
 Rule: plan names, prices, trial days and intervals are data, versioned with the app. A rename is a data
 migration with a backfill, reviewed as one. Never change them silently inside a feature PR.
+A plan-gated control is disabled in the UI and refused by its action, both from the same entitlement read, and
+names the tier that unlocks it.
 
 ## Cache invalidation is a contract
 

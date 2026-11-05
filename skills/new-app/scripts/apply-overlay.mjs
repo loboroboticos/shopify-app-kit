@@ -9,16 +9,17 @@
 //   1. copies every file under templates/ (except templates/README.md and docs/README-docs-map.md), substituting
 //      {{APP_NAME}}, {{DEFAULT_BRANCH}}, {{PROTECTED_BRANCH}}, {{PACKAGE_MANAGER}} and {{SERVER_DIR}};
 //      {{GITLEAKS_VERSION}} and {{GITLEAKS_SHA256}} stay as a TODO (read them from the gitleaks release's
-//      checksums.txt). A file the template already created is never overwritten: text files get the kit's content
-//      appended as a delimited section (re-running replaces the section), JSON files are deep-merged with the
-//      existing values winning, anything else is set aside as <file>.shopify-app-kit for the maintainer;
+//      checksums.txt). A template file is never overwritten: text gets a delimited kit section (a re-run replaces
+//      it), JSON is deep-merged with the existing values winning, anything else is set aside as <file>.shopify-app-kit;
 //   2. vendors hooks/lib.sh and hooks/guard-*.sh into .claude/hooks/kit/ (the sync skill's procedure) and stamps
 //      kit.version and the tag $schema URL in the starter manifest, whose example config and toml names become the
 //      app's slug;
 //   3. writes docs/README.md (the docs map, rows only for files that exist), docs/history/, and the first ADR
 //      docs/adr/0001-scaffold.md with its index row;
 //   4. checks the template for the expiring-offline-token flag and the session refresh columns, adds them when
-//      missing, and points the Prisma datasource at Postgres through DATABASE_URL / DIRECT_DATABASE_URL.
+//      missing, points the Prisma datasource at Postgres through DATABASE_URL / DIRECT_DATABASE_URL, and removes
+//      the template's demo leftovers (the "Additional page" link and route, the Inter stylesheet, the index
+//      route's shop-domain form, now a redirect to /app), marking the Home link rel="home".
 // Every action is printed as one line (write / merge / aside / vendor / edit / todo). Exit 1 on a bad argument.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -346,6 +347,14 @@ if (fs.existsSync(prismaSchema)) {
     todos.push(`${rel(path.join(serverRoot, 'prisma', 'migrations'))}: generate the first Postgres migration (with the two roles and the isolation canary) against the database project's owner URL once it exists.`);
   }
 } else todos.push(`${rel(prismaSchema)} not found: the session model needs refreshToken String? and refreshTokenExpires DateTime?.`);
+
+// Template leftovers an App Store review flags; the Home link becomes the nav's one rel="home".
+const appDir = path.join(serverRoot, 'app');
+const rewrite = (file, fn, what) => { const f = path.join(appDir, file); if (!fs.existsSync(f)) return; const t = fs.readFileSync(f, 'utf8'); const n = fn(t); if (n !== t) { fs.writeFileSync(f, n); log('edit', rel(f), what); } };
+rewrite('routes/app.tsx', (t) => t.replace(/^[ \t]*<s-link href="\/app\/additional"[^\n]*\n/m, '').replace(/<s-link href="\/app">/, '<s-link href="/app" rel="home">'), 'nav: "Additional page" removed, Home is rel="home"');
+rewrite('root.tsx', (t) => t.replace(/^[ \t]*<link[^>]*fonts\/inter[^>]*>\n/m, ''), 'the Inter stylesheet link removed');
+rewrite('routes/_index/route.tsx', () => 'import { redirect, type LoaderFunctionArgs } from "react-router";\n\nexport const loader = async ({ request }: LoaderFunctionArgs) => {\n  throw redirect(`/app?${new URL(request.url).searchParams.toString()}`);\n};\n', 'index route: redirect to /app, no shop-domain form');
+for (const f of ['routes/app.additional.tsx', 'routes/_index/styles.module.css']) if (fs.existsSync(path.join(appDir, f))) { fs.rmSync(path.join(appDir, f)); log('remove', rel(path.join(appDir, f)), 'template demo'); }
 
 // Files the template ships for its own repository (issue triage of the template, editor configs), not for the app.
 for (const extra of ['.claude/skills/investigating-github-issues', '.claude/skills/shared', '.cursor', '.gemini']) {

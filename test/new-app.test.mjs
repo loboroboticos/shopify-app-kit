@@ -307,6 +307,18 @@ describe('scripts/apply-overlay.mjs variants and arguments', () => {
     assert.equal((fs.readFileSync(schema, 'utf8').match(/refreshTokenExpires/g) ?? []).length, 1);
   });
 
+  test('the template leftovers go: the demo nav item and route, the Inter stylesheet, the shop-domain form; Home is rel="home"', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'shopify-app-kit-leftovers-'));
+    standIn(dir);
+    const app = (f, t) => { const p = path.join(dir, 'app', f); if (t !== undefined) { fs.mkdirSync(path.dirname(p), { recursive: true }); fs.writeFileSync(p, t); } return fs.existsSync(p) ? fs.readFileSync(p, 'utf8') : null; };
+    app('routes/app.tsx', '<s-app-nav>\n  <s-link href="/app">Home</s-link>\n  <s-link href="/app/additional">Additional page</s-link>\n</s-app-nav>\n'); app('routes/app.additional.tsx', 'x');
+    app('root.tsx', '<head>\n  <link rel="stylesheet" href="https://cdn.shopify.com/static/fonts/inter/v4/styles.css" />\n</head>\n'); app('routes/_index/route.tsx', '<Form action="/auth/login" />');
+    assert.equal(overlay(dir).status, 0);
+    assert.deepEqual([app('routes/app.tsx'), app('root.tsx'), app('routes/app.additional.tsx')], ['<s-app-nav>\n  <s-link href="/app" rel="home">Home</s-link>\n</s-app-nav>\n', '<head>\n</head>\n', null]);
+    assert.match(app('routes/_index/route.tsx'), /throw redirect\(`\/app\?\$\{new URL\(request\.url\)\.searchParams\.toString\(\)\}`\);/);
+    const snap = snapshot(dir); assert.equal(overlay(dir).status, 0); assert.deepEqual(snapshot(dir), snap, 'a second run changes nothing');
+  });
+
   test('a file the template has and the kit cannot merge is set aside; JSON is deep-merged', () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'shopify-app-kit-aside-'));
     standIn(dir);

@@ -33,8 +33,8 @@ skill never touches an account (step 6 prints the maintainer's checklist). Depth
    the rest is set aside as `<file>.shopify-app-kit`); then, as `sync` does, vendors `lib.sh` and every
    `guard-*.sh` into `.claude/hooks/kit/` and stamps `kit.version` and the tag `$schema` URL. Read its report.
 4. **Post-scaffold edits.** The same run checks `future.expiringOfflineAccessTokens: true` in the Shopify
-   server module and `refreshToken` / `refreshTokenExpires` on the session model (mandatory for public apps
-   created on or after 2026-04-01) and adds them when missing; points the Prisma datasource at Postgres; writes
+   server module and `refreshToken` / `refreshTokenExpires` on the session model (`tenancy`'s
+   `expiring-tokens.md`) and adds them when missing; points the Prisma datasource at Postgres; writes
    `docs/README.md` with the `docs.mapHeading` section, `docs/adr/0001-scaffold.md` (template, kit version, the
    SEEDS still open) with its index row, and `.github/ISSUE_TEMPLATE/`. Open every `edit` line's file and confirm.
 5. **Verify before committing.** From `<dir>`: `node --test test/docs-consistency.test.mjs`;

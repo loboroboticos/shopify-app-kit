@@ -28,7 +28,7 @@ The repo root is the plugin root and its own marketplace.
 | `agents/prisma-migration-reviewer.md` | Diff-stage reviewer for `schema.prisma` and migrations, keyed to `database.*`, `paths.prisma` and `deploy.scaleToZeroBeforeMigrate`: destructive operations, schema/migration parity, hand-edited SQL, RLS on new tables, the scale-to-zero step, shared-beta drift, refresh-token columns for expiring offline tokens. Never proposes editing a generated migration in place. |
 | `agents/storefront-extension-reviewer.md` | Diff-stage reviewer for theme app extensions, a one-line no-op when `paths.extensions` is empty: settings-schema compatibility, platform-minted block uids, edge-cache assumptions, asset size limits, vendored-copy parity with a drift test under `checks.tripwireDir`, no server round-trip on the render path, locales in step with the schema. |
 | `/shopify-app-kit:pre-pr-review` | Workflow (`workflows/pre-pr-review.js`): scopes the branch from the manifest, runs the diff-stage roster in parallel (the stack reviewers only when the diff touches their files), merges findings on the same spot, sends every blocker and major to a skeptic, and returns one verdict (`block`, `changes-needed`, `approve`) with the merged findings. Takes an optional base branch or `{ base, pr, reviewers, all }`. |
-| `/shopify-app-kit:release-readiness` | Workflow (`workflows/release-readiness.js`): scopes the promotion range (`branches.promotion.from` -> `.to`, or `{ base, head }`), runs only the release dimensions the manifest enables (`api-version`, `webhooks`, `migrations` when the range touches `paths.prisma`, `branch-model`, `billing` when `billing.live`, `extension` when `paths.extensions` is set, an `app-store-review` note for a public app), each as one read-only kit agent on the shared finding shape, verifies every blocker and major, and returns `go`, `go-with-notes` or `no-go` with the findings and a pasteable checklist for the promotion PR body (the `release` skill's list, pre-ticked where a dimension passed). A dimension that returns nothing keeps the verdict off `go`. |
+| `/shopify-app-kit:release-readiness` | Workflow (`workflows/release-readiness.js`): scopes the promotion range (`branches.promotion.from` -> `.to`, or `{ base, head }`), runs only the release dimensions the manifest enables (`api-version`, `webhooks`, `migrations` when the range touches `paths.prisma`, `branch-model`, `billing` when `billing.live`, `extension` when `paths.extensions` is set, `app-store-review` for a public app, its auth and scope checks over the whole checkout), each as one read-only kit agent on the shared finding shape, verifies every blocker and major, and returns `go`, `go-with-notes` or `no-go` with the findings and a pasteable checklist for the promotion PR body (the `release` skill's list, pre-ticked where a dimension passed). A dimension that returns nothing keeps the verdict off `go`. |
 | `/shopify-app-kit:plan-review` | Workflow (`workflows/plan-review.js`): runs the four `design-review-*` agents in parallel on a plan (a markdown file path, a PR number whose body is the plan, or `#<issue>`), with the manifest facts the plan touches and the ADR directory in their prompts; merges findings on the same section, verifies every blocker and major, and returns `sound`, `revise` or `rethink` with the findings and the decisions the plan should record as ADRs (findings a reviewer tags `adr: true`). |
 | `hooks/guard-shopify-cli.sh` | PreToolUse guard for `shopify app dev`, `shopify app deploy`, `shopify app config use`, `<pm> run deploy` and `shopify theme dev`, driven by the manifest's `shopifyCli` policies, read from this checkout only: a checkout that predates a stricter policy enforces the older one until its `.claude/shopify-app.json` is updated from `origin/<default>`; the doctor reports the difference at session start, the drift notice after the next guarded `git` or `gh` call. Fails closed when the manifest or `jq` is missing. |
 | `hooks/guard-protected-branch.sh` | PreToolUse guard for `git push`, `gh pr merge`, `gh pr edit --base`, `gh api` writes and `gh workflow run`, and (under a second matcher, `mcp__.*github.*`) the GitHub MCP tools that push, merge, retarget a PR or run a workflow, on any repo, driven by `branches.protected` and `deploy.protectedWorkflows`. Lets the session open a promotion PR, never land one. Fails closed when the manifest, `jq`, a PR's base or a run's workflow cannot be read (an MCP merge or rerun needs `gh`). |
@@ -52,7 +52,7 @@ The repo root is the plugin root and its own marketplace.
 | `labels.json` + `scripts/sync-labels.mjs` | The label set every consumer carries (eight work types, three priorities, five ROI buckets, gating and origin labels) with the `ladder` array, and the zero-dependency script that creates or updates them through `gh label create --force` (`--dry-run`, `--repo <owner>/<repo>`; never deletes). |
 | `routines/` | The committed prompt texts of the scheduled Routines (`triage`, `nuclear-review`, `pr-steward`, `kit-health`, `graphify-refresh`, `dependency-wave`, `dev-parity`, `kit-tidy`), each with its cadence, environment, tools and boundaries, and `REGISTRY.md` with the table and the maintainer's step for creating a routine. |
 | `/shopify-app-kit:kit-dev` | Maintainer guide for this repo, including how to add a routine. |
-| `lessons/INDEX.md` | One row per lesson extracted from the consumer apps, pointing at the reference file or agent section that owns it. See [Lessons](#lessons). |
+| `lessons/README.md` | How a lesson from the consumer apps enters the kit, its classes and the source labels. See [Lessons](#lessons). |
 | `schemas/shopify-app.v1.schema.json` | The manifest contract (JSON Schema, draft 2020-12). |
 
 ## Adopting the kit in an app repo
@@ -198,7 +198,7 @@ Keys the doctor prints and the skills and review agents read (no guard behaviour
 
 | Key | Values | Read by |
 | --- | --- | --- |
-| `auth.expiringOfflineTokens` | boolean | The app runs `future.expiringOfflineAccessTokens` and its session table carries `refreshToken` and `refreshTokenExpires`. Required by Shopify for public apps created on or after 2026-04-01 and for all public apps from 2027-01-01 (60-minute access token, 90-day refresh token, one live refreshable token per app per store). `doctor` prints it; `tenancy` and `prisma-migration-reviewer` check the flag and the columns. |
+| `auth.expiringOfflineTokens` | boolean | The app runs `future.expiringOfflineAccessTokens` and its session table carries `refreshToken` and `refreshTokenExpires`. Which apps must and from when, and how pre-flag installs migrate: `tenancy`'s `expiring-tokens.md` ("Migrating existing installs"). `doctor` prints it; `tenancy` and `prisma-migration-reviewer` check the flag and the columns. |
 | `billing.method` | `billing-api` / `app-pricing` / `none` | App Pricing (the successor of Managed Pricing) is the default for public apps and public-apps-only, delivers no subscription webhooks (status comes from the Partner Active Subscription API); the Billing API is legacy but functional and public-apps-only too; a custom-distribution app cannot bill through Shopify. `doctor` prints it; `release` and the billing rule seed read it. |
 | `docs.adrDir`, `docs.mapFile`, `docs.mapHeading` | repo-relative paths and a heading | Where the ADR series and the docs map live; `docs-owner` and the templates' `docs-consistency` test read them. |
 | `classify.provider`, `classify.labelSets`, `classify.budget`, `classify.defaultEscalateThreshold` | `jev`; a label-set registry; a per-tenant `monthlyCap`; a 0..1 floor | How the app calls a classifier: the `classify` skill reads the section, `classifier-reviewer` checks each call names a declared label set, is budgeted and gated on confidence. Absent means the app classifies nothing. |
@@ -273,8 +273,8 @@ the manifest enables run, each as one read-only kit agent: `api-version` (every 
 (only when the range touches `paths.prisma`: no destructive operation without a PR-body acknowledgement),
 `branch-model` (the range is exactly the promotion pair; protected workflows untouched or reviewed), `billing`
 (only when `billing.live`: no tier, price or name change without it being called out), `extension` (only when
-`paths.extensions` is non-empty) and `app-store-review` (a public app: one note to run the companion's
-`shopify-app-store-review` skill; no agent). The verdict is `no-go` on a surviving blocker, `go` only when every
+`paths.extensions` is non-empty) and `app-store-review` (unless `app.kind` is `custom-app`: `review-correctness`'s
+auth and scope checks over the whole checkout, the companion summary and the design walk left to the PR). The verdict is `no-go` on a surviving blocker, `go` only when every
 dimension ran clean, else `go-with-notes`; the result carries the release checklist for the promotion PR body,
 ticked where a dimension passed or does not apply. The `release` skill runs it before opening the promotion PR.
 
@@ -291,13 +291,11 @@ Every `agent()` call in the three workflows names its model by role: `judgment` 
 
 ## Lessons
 
-`lessons/INDEX.md` is a table with one row per lesson the consumer apps taught the kit: an id, a one-line rule,
-its class (`rule`, `recipe`, `lens` or `adr-seed`), its home (the section of a skill reference file or review
-agent that owns the text) and its source (a product's `kit.portfolioId` or a founding `app-N` label, from the Sources table in
-`lessons/README.md`). The index never carries the text; the home does. A row stays in the live table only while
-something a session reads cites its id (a skill step, an agent, a template rule seed, a workflow, a routine
-prompt); rows nothing cites sit in the index's History section with the reason, and a new lesson enters with
-its citation. `lessons/README.md` has the extraction discipline; `test/lessons-index.test.mjs` keeps it honest.
+What the consumer apps taught the kit lives as text in the skill reference files and review agents that own it,
+each with its class (`rule`, `recipe`, `lens` or `adr-seed`) and a `Sources:` line naming a product's
+`kit.portfolioId` or a founding `app-N` label from the Sources table in `lessons/README.md`. There is no separate
+catalogue: a lesson lives while a skill or agent sends a session to its home. `lessons/README.md` has the
+extraction discipline and the lesson-proposal door.
 
 ## The operating layer
 
@@ -363,7 +361,7 @@ claude plugin validate skills --strict
 claude --plugin-dir .                # /shopify-app-kit:doctor should be listed
 ```
 
-See `/shopify-app-kit:kit-dev` (skills/kit-dev/SKILL.md) for how to add hooks, skills, agents and lessons, and
+See `/shopify-app-kit:kit-dev` (skills/kit-dev/SKILL.md) for how to add hooks, skills, agents and routines, and
 how to release. Any change under `skills/`, `agents/`, `hooks/`, `workflows/`, `schemas/`, `lessons/`
 or `.claude-plugin/` needs a version bump; CI checks it on PRs to `main`.
 

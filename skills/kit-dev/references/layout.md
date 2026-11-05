@@ -11,7 +11,7 @@
 | `skills/<name>/scripts/*.{mjs,sh}` | zero-dependency scripts a skill runs, each linked from its SKILL.md and syntax-checked by the parity test; `test/new-app.test.mjs` exercises `new-app`'s against a stand-in template |
 | `agents/<name>.md` | review subagents launched by the `review` skill and the review roster; read-only, manifest-aware |
 | `workflows/<name>.js` | Workflow scripts (plain JavaScript, `export const meta` first) that orchestrate the agents; loaded as `/shopify-app-kit:<name>`; `test/workflows-parity.test.mjs` iterates them |
-| `lessons/INDEX.md`, `lessons/README.md` | the lessons catalogue and its extraction discipline; homes are reference files or agent sections |
+| `lessons/README.md` | the extraction discipline and the source labels `test/skills-parity.test.mjs` reads; the lessons' text lives in reference files and agent sections |
 | `templates/` | the repo shell a new app starts from; every file listed in `templates/README.md` with its placeholders; `test/templates.test.mjs` |
 | `labels.json`, `scripts/sync-labels.mjs` | the label set (with the `ladder` array) and the script that applies it with `gh label create --force`; `test/labels.test.mjs` |
 | `routines/<name>.md`, `routines/REGISTRY.md` | the committed prompt texts of the scheduled Routines and the table with the maintainer's step; `test/routines.test.mjs` |

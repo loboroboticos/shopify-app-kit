@@ -1,13 +1,13 @@
 ---
 name: Lesson proposal
-about: A rule a consumer's sessions needed more than once, proposed for the kit's lessons index
+about: A rule a consumer's sessions needed more than once, proposed for a kit reference file
 title: 'lesson: '
 labels: 'code only'
 assignees: ''
 ---
 
-<!-- .github/ISSUE_TEMPLATE/lesson-proposal.md (shopify-app-kit). The door into lessons/INDEX.md: a row enters
-     only with the evidence below and a citation, and the proposal names no store, business, product, owner or
+<!-- .github/ISSUE_TEMPLATE/lesson-proposal.md (shopify-app-kit). The door for a lesson: it enters
+     only with the evidence below and a reader, and the proposal names no store, business, product, owner or
      repository, ever. A consumer is its kit.portfolioId. Rules: lessons/README.md. -->
 
 ## The rule
@@ -35,9 +35,8 @@ assignees: ''
 
 ## What will cite it
 
-<!-- The artifact a session reads that will name the id, so the row is pulled on: a SKILL.md step, an agent
-     section, a template rule seed, a workflow or a routine prompt. Without a citer the row cannot enter
-     (test/lessons-index.test.mjs). -->
+<!-- The artifact a session reads that will send it to the home: a SKILL.md step, an agent section, a
+     template rule seed, a workflow or a routine prompt. Without one the lesson cannot enter. -->
 
 ## Irreversibility check
 

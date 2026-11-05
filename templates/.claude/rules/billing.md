@@ -5,7 +5,7 @@ paths:
   - "shopify.app.*.toml"
 ---
 
-<!-- .claude/rules/billing.md (shopify-app-kit template). Seeds from the kit's `release/references/billing-live-posture.md` and `admin-api/references/distribution-is-one-way.md`;
+<!-- .claude/rules/billing.md (shopify-app-kit template). Seeds from the kit's `release/references/billing-live-posture.md`;
      reads billing.method, billing.live and billing.testFlag from .claude/shopify-app.json. -->
 
 # Billing
@@ -19,5 +19,3 @@ paths:
 - One function writes entitlement and invalidates the per-shop cache; every path calls it (tripwired).
 - A subscribe, upgrade or plan change against the production registration is a real charge; it is
   `human:account` work, never a session's.
-- Distribution is one-way: a custom-distribution app cannot bill through Shopify; a public app uses the Billing
-  API or App Pricing.

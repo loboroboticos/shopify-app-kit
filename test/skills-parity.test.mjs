@@ -20,7 +20,7 @@ const ALLOWED_ENTRIES = new Set(['SKILL.md', 'references', 'scripts']);
 // founding app-N labels), so a new product's id is added there and nowhere else.
 const SOURCE_LABELS = new Set([...fs.readFileSync(path.join(kitRoot, 'lessons', 'README.md'), 'utf8').matchAll(/^\| `([a-z0-9][a-z0-9-]*)` \|/gm)].map((m) => m[1]));
 // Maintainer skills document the kit itself: their references are procedures, not lessons, so they carry no
-// Sources: line and test/lessons-index.test.mjs does not require them to be a lesson's home.
+// Sources: line.
 const MAINTAINER_SKILLS = new Set(['kit-dev']);
 
 describe('skills parity', () => {

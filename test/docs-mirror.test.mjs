@@ -121,7 +121,7 @@ describe('docs mirror their sources', () => {
       assert.equal(read('.github', 'ISSUE_TEMPLATE', f), read('templates', '.github', 'ISSUE_TEMPLATE', f), `.github/ISSUE_TEMPLATE/${f} equals templates/.github/ISSUE_TEMPLATE/${f}`);
     }
     const proposal = read('.github', 'ISSUE_TEMPLATE', 'lesson-proposal.md');
-    for (const s of ['kit.portfolioId', 'twice in one product, or once in two', '## What will cite it', 'lessons-index']) assert.ok(proposal.includes(s), `lesson-proposal.md: ${s}`);
+    for (const s of ['kit.portfolioId', 'twice in one product, or once in two', '## What will cite it', 'Without one the lesson cannot enter']) assert.ok(proposal.includes(s), `lesson-proposal.md: ${s}`);
   });
 
   test('every template that says who closes a human:* issue carries R7\'s "a routine never" (#92)', () => {

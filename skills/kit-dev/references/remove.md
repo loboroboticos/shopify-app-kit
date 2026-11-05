@@ -13,7 +13,7 @@ same version that deprecates it.
    so they follow), `templates/.claude/settings.json` for a guard. Consumers' vendored copies are removed by the
    next `sync` (its stale-copy step) and reported as stale by the doctor until then. The CHANGELOG entry lists
    the removal under `### Removed`, with the version that deprecated it.
-3. **Lessons whose only home was the removed file** move to `## History` in `lessons/INDEX.md` with the date and
-   the reason (the existing rule: a row is never deleted).
+3. **A lesson whose only home was the removed file** moves to another home that a session reads, or leaves with
+   the file; the CHANGELOG entry names it and `git log` keeps the text.
 
 A removal PR bumps the version like any change under a plugin-visible path.

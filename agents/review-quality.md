@@ -30,8 +30,9 @@ Use the manifest to locate them, then hold the diff to them.
 | Kit-owned files | `.claude/hooks/kit/`, the manifest | hand edits to vendored hooks; repo facts hardcoded where the manifest already states them |
 
 React Router conventions worth enforcing: data comes from loaders, mutations go through actions and fetchers,
-not `useEffect` fetch chains; typed loader data instead of `any`; error boundaries per route rather than try/catch
-noise; Polaris and App Bridge components before bespoke UI.
+not `useEffect` fetch chains; typed loader data instead of `any`; error boundaries per route, each embedded document
+still rendering the App Bridge shell through the package's `AppProvider`; Polaris web components only, never an
+`@shopify/polaris` React import or bespoke UI where one exists.
 
 ## Non-negotiable standards
 

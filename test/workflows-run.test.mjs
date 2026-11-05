@@ -176,7 +176,7 @@ const releaseScope = {
   webhookTopics: ['app/uninstalled', 'app/scopes_update'], webhooksCompliance: true, webhookHandlers: 'web/app/routes',
   extensions: ['extensions/example'], extensionFiles: ['extensions/example/blocks/widget.liquid'],
   workflowFiles: [], protectedWorkflows: ['deploy.yml'], deployTargets: 'prod: deploy.yml', scaleToZeroBeforeMigrate: true,
-  billingLive: true, billingMethod: 'billing-api', billingTestFlag: 'BILLING_TEST', appPublic: false, prodHandle: 'example-app', notes: '',
+  billingLive: true, billingMethod: 'billing-api', billingTestFlag: 'BILLING_TEST', appKind: 'custom-app', prodHandle: 'example-app', notes: '',
 };
 const dimFinding = (severity, claim, dimension, file = '', line = 0, extra = {}) => ({ severity, claim, file, line, section: file ? '' : dimension, evidence: `checked ${dimension}`, fix: `fix ${claim}`, ...extra });
 const launchedLabels = (rt) => rt.calls.filter((c) => c.opts.agentType).map((c) => `${c.opts.label}=${c.opts.agentType.replace('shopify-app-kit:', '')}`).sort();
@@ -205,7 +205,7 @@ describe('release-readiness under a stub runtime', () => {
       'api-version=review-correctness', 'billing=review-correctness', 'branch-model=qa-review-security-governance',
       'extension=storefront-extension-reviewer', 'migrations=prisma-migration-reviewer', 'webhooks=review-correctness',
     ]);
-    assert.deepEqual(result.skipped, [{ dimension: 'app-store-review', reason: 'not a public app (billing.method is not app-pricing)' }]);
+    assert.deepEqual(result.skipped, [{ dimension: 'app-store-review', reason: 'not a public app (app.kind is custom-app)' }]);
     assert.deepEqual(result.failed, []);
     assert.equal(rt.calls.filter((c) => c.opts.label?.startsWith('verify:')).length, 2, 'one skeptic per blocker/major');
 
@@ -226,7 +226,7 @@ describe('release-readiness under a stub runtime', () => {
     assert.ok(lines.includes('- [ ] API version pins agree on 2026-07'), 'api-version raised a blocker: unticked');
     assert.ok(lines.includes('- [x] Webhook topics subscribed and handled; compliance handlers present'));
     assert.ok(lines.includes('- [x] Branch model: range is beta -> main; protected workflows untouched or reviewed'));
-    assert.ok(lines.includes('- [x] App Store review check: not applicable (billing.method billing-api, not a public app)'));
+    assert.ok(lines.includes('- [x] App Store review: not applicable (app.kind custom-app)'));
     assert.ok(lines.includes('- [x] Migration in this release: 1 file(s); scale to zero first (scaleToZeroBeforeMigrate): yes'), 'the refuted major became a note, so migrations passed');
     assert.ok(lines.includes('- [ ] Extension version to release: example-app-<N>; verified in an asset URL after deploy (settings compatibility checked)'));
     assert.ok(lines.includes('- [ ] Server target(s): prod: deploy.yml'));
@@ -258,16 +258,23 @@ describe('release-readiness under a stub runtime', () => {
     assert.ok(rt.calls[0].prompt.includes('"beta" (the operator\'s choice)') && rt.calls[0].prompt.includes('"main" (the operator\'s choice)'), 'args.base and args.head override the range');
   });
 
-  test('a public app gets the app-store-review note without launching an agent, and a clean run is go', async () => {
-    const rt = runtime({ scope: { ...releaseScope, billingLive: false, billingMethod: 'app-pricing', touchesPrisma: false, migrations: [] }, reviewPhase: 'Dimensions', byLabel: true, reviews: {}, verdicts: {} });
+  test('a public app runs app-store-review as review-correctness over the whole checkout; the checklist keeps the human walk open', async () => {
+    const pub = { ...releaseScope, appKind: 'embedded-app', billingLive: false, billingMethod: 'app-pricing', touchesPrisma: false, migrations: [] };
+    const rt = runtime({ scope: pub, reviewPhase: 'Dimensions', byLabel: true, reviews: {}, verdicts: {} });
     const result = await run('release-readiness', rt, undefined);
-    assert.deepEqual(launchedLabels(rt), ['api-version=review-correctness', 'branch-model=qa-review-security-governance', 'extension=storefront-extension-reviewer', 'webhooks=review-correctness']);
-    assert.ok(result.dimensions.some((d) => d.dimension === 'app-store-review' && d.status === 'note'));
-    assert.equal(result.findings.length, 1);
-    assert.match(result.findings[0].claim, /shopify-app-store-review/);
-    assert.equal(result.findings[0].severity, 'note');
-    assert.equal(result.verdict, 'go-with-notes', 'the App Store review note keeps the verdict off go');
-    assert.ok(result.checklist.includes('- [ ] App Store review check (public app): summary attached / companion not installed'));
+    assert.deepEqual(launchedLabels(rt), ['api-version=review-correctness', 'app-store-review=review-correctness', 'branch-model=qa-review-security-governance', 'extension=storefront-extension-reviewer', 'webhooks=review-correctness']);
+    assert.match(rt.calls.find((c) => c.opts.label === 'app-store-review').prompt, /Auth boundaries and Scopes checks over the whole checkout, not the promotion range/);
+    assert.ok(result.dimensions.some((d) => d.dimension === 'app-store-review' && d.status === 'ran'));
+    assert.equal(result.verdict, 'go', 'a clean app-store-review adds no finding');
+    assert.ok(result.checklist.includes('- [ ] App Store review: companion summary attached, or companion not installed; BFS design walk done on desktop and in the Shopify mobile app'), 'the companion summary and the design walk are human steps');
+
+    const shell = runtime({ scope: pub, reviewPhase: 'Dimensions', byLabel: true,
+      reviews: { 'app-store-review': { headline: 'shell missing', checked: 'read app/root.tsx, app/routes/app.tsx, shopify.app.example.toml', findings: [dimFinding('blocker', 'the layout ErrorBoundary renders a document without the App Bridge script', 'app-store-review', 'web/app/routes/app.tsx', 40)] } },
+      verdicts: { 'the layout ErrorBoundary renders a document without the App Bridge script': { refuted: false, reason: 'the boundary returns its own html', severity: 'blocker' } } });
+    const bad = await run('release-readiness', shell, undefined);
+    assert.equal(bad.verdict, 'no-go', 'a finding outside the range still blocks: the dimension reads the whole checkout');
+    assert.deepEqual(bad.findings[0].dimensions, ['app-store-review']);
+    assert.ok(!bad.checklist.includes('- [x] App Store review'));
 
     const quiet = runtime({ scope: { ...releaseScope, billingLive: false, billingMethod: 'none', touchesPrisma: false, migrations: [], extensions: [], extensionFiles: [] }, reviewPhase: 'Dimensions', byLabel: true, reviews: {}, verdicts: {} });
     const ok = await run('release-readiness', quiet, undefined);
@@ -313,7 +320,7 @@ describe('release-readiness under a stub runtime', () => {
     assert.ok(lines.includes('- [ ] API version pins agree on 2026-07 (not checked: not in args.dimensions)'));
     assert.ok(lines.includes('- [ ] Webhook topics subscribed and handled; compliance handlers present (not checked: not in args.dimensions)'));
     assert.ok(lines.some((l) => l.startsWith('- [ ] Extension version to release:') && l.endsWith('(not checked: not in args.dimensions)')));
-    assert.ok(lines.some((l) => l.startsWith('- [ ] App Store review check') && l.endsWith('(not checked: not in args.dimensions)')));
+    assert.ok(lines.some((l) => l.startsWith('- [ ] App Store review:') && l.endsWith('(not checked: not in args.dimensions)')));
   });
 
   test('a ref that does not resolve is no-go without launching a dimension (#117)', async () => {

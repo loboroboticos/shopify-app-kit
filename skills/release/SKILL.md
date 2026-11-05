@@ -19,8 +19,8 @@ performs on push. Never merge, never run a protected workflow by hand, never tou
 
 2. **Readiness.** Run `/shopify-app-kit:release-readiness` on the promotion range first. A `no-go` means do not
    open the PR: report the blockers and stop. Otherwise its checklist and verdict go into the PR body (step 3).
-   For a public app (`billing.method` is `app-pricing`, or its distribution is the App Store) it also asks for the
-   companion's `shopify-app-store-review` skill: run it and attach its summary, or say the companion is not installed.
+   For a public app (`app.kind` is not `custom-app`) it also asks for the companion's `shopify-app-store-review`
+   skill: run it and attach its summary, or say the companion is not installed.
 
 3. **Promotion (`beta`).** Open the PR with the workflow's checklist block (step 2) as its body, then
    stop: `gh pr create --base <promotion.to> --head <promotion.from>`. The merge is the human gate; the kit's
