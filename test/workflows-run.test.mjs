@@ -166,6 +166,8 @@ describe('pre-pr-review under a stub runtime', () => {
     assert.equal(parseReceipt(renderReceipt(result.receipt)).error, undefined);
     await assert.rejects(run('pre-pr-review', runtime({ scope: baseScope, reviews: {}, verdicts: {} }), { delta: { receipt: { sha: 'x' } } }), /args\.delta needs/);
     await assert.rejects(run('pre-pr-review', runtime({ scope: baseScope, reviews: {}, verdicts: {} }), { reviewers: ['review-correctness'] }), /no reviewer matches/);
+    const kept = await run('pre-pr-review', runtime({ scope: baseScope, reviews: {}, verdicts: {} }), { delta: { receipt: { ...prior, verdict: 'block' } } });
+    assert.equal(kept.receipt.verdict, 'block', 'a delta without the blocking findings cannot clear a block');
     const empty = await run('pre-pr-review', runtime({ scope: { ...baseScope, changedFiles: [] }, reviews: {}, verdicts: {} }), { delta: { receipt: prior } });
     assert.deepEqual([empty.receipt.kind, empty.receipt.roster, empty.receipt.verdict, empty.receipt.confirmed, parseReceipt(renderReceipt(empty.receipt)).error], ['delta', [], 'changes-needed', 1, undefined], 'an empty commit carries the earlier verdict');
   });

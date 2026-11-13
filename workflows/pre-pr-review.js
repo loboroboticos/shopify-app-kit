@@ -330,7 +330,9 @@ const counts = { blocker: 0, major: 0, minor: 0, note: 0 }
 for (const f of merged) counts[f.severity]++
 // @end
 // A reviewer that returned nothing left its lens uncovered, so the diff is never approved on its account.
-const verdict = counts.blocker > 0 ? 'block' : (counts.major > 0 || failed.length > 0) ? 'changes-needed' : 'approve'
+let verdict = counts.blocker > 0 ? 'block' : (counts.major > 0 || failed.length > 0) ? 'changes-needed' : 'approve'
+// A delta clears an earlier block only by re-checking that block's findings; without them it cannot clear it.
+if (prior && prior.verdict === 'block' && !String(opts.delta.findings || '').trim()) { verdict = 'block'; log('the earlier review blocked and args.delta.findings is empty, so the delta keeps block') }
 log(`verdict: ${verdict} (${counts.blocker} blocker, ${counts.major} major, ${counts.minor} minor, ${counts.note} note; ${refuted.length} refuted${failed.length ? `; uncovered: ${failed.join(', ')}` : ''})`)
 
 // The receipt (format and checks: hooks/review-gate.mjs, the one source of truth); the session splices it into the PR body.

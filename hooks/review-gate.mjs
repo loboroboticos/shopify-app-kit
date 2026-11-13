@@ -261,6 +261,12 @@ async function check(manifestPath) {
     if (res.override) lines.push('', `**Override** of ${pull.head.sha} by ${res.override.by}: ${res.override.reason}`);
     fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${lines.join('\n')}\n`);
   }
+  // The status job posts these as the shopify-app-kit/review-gate commit status: one line each, printable ASCII only.
+  if (process.env.GITHUB_OUTPUT) {
+    const line = (s) => String(s).replace(/[^\x20-\x7e]/g, ' ').slice(0, 140);
+    const description = res.status === 'fail' ? `${res.errors.length} problem(s): ${res.errors[0]}` : res.override ? `overridden: ${res.override.reason}` : res.status === 'skip' ? `not gated: ${res.notes[0] ?? ''}` : 'review receipt current';
+    fs.appendFileSync(process.env.GITHUB_OUTPUT, `state=${res.status === 'fail' ? 'failure' : 'success'}\nsha=${/^[0-9a-f]{40}$/.test(pull.head?.sha ?? '') ? pull.head.sha : ''}\ndescription=${line(description)}\n`);
+  }
   return res.status === 'fail' ? 1 : 0;
 }
 

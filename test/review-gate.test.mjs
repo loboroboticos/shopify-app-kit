@@ -191,6 +191,11 @@ describe('the gate', () => {
     const delta = { state: 'COMMENTED', commit_id: A, user: { login: 'dev' }, author_association: 'MEMBER', body: g.renderReceipt(receipt({ kind: 'independent-delta', sha: A, fromSha: B, chain: [{ kind: 'independent', sha: B }] })) };
     const p = pull({ body: body(receipt({ independent: [{ url: url(5), sha: B }, { url: url(6), sha: A }] })) });
     assert.equal((await gate({ files: ['prisma/schema.prisma'], pull: p, api: api({ reviews: { 5: ind(B), 6: delta } }) })).status, 'pass');
+    // Each independent link must be an ancestor of the head, and each delta must start where the previous link ended.
+    const orphan = await gate({ files: ['prisma/schema.prisma'], pull: p, api: api({ reviews: { 5: ind(B), 6: delta }, ancestors: [A] }) });
+    assert.match(orphan.errors.join(), /review 5's commit is not an ancestor of the head/);
+    const skip = { ...delta, body: g.renderReceipt(receipt({ kind: 'independent-delta', sha: A, fromSha: C, chain: [{ kind: 'independent', sha: C }] })) };
+    assert.match((await gate({ files: ['prisma/schema.prisma'], pull: p, api: api({ reviews: { 5: ind(B), 6: skip } }) })).errors.join(), /review 6's own body does not carry a independent-delta receipt for aaaaaaa from bbbbbbb/);
     for (const files of [['.github/kit/review-gate.mjs'], ['.claude/shopify-app.json'], ['.github/workflows/kit-review-gate.yml'], ['.github/workflows/new-check.yml'], ['shopify.app.toml'], null]) {
       assert.match((await gate({ files })).errors.join(), /no independent review/, JSON.stringify(files));
     }
@@ -209,15 +214,24 @@ describe('the workflow file', () => {
     assert.match(yml, /^on:\n {2}pull_request_target:\n {4}types: \[opened, synchronize, reopened, edited, labeled, unlabeled, ready_for_review\]$/m);
     assert.doesNotMatch(yml, /^\s+pull_request:/m);
   });
-  test('reads only, uses no secret, never checks out PR code and never puts expression text in a run line', () => {
-    assert.match(yml, /^permissions:\n {2}contents: read\n {2}pull-requests: read\n {2}issues: read\n\n/m);
-    assert.equal((yml.match(/permissions:/g) ?? []).length, 1, 'no job-level permissions widen it');
+  test('the gate job reads only; the one write, statuses, sits alone in a job that checks nothing out and runs no PR code', () => {
+    assert.match(yml, /^permissions: \{\}$/m, 'the workflow default grants nothing');
+    assert.match(yml, /^ {2}gate:\n {4}name: gate\n[\s\S]*? {4}permissions:\n {6}contents: read\n {6}pull-requests: read\n {6}issues: read\n {4}outputs:/m);
+    const status = yml.slice(yml.indexOf('\n  status:'));
+    assert.match(status, /^ {4}permissions:\n {6}statuses: write\n {4}env:/m);
+    assert.equal((yml.match(/: write/g) ?? []).length, 1, 'statuses: write is the only write anywhere');
+    assert.doesNotMatch(status, /^\s+(- )?uses:|actions\/checkout/m, 'the status job checks nothing out and runs no action');
+    assert.match(status, /context: 'shopify-app-kit\/review-gate'/);
+    // A fork can only reach this workflow through pull_request_target, which runs the base's copy; no pull_request
+    // trigger means no run where a fork's code and a token that can write statuses meet.
+    assert.doesNotMatch(yml, /^\s+(pull_request|push|workflow_run):/m);
     assert.doesNotMatch(yml, /secrets\./);
     assert.doesNotMatch(yml, /^\s+ref:/m, 'the checkout is the base');
     assert.match(yml, /persist-credentials: false/);
-    for (const u of yml.match(/uses: \S+/g)) assert.match(u, /@[0-9a-f]{40}$/, `${u} is pinned by SHA`);
+    for (const u of yml.match(/^\s+(?:- )?uses: \S+/gm)) assert.match(u, /@[0-9a-f]{40}$/, `${u} is pinned by SHA`);
     const runs = lines.filter((l) => /^\s+run:/.test(l));
-    assert.deepEqual(runs.map((l) => l.trim()), ['run: node .github/kit/review-gate.mjs check']);
+    assert.deepEqual(runs.map((l) => l.trim()), ['run: node .github/kit/review-gate.mjs check', 'run: node -e "$POST"']);
+    assert.doesNotMatch(yml.slice(yml.indexOf('POST: |')), /\$\{\{/, 'the posting code holds no expression');
     assert.match(yml, /cancel-in-progress: false/);
     assert.match(yml, /^name: kit-review-gate$/m); assert.match(yml, /^ {2}gate:\n {4}name: gate$/m);
   });

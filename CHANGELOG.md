@@ -19,8 +19,9 @@ manifest-driven reviewer models because every session overrode the agents' `opus
   splices one when a PR exists (its only unasked write).
 - Review gate: `hooks/kit-review-gate.yml`, vendored with the script by `sync` (and `new-app`) to
   `.github/workflows/` and `.github/kit/`. On `pull_request_target`, from the base branch (a PR cannot weaken the
-  gate or the manifest it reads), read-only (`contents`, `pull-requests`), no secrets, no PR code checked out, the PR
-  always re-fetched. Fails a PR into `branches.default` with no receipt, a stale or broken chain, verdict `block`, or
+  gate or the manifest it reads), no secrets, no PR code checked out, the PR always re-fetched. The `gate` job reads
+  only; a `status` job with only `statuses: write` posts the verdict as the commit status
+  `shopify-app-kit/review-gate`, the required context (a PR's own job named `gate` could shadow a job check). Fails a PR into `branches.default` with no receipt, a stale or broken chain, verdict `block`, or
   a changed `independentFor` path without an independent chain at the head whose every link is a real, undismissed
   COMMENT review on that PR and commit, by an owner, member or collaborator, carrying its own receipt (a PR whose
   author has no such role needs that chain on every path); `changes-needed` warns; drafts and other bases skip.
@@ -42,9 +43,9 @@ manifest-driven reviewer models because every session overrode the agents' `opus
 
 ### Budget
 
-- `hooks/` 1950 -> 2300 (the gate script and its workflow, vendored beside the guards; the doctor's checks),
+- `hooks/` 1950 -> 2350 (the gate script and its workflow, vendored beside the guards; the doctor's checks),
   `workflows/` 1035 -> 1090 (independent and delta modes, the receipt), `skills/` 3380 -> 3460 (`independent-review`,
-  the receipt reference), `schemas/` 270 -> 280, `test/` 3750 -> 4025 (`test/review-gate.test.mjs`): app-1's two
+  the receipt reference), `schemas/` 270 -> 280, `test/` 3750 -> 4040 (`test/review-gate.test.mjs`): app-1's two
   unreviewed high-risk merges and #1176 above.
 
 ## 0.20.0

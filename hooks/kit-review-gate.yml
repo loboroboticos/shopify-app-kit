@@ -2,23 +2,24 @@
 # shopify-app-kit v0.21.0
 # Fails a PR into branches.default whose body has no current review receipt, or whose independentFor paths changed
 # without a verified independent review; the label review-gate:override plus a role-holder's PR comment
-# "Review-gate override <head sha>: <reason>" passes that head with a warning. Make "kit-review-gate / gate" a
-# required status check on the default branch.
+# "Review-gate override <head sha>: <reason>" passes that head with a warning. The verdict is the commit status
+# "shopify-app-kit/review-gate" on the PR head: make that context the required check on the default branch.
 #
 # Why pull_request_target: it runs THIS file and the script from the base branch, so a PR cannot edit the gate or the
-# manifest's independentFor to pass itself, and fork PRs are checked too. It is safe only because the job never checks
-# out, installs or runs PR code (the checkout below is the base, sparse, without credentials), never puts event text
-# into a run line (the script reads the payload and re-fetches the PR), and the token can only read.
+# manifest's independentFor to pass itself, and fork PRs are checked too. It is safe only because no job checks out,
+# installs or runs PR code (the gate's checkout is the base, sparse, without credentials), no event text reaches a
+# run line (the script reads the payload and re-fetches the PR), and the token can only read, except in `status`.
+#
+# Why a commit status and not the job's check: a PR can add its own workflow with a job named `gate`, and a required
+# check matched by name would take whichever ran last. A fork's pull_request token cannot write statuses, so only this
+# workflow posts the context. The one write, statuses, sits in its own job that runs no code but an inline POST.
 name: kit-review-gate
 
 on:
   pull_request_target:
     types: [opened, synchronize, reopened, edited, labeled, unlabeled, ready_for_review]
 
-permissions:
-  contents: read
-  pull-requests: read
-  issues: read
+permissions: {}
 
 # Every event re-judges the live PR. Runs never cancel each other; GitHub keeps one pending run per group and may
 # replace an older pending one, which is harmless because the run that executes re-reads the PR.
@@ -31,6 +32,14 @@ jobs:
     name: gate
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+      issues: read
+    outputs:
+      state: ${{ steps.check.outputs.state }}
+      sha: ${{ steps.check.outputs.sha }}
+      description: ${{ steps.check.outputs.description }}
     steps:
       # Pinned by commit SHA (the tag is the trailing comment).
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -42,6 +51,39 @@ jobs:
           sparse-checkout-cone-mode: false
 
       - name: Check the review receipt
+        id: check
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: node .github/kit/review-gate.mjs check
+
+  status:
+    name: status
+    needs: gate
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions:
+      statuses: write
+    env:
+      GITHUB_TOKEN: ${{ github.token }}
+      STATE: ${{ needs.gate.outputs.state }}
+      HEAD_SHA: ${{ needs.gate.outputs.sha }}
+      DESCRIPTION: ${{ needs.gate.outputs.description }}
+      FALLBACK_SHA: ${{ github.event.pull_request.head.sha }}
+    steps:
+      # No checkout: the values come from the gate job and are re-validated here; a gate that crashed posts error.
+      - name: Post the shopify-app-kit/review-gate status
+        run: node -e "$POST"
+        env:
+          POST: |
+            const ok = (s, re) => typeof s === 'string' && re.test(s);
+            const sha = ok(process.env.HEAD_SHA, /^[0-9a-f]{40}$/) ? process.env.HEAD_SHA : process.env.FALLBACK_SHA;
+            if (!ok(sha, /^[0-9a-f]{40}$/)) throw new Error('no head sha to post a status on');
+            const state = ['success', 'failure'].includes(process.env.STATE) ? process.env.STATE : 'error';
+            const description = (state === 'error' ? 'the review gate did not finish; re-run it' : String(process.env.DESCRIPTION || '')).replace(/[^\x20-\x7e]/g, ' ').slice(0, 140);
+            const url = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`;
+            fetch(`${process.env.GITHUB_API_URL}/repos/${process.env.GITHUB_REPOSITORY}/statuses/${sha}`, { method: 'POST',
+              headers: { Authorization: `Bearer ${process.env.GITHUB_TOKEN}`, Accept: 'application/vnd.github+json', 'User-Agent': 'shopify-app-kit-review-gate' },
+              body: JSON.stringify({ state, context: 'shopify-app-kit/review-gate', description, target_url: url }) })
+              .then((r) => { if (!r.ok) throw new Error(`POST status: HTTP ${r.status}`); console.log(`${state}: ${description}`); })
+              .catch((e) => { console.error(e.message); process.exit(1); });
