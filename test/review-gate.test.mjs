@@ -156,12 +156,13 @@ describe('the gate', () => {
     assert.match((await gate({ files: risky })).errors[0], /no independent review/);
     const good = await gate({ files: risky, pull: withLinks([{ url: url(5), sha: A }]), api: api({ reviews: { 5: ind(A) } }) });
     assert.equal(good.status, 'pass', good.errors.join());
-    assert.ok(good.notes.some((n) => /review 5 by dev \(OWNER\), session session\\_x/.test(n)), good.notes.join('|'));
+    assert.ok(good.notes.some((n) => /review 5 by dev \(OWNER\), session session\\_x, the same account as the PR author/.test(n)), good.notes.join('|'));
     const cases = [
       ['another PR', [{ url: 'https://github.com/o/r/pull/8#pullrequestreview-5', sha: A }], {}, /not a review on this PR/],
       ['another repo', [{ url: 'https://github.com/o/rr/pull/7#pullrequestreview-5', sha: A }], {}, /not a review on this PR/],
       ['a missing review', [{ url: url(6), sha: A }], {}, /does not exist/],
       ['a dismissed review', [{ url: url(5), sha: A }], { 5: ind(A, { state: 'DISMISSED' }) }, /dismissed/],
+      ['a review by someone with no role on the repo', [{ url: url(5), sha: A }], { 5: ind(A, { author_association: 'CONTRIBUTOR', user: { login: 'forker' } }) }, /forker \(CONTRIBUTOR\), who has no role/],
       ['a review on another commit', [{ url: url(5), sha: A }], { 5: ind(B) }, /posted on bbbbbbb/],
       ['a review body without a receipt', [{ url: url(5), sha: A }], { 5: ind(A, { body: 'LGTM' }) }, /does not carry a independent receipt/],
       ['a chain that stops short of the head', [{ url: url(5), sha: B }], { 5: ind(B) }, /ends at bbbbbbb/],
@@ -173,10 +174,10 @@ describe('the gate', () => {
   });
 
   test('an independent-delta extends the chain; renamed-away paths, the gate files and an over-cap PR count as risky', async () => {
-    const delta = { state: 'COMMENTED', commit_id: A, user: { login: 'dev' }, body: g.renderReceipt(receipt({ kind: 'independent-delta', sha: A, fromSha: B, chain: [{ kind: 'independent', sha: B }] })) };
+    const delta = { state: 'COMMENTED', commit_id: A, user: { login: 'dev' }, author_association: 'MEMBER', body: g.renderReceipt(receipt({ kind: 'independent-delta', sha: A, fromSha: B, chain: [{ kind: 'independent', sha: B }] })) };
     const p = pull({ body: body(receipt({ independent: [{ url: url(5), sha: B }, { url: url(6), sha: A }] })) });
     assert.equal((await gate({ files: ['prisma/schema.prisma'], pull: p, api: api({ reviews: { 5: ind(B), 6: delta } }) })).status, 'pass');
-    for (const files of [['.github/kit/review-gate.mjs'], ['.claude/shopify-app.json'], ['.github/workflows/kit-review-gate.yml'], ['shopify.app.toml'], null]) {
+    for (const files of [['.github/kit/review-gate.mjs'], ['.claude/shopify-app.json'], ['.github/workflows/kit-review-gate.yml'], ['.github/workflows/new-check.yml'], ['shopify.app.toml'], null]) {
       assert.match((await gate({ files })).errors.join(), /no independent review/, JSON.stringify(files));
     }
   });
@@ -222,6 +223,9 @@ describe('the CLI', () => {
     const t = run(process.execPath, [script, 'touched', m], { input: 'app/billing/a.ts\nREADME.md\nprisma/schema.prisma\n' });
     assert.equal(t.stdout, 'app/billing/a.ts\nprisma/schema.prisma\n');
     assert.equal(run(process.execPath, [script, 'splice', f('b3.md', 'x'), f('bad.json', '{"v":2}')]).status, 1);
+    const rc = run(process.execPath, [script, 'receipt'], { input: `secret author prose\n${g.renderReceipt(receipt())}` });
+    assert.deepEqual(JSON.parse(rc.stdout), receipt()); assert.doesNotMatch(rc.stdout, /secret/);
+    assert.equal(run(process.execPath, [script, 'receipt'], { input: 'none' }).status, 1);
     assert.equal(run(process.execPath, [script]).status, 2);
   });
 });
@@ -229,7 +233,7 @@ describe('the CLI', () => {
 describe('the doctor and the agents', () => {
   test('the doctor flags bad review keys and a synced repo without the gate files', () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'review-doctor-'));
-    fs.mkdirSync(path.join(dir, '.claude'));
+    fs.mkdirSync(path.join(dir, '.claude')); fs.mkdirSync(path.join(dir, '.github'));
     const m = JSON.parse(read('test', 'fixtures', 'manifests', 'npm-root-app.json'));
     fs.writeFileSync(path.join(dir, '.claude', 'shopify-app.json'), JSON.stringify({ ...m, kit: { ...m.kit, version: KIT_VERSION }, review: { independentFor: ['a/**', 3], models: { default: 'Sonnet 4!' } } }));
     const env = { ...process.env }; delete env.CLAUDE_PROJECT_DIR; delete env.SHOPIFY_APP_KIT_MANIFEST; delete env.SHOPIFY_APP_KIT_ROOT;

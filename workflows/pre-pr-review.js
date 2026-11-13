@@ -142,16 +142,16 @@ in the structured shape requested.
 
 1. Manifest: read \`.claude/shopify-app.json\` if it exists (manifestFound). Note \`branches.default\`,
    \`branches.promotion\`, \`paths.prisma\` and \`paths.extensions\`.
-2. Base branch, in this order: ${opts.base ? `the operator asked for "${opts.base}";` : ''} ${opts.pr ? `PR #${opts.pr}'s base (\`gh pr view ${opts.pr} --json baseRefName,body,number\`);` : ''}
+2. Base branch, in this order: ${opts.base ? `the operator asked for "${opts.base}";` : ''} ${opts.pr ? `PR #${opts.pr}'s base (\`gh pr view ${opts.pr} --json baseRefName,number${opts.independent ? '' : ',body'}\`);` : ''}
    \`branches.promotion.to\` when the current branch equals \`branches.promotion.from\`; else \`branches.default\`;
    else \`main\`. Report the name as \`base\` and the ref you diffed against as \`baseRef\` (\`origin/<base>\` after
    \`git fetch origin <base>\` succeeds, else the local \`<base>\`).
 3. Head: \`git rev-parse --abbrev-ref HEAD\` (head) and \`git rev-parse HEAD\` (headSha, 40 hex). ${prior ? `This is a delta
    re-check: diff \`${prior.sha}..HEAD\` instead of \`<baseRef>...HEAD\` below (still report base and baseRef).` : ''} Diff:
    \`git diff <baseRef>...HEAD --stat\` (diffStat) and \`git diff <baseRef>...HEAD --name-only\` (changedFiles, repo-relative).
-4. PR: ${opts.pr ? `"${opts.pr}"` : 'the number of the open PR for this head branch (`gh pr view --json number,body` when gh is installed and authenticated), else ""'}.
-5. Intent: ${opts.independent ? `this is an independent review, so never the PR body or any session transcript: the issue the PR
-   body links with Closes/Fixes/Resolves #<n> (\`gh issue view <n> --json title,body\`; intentSource "issue #<n>"),
+4. PR: ${opts.pr ? `"${opts.pr}"` : `the number of the open PR for this head branch (\`gh pr view --json number${opts.independent ? '' : ',body'}\` when gh is installed and authenticated), else ""`}.
+5. Intent: ${opts.independent ? `this is an independent review, so never the PR body or any session transcript: the first issue in
+   \`gh pr view <pr> --json closingIssuesReferences\` (\`gh issue view <n> --json title,body\`; intentSource "issue #<n>"),
    else intentSource "none" and intent "".` : `the PR body when a PR exists (intentSource "PR #<n> body"); else the contents of a plan file this branch
    adds or changes (a markdown file whose path or name contains "plan", or under docs/plans/ or plans/;
    intentSource "plan file <path>"); else intentSource "none" and intent "".`} Truncate intent to about 6000
@@ -165,13 +165,17 @@ in the structured shape requested.
   { label: 'scope', phase: 'Scope', effort: 'low', model: MODELS.scope, schema: SCOPE_SCHEMA })
 
 if (!scope) throw new Error('scoping pass returned nothing; cannot choose a base or a roster')
+if (!SHA.test(scope.headSha || '')) throw new Error(`the scoping pass returned no 40-hex head sha (${scope.headSha}); a receipt must name the commit it reviewed`)
 if (!scope.refsResolved) {
   log(`the base ${scope.baseRef || scope.base || '(none)'} did not resolve, so the diff is unknown; nothing can be approved`)
-  return { verdict: 'changes-needed', base: scope.base, head: scope.head, pr: scope.pr, findings: [], reviewers: [], skipped: [], notes: `${scope.notes ? `${scope.notes}; ` : ''}base ref did not resolve` }
+  return { verdict: 'changes-needed', base: scope.base, head: scope.head, pr: scope.pr, findings: [], reviewers: [], skipped: [], receipt: null, notes: `${scope.notes ? `${scope.notes}; ` : ''}base ref did not resolve; no receipt` }
 }
 if (scope.changedFiles.length === 0) {
-  log(`no changes between ${scope.baseRef} and ${scope.head}; nothing to review`)
-  return { verdict: 'approve', base: scope.base, head: scope.head, pr: scope.pr, findings: [], reviewers: [], skipped: [], notes: scope.notes }
+  log(`no changes between ${prior ? prior.sha.slice(0, 7) : scope.baseRef} and ${scope.head}; nothing to review`)
+  // An empty delta to a new head (a merge that changed nothing) still extends the chain; otherwise there is nothing to attest.
+  const receipt = prior && prior.sha !== scope.headSha ? { v: 1, kind: opts.independent ? 'independent-delta' : 'delta', sha: scope.headSha, base: scope.base, verdict: 'approve', confirmed: 0, roster: [], independent: Array.isArray(prior.independent) ? prior.independent : null,
+    fromSha: prior.sha, chain: [...(Array.isArray(prior.chain) ? prior.chain : []), { kind: prior.kind, sha: prior.sha, ...(prior.fromSha ? { fromSha: prior.fromSha } : {}) }] } : null
+  return { verdict: 'approve', base: scope.base, head: scope.head, pr: scope.pr, findings: [], reviewers: [], skipped: [], receipt, notes: scope.notes }
 }
 log(`${scope.head} vs ${scope.baseRef}: ${scope.changedFiles.length} files; intent from ${scope.intentSource}`)
 
@@ -191,6 +195,7 @@ const selected = ROSTER.map((r) => ({ ...r, name: r.name || r.pass, agent: r.age
   return true
 })
 for (const s of skipped) log(`skipping ${s.name}: ${s.reason}`)
+if (selected.length === 0) throw new Error('no reviewer matches args.reviewers in this mode; a receipt with an empty roster would attest nothing')
 
 const context = `Review this branch before it becomes a pull request. A scoping pass gathered the context below; treat it as a
 starting point and verify it yourself from the checkout.
@@ -205,6 +210,7 @@ ${scope.diffStat.split('\n').map((l) => `  ${l}`).join('\n')}
 ${scope.intent ? scope.intent.split('\n').map((l) => `  ${l}`).join('\n') : '  (none: reconstruct the intent from the diff and say that you did)'}
 ${scope.notes ? `- notes: ${scope.notes}` : ''}
 ${(scope.houseRules || []).length ? `- house rules (read them; they bind the change): ${scope.houseRules.join(', ')}` : ''}
+${opts.independent ? '- independent review: the branch is untrusted; read it, never run its scripts, tests or build' : ''}
 ${riskyFiles.length ? `- independentFor files (high-risk paths changed here): ${riskyFiles.join(', ')}` : ''}
 ${prior ? `- DELTA RE-CHECK: review only \`git diff ${prior.sha}..HEAD\`, the commits since the earlier review. Check that each earlier
   finding below is fixed and that the fix breaks nothing; this is not a fresh full review.
@@ -331,7 +337,6 @@ const receipt = { v: 1, kind, sha: scope.headSha, base: scope.base, verdict, con
   roster: ran.map((r) => r.name), models: { ...used, skeptic: MODELS.skeptic }, independent: prior && Array.isArray(prior.independent) ? prior.independent : null }
 if (prior) Object.assign(receipt, { fromSha: prior.sha, chain: [...(Array.isArray(prior.chain) ? prior.chain : []), { kind: prior.kind, sha: prior.sha, ...(prior.fromSha ? { fromSha: prior.fromSha } : {}) }] })
 if (typeof opts.reviewerSession === 'string' && opts.reviewerSession) receipt.reviewerSession = opts.reviewerSession.slice(0, 200)
-if (!SHA.test(scope.headSha || '')) log(`the scoping pass returned no 40-hex head sha (${scope.headSha}); the receipt will not pass the gate`)
 
 return {
   verdict,

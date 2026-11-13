@@ -22,7 +22,7 @@ their logic, and touches nothing outside `.claude/` but the review gate's two fi
    design: the kit is the source of truth; repo-specific behaviour belongs in the manifest). Then delete every
    `.claude/hooks/kit/guard-*.sh` with no counterpart under `${CLAUDE_PLUGIN_ROOT}/hooks/` (a guard the kit
    removed) together with its `settings.json` entry, and say which; the doctor reports such a copy as stale. Then the
-   review gate: `hooks/review-gate.mjs` to `<root>/.github/kit/`, `hooks/kit-review-gate.yml` to `<root>/.github/workflows/`.
+   review gate (`mkdir -p` both): `hooks/review-gate.mjs` to `<root>/.github/kit/`, `hooks/kit-review-gate.yml` to `<root>/.github/workflows/`.
 3. **Stamp the headers.** Line 2 of every copied file is `# shopify-app-kit v<version>`. The kit ships them
    stamped; verify with `awk 'FNR==2 {print FILENAME ": " $0}' "<root>"/.claude/hooks/kit/*.sh`
    and `awk 'FNR==2' "<root>"/.github/kit/review-gate.mjs "<root>"/.github/workflows/kit-review-gate.yml`; fix any that differ.

@@ -164,6 +164,9 @@ describe('pre-pr-review under a stub runtime', () => {
     assert.deepEqual([result.receipt.kind, result.receipt.fromSha, result.receipt.chain], ['delta', prior.sha, [{ kind: 'pre-pr-review', sha: prior.sha }]]);
     assert.equal(parseReceipt(renderReceipt(result.receipt)).error, undefined);
     await assert.rejects(run('pre-pr-review', runtime({ scope: baseScope, reviews: {}, verdicts: {} }), { delta: { receipt: { sha: 'x' } } }), /args\.delta needs/);
+    await assert.rejects(run('pre-pr-review', runtime({ scope: baseScope, reviews: {}, verdicts: {} }), { reviewers: ['review-correctness'] }), /no reviewer matches/);
+    const empty = await run('pre-pr-review', runtime({ scope: { ...baseScope, changedFiles: [] }, reviews: {}, verdicts: {} }), { delta: { receipt: prior } });
+    assert.deepEqual([empty.receipt.kind, empty.receipt.roster, parseReceipt(renderReceipt(empty.receipt)).error], ['delta', [], undefined]);
   });
 
   test('an empty diff returns approve without launching a reviewer', async () => {

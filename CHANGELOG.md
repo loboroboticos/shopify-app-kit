@@ -22,17 +22,18 @@ manifest-driven reviewer models because every session overrode the agents' `opus
   gate or the manifest it reads), read-only (`contents`, `pull-requests`), no secrets, no PR code checked out, the PR
   always re-fetched. Fails a PR into `branches.default` with no receipt, a stale or broken chain, verdict `block`, or
   a changed `independentFor` path without an independent chain at the head whose every link is a real, undismissed
-  COMMENT review on that PR and commit carrying its own receipt; `changes-needed` warns; drafts and other bases skip.
+  COMMENT review on that PR and commit, by an owner, member or collaborator, carrying its own receipt; `changes-needed` warns; drafts and other bases skip.
   Override: label `review-gate:override` (in `labels.json`) plus a `Review-gate override: <reason>` body line, both
   and the labeler in the job summary.
 - Manifest: optional `review.independentFor` (globs added to the derived set: `paths.webhookHandlers`,
-  `paths.appTomls`, `paths.prisma`, `paths.extensions`, the gate's files and the manifest) and `review.models`
+  `paths.appTomls`, `paths.prisma`, `paths.extensions`, the gate's files, any workflow and the manifest) and `review.models`
   (`default`, `mechanical` or an agent name). Additive; `schemaVersion` stays 1. The doctor validates both and
   reports a synced repo without the gate's two files.
 - `/shopify-app-kit:independent-review <PR>`: pre-pr-review in independent mode (intent from the linked issue and the
   house rules, never the PR body or a transcript; the full roster plus `review-correctness`; an efficiency pass and an
   adversarial pass on the risky files, both with existing agents), one COMMENT review, its link spliced into the
-  receipt, a delta when an earlier independent review exists.
+  receipt, a delta only after this reviewer's own earlier independent review. It runs the plugin's gate script and
+  the base's manifest, never the PR's copies, and never executes the branch.
 - `review-quality` joins pre-pr-review's roster with a lens split against `qa-review-technical-integrity`.
 - Models: the six agents that pinned `model: opus` now say `sonnet`, as does the workflows' `judgment` default;
   `args.models` takes an agent-name key, and `review-gate.mjs models` maps `review.models` onto it. The persona port
@@ -41,8 +42,8 @@ manifest-driven reviewer models because every session overrode the agents' `opus
 ### Budget
 
 - `hooks/` 1950 -> 2290 (the gate script and its workflow, vendored beside the guards; the doctor's checks),
-  `workflows/` 1035 -> 1085 (independent and delta modes, the receipt), `skills/` 3380 -> 3455 (`independent-review`,
-  the receipt reference), `schemas/` 270 -> 280, `test/` 3750 -> 4005 (`test/review-gate.test.mjs`): app-1's two
+  `workflows/` 1035 -> 1090 (independent and delta modes, the receipt), `skills/` 3380 -> 3460 (`independent-review`,
+  the receipt reference), `schemas/` 270 -> 280, `test/` 3750 -> 4010 (`test/review-gate.test.mjs`): app-1's two
   unreviewed high-risk merges and #1176 above.
 
 ## 0.20.0

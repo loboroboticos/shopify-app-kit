@@ -21,7 +21,7 @@ splices and checks it, and its tests are the specification. Never hand-edit the 
 ````
 
 - `kind`: a full review (`pre-pr-review`, `review`, `independent`) or a delta (`delta`, `independent-delta`).
-- `confirmed`: blockers plus majors that survived the skeptic. `verdict` `block` fails the gate; `changes-needed`
+- `confirmed`: blockers plus majors the skeptic did not refute (unverified ones over its cap count). `verdict` `block` fails the gate; `changes-needed`
   passes with a warning.
 - A delta adds `fromSha` (the sha of the receipt it follows) and `chain` (that receipt's own chain plus that receipt,
   as `{ kind, sha, fromSha? }`), so the chain starts at a full review and every link is an ancestor of the head.
@@ -37,10 +37,11 @@ splices and checks it, and its tests are the specification. Never hand-edit the 
    builds `{ v: 1, kind: "review", sha, base, verdict, confirmed, roster, models, independent: null }` itself.
 2. Write it to a scratch file, then in the repo:
    `gh pr view <n> --json body --jq .body > body.md`,
-   `node .github/kit/review-gate.mjs splice body.md receipt.json > new.md` (or `"${CLAUDE_PLUGIN_ROOT}/hooks/review-gate.mjs"`
-   before the first sync), `gh pr edit <n> --body-file new.md`. `splice` refuses a malformed receipt and keeps the
-   rest of the body byte for byte.
-3. The sha is `git rev-parse HEAD` at review time, so push exactly what was reviewed before splicing.
+   `node "${CLAUDE_PLUGIN_ROOT}/hooks/review-gate.mjs" splice body.md receipt.json > new.md` (the plugin's copy, never
+   a branch's), `gh pr edit <n> --body-file new.md`. `splice` refuses a malformed receipt and keeps the rest of the
+   body byte for byte. Scratch files go outside the repo.
+3. The sha is `git rev-parse HEAD` at review time: check `receipt.sha` equals it, and push exactly what was
+   reviewed before splicing. `review-gate.mjs receipt < body.md` prints the current receipt alone.
 
 ## After a push: the delta
 

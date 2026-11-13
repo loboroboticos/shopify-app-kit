@@ -18,7 +18,8 @@ permissions:
   contents: read
   pull-requests: read
 
-# Every event for a PR re-judges its live state; none is cancelled, so a required check is never left cancelled.
+# Every event re-judges the live PR. Runs never cancel each other; GitHub keeps one pending run per group and may
+# replace an older pending one, which is harmless because the run that executes re-reads the PR.
 concurrency:
   group: kit-review-gate-${{ github.event.pull_request.number }}
   cancel-in-progress: false

@@ -9,6 +9,7 @@
 //   node review-gate.mjs models [manifest]              prints the workflows' args.models from review.models
 //   node review-gate.mjs globs [manifest]               prints the effective independentFor globs, one per line
 //   node review-gate.mjs touched [manifest] < paths     prints the paths on stdin that match those globs
+//   node review-gate.mjs receipt < body                 prints only the body's receipt as JSON (or the parse error)
 import fs from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
@@ -20,8 +21,11 @@ const DELTA = ['delta', 'independent-delta'];
 const VERDICTS = ['approve', 'changes-needed', 'block'];
 const SHA = /^[0-9a-f]{40}$/;
 const MODEL = /^[a-z0-9][a-z0-9.\-[\]]*$/;
-// The gate's own files and the manifest it reads: a change to any of them always needs an independent review.
-export const ALWAYS_INDEPENDENT = ['.github/kit/**', '.github/workflows/kit-review-gate.yml', '.claude/shopify-app.json'];
+// The gate's own files, the manifest it reads and any workflow (one could publish a check named like the gate's):
+// a change to any of them always needs an independent review.
+export const ALWAYS_INDEPENDENT = ['.github/kit/**', '.github/workflows/**', '.claude/shopify-app.json'];
+// Who may post an independent review: someone with a role on the repository, never a drive-by or fork-only account.
+const REVIEWER_ROLES = ['OWNER', 'MEMBER', 'COLLABORATOR'];
 const FILE_CAP = 3000; // GET pulls/{n}/files lists at most 3000; a larger PR counts as touching every independentFor path
 
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
@@ -197,6 +201,7 @@ export async function gate({ manifest, pull, files, repo, event, api }) {
     const rv = await api.review(id);
     if (!rv) { fail(`independent review ${id} does not exist on this PR`); return res; }
     if (rv.state === 'DISMISSED') { fail(`independent review ${id} was dismissed`); return res; }
+    if (!REVIEWER_ROLES.includes(rv.author_association)) { fail(`independent review ${id} is by ${clean(rv.user?.login, 60)} (${clean(rv.author_association, 30)}), who has no role on this repository (${REVIEWER_ROLES.join(', ')})`); return res; }
     if (rv.commit_id !== l.sha) { fail(`independent review ${id} was posted on ${String(rv.commit_id).slice(0, 7)}, not ${l.sha.slice(0, 7)}`); return res; }
     const pr = parseReceipt(rv.body);
     const want = i === 0 ? 'independent' : 'independent-delta';
@@ -205,7 +210,7 @@ export async function gate({ manifest, pull, files, repo, event, api }) {
     }
     if (l.sha !== head && !(await api.isAncestor(l.sha))) { fail(`independent review ${id}'s commit is not an ancestor of the head`); return res; }
     if (pr.receipt.verdict === 'block') fail(`independent review ${id}'s verdict is block`);
-    res.notes.push(`independent review ${id} by ${clean(rv.user?.login, 60)} (${clean(rv.author_association, 30)})${pr.receipt.reviewerSession ? `, session ${clean(pr.receipt.reviewerSession, 80)}` : ''}`);
+    res.notes.push(`independent review ${id} by ${clean(rv.user?.login, 60)} (${clean(rv.author_association, 30)})${pr.receipt.reviewerSession ? `, session ${clean(pr.receipt.reviewerSession, 80)}` : ''}${rv.user?.login && rv.user.login === pull.user?.login ? ', the same account as the PR author' : ''}`);
     prev = l.sha;
   }
   if (prev !== head) fail(`the independent chain ends at ${prev.slice(0, 7)}, not the head ${String(head).slice(0, 7)}; run /shopify-app-kit:independent-review again (a delta is enough)`);
@@ -267,7 +272,8 @@ async function main([cmd, ...a]) {
     if (hits.length) console.log(hits.join('\n'));
     return 0;
   }
-  console.error('usage: review-gate.mjs check | splice <body> <receipt.json> | link <body> <receipt.json> <url> | models | globs | touched [manifest]');
+  if (cmd === 'receipt') { const p = parseReceipt(fs.readFileSync(0, 'utf8')); console.log(JSON.stringify(p.receipt ?? { error: p.error })); return p.receipt ? 0 : 1; }
+  console.error('usage: review-gate.mjs check | splice <body> <receipt.json> | link <body> <receipt.json> <url> | models | globs | touched [manifest] | receipt');
   return 2;
 }
 

@@ -149,7 +149,7 @@ elif [ -n "$kv" ]; then
   echo "Drift: the manifest says kit.version $kv but $root/.claude/hooks/kit/ does not exist; run /shopify-app-kit:sync."
 fi
 # The review gate sync vendors beside the guards: once synced to this kit, both files are there and stamped like them.
-if [ -n "$kv" ] && [ "$kv" = "$KIT_VERSION" ]; then
+if [ -n "$kv" ] && [ "$kv" = "$KIT_VERSION" ] && [ -d "$root/.github" ]; then
   for g in .github/kit/review-gate.mjs .github/workflows/kit-review-gate.yml; do
     gv="$(sed -n '2s/^[#/]* shopify-app-kit v//p' "$root/$g" 2>/dev/null)"
     if [ -z "$gv" ]; then echo "Drift: $g is missing or has no version header, so PRs are not review-gated; run /shopify-app-kit:sync."
