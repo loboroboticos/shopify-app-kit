@@ -1,0 +1,44 @@
+# .github/workflows/kit-review-gate.yml: vendored by /shopify-app-kit:sync with .github/kit/review-gate.mjs; never edit here.
+# shopify-app-kit v0.21.0
+# Fails a PR into branches.default whose body has no current review receipt, or whose independentFor paths changed
+# without a verified independent review; the label review-gate:override plus a "Review-gate override: <reason>" body
+# line passes it with a warning. Make "kit-review-gate / gate" a required status check on the default branch.
+#
+# Why pull_request_target: it runs THIS file and the script from the base branch, so a PR cannot edit the gate or the
+# manifest's independentFor to pass itself, and fork PRs are checked too. It is safe only because the job never checks
+# out, installs or runs PR code (the checkout below is the base, sparse, without credentials), never puts event text
+# into a run line (the script reads the payload and re-fetches the PR), and the token can only read.
+name: kit-review-gate
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, edited, labeled, unlabeled, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+# Every event for a PR re-judges its live state; none is cancelled, so a required check is never left cancelled.
+concurrency:
+  group: kit-review-gate-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  gate:
+    name: gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # Pinned by commit SHA (the tag is the trailing comment).
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            .github/kit
+            .claude/shopify-app.json
+          sparse-checkout-cone-mode: false
+
+      - name: Check the review receipt
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node .github/kit/review-gate.mjs check

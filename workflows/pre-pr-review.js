@@ -1,7 +1,7 @@
 export const meta = {
   name: 'pre-pr-review',
   description: 'Run the diff-stage review roster on the current branch in one go and dedupe the findings into one verdict',
-  whenToUse: 'Use when a branch is about to become a pull request, or a PR is about to be merged or promoted, and you want every diff-stage reviewer (qa-review-*, prisma-migration-reviewer, storefront-extension-reviewer) run once with the findings merged, verified and ranked. Not for plans: run plan-review on a plan instead. Not a release check: run release-readiness on a promotion range.',
+  whenToUse: 'Use when a branch is about to become a pull request, or a PR is about to be merged or promoted, and you want every diff-stage reviewer (qa-review-*, review-quality, prisma-migration-reviewer, storefront-extension-reviewer) run once with the findings merged, verified and ranked; splice the returned receipt into the PR body (the review skill\'s references/receipt.md). Not for plans: run plan-review on a plan instead. Not a release check: run release-readiness on a promotion range.',
   phases: [
     { title: 'Scope', detail: 'manifest, base branch, diff, PR body or plan file' },
     { title: 'Review', detail: 'the diff-stage roster in parallel, read-only' },
@@ -16,12 +16,17 @@ export const meta = {
 // every blocker and major to a skeptic that tries to refute it, and returns one verdict on the review skill's
 // scale (block | changes-needed | approve). The launching session reports; nobody posts to the PR.
 //
-// args (all optional): a base-branch string, or { base, pr, reviewers, all, models }
+// args (all optional): a base-branch string, or { base, pr, reviewers, all, models, independent, independentFiles, delta, reviewerSession }
 //   base       review against this branch instead of the manifest's choice
 //   pr         a PR number; its base and body are used
 //   reviewers  restrict the roster to these agent names
 //   all        true forces the stack reviewers to run even when the diff does not touch their files
-//   models     per-role model overrides: { scope, reviewer, skeptic, judgment }
+//   independent  true: the outsider mode the independent-review skill runs; intent from the linked issue and the
+//              house rules only (never the PR body), review-correctness and an efficiency pass join, and an
+//              adversarial pass runs on independentFiles (the changed independentFor paths, from review-gate.mjs)
+//   delta      { receipt }: re-check only receipt.sha..HEAD against the earlier findings (args.findings, text);
+//              the returned receipt extends receipt's chain (kind delta, or independent-delta)
+//   models     model overrides by role { scope, reviewer, skeptic, judgment } or by agent name
 
 // @shared constants
 const SEVERITIES = ['blocker', 'major', 'minor', 'note']
@@ -34,22 +39,35 @@ const VERIFY_CAP = 12 // skeptics per run; the rest are reported unverified, nev
 const ROSTER = [
   { name: 'qa-review-security-governance', when: 'always' },
   { name: 'qa-review-spec-conformance', when: 'always' },
-  { name: 'qa-review-technical-integrity', when: 'always' },
+  { name: 'qa-review-technical-integrity', when: 'always', focus: 'review-quality covers structure, simplification, layers and file size in this run; report those only when they cause a defect.' },
+  { name: 'review-quality', when: 'always', focus: 'qa-review-technical-integrity covers performance, reliability, observability and tests in this run; report structure, simplification, layer boundaries, file size and conventions only.' },
   { name: 'qa-review-usability', when: 'always' },
   { name: 'qa-review-divergence-hunter', when: 'always' },
   { name: 'prisma-migration-reviewer', when: 'prisma' },
   { name: 'storefront-extension-reviewer', when: 'extensions' },
+  { name: 'review-correctness', when: 'independent' },
+  { pass: 'efficiency-pass', agent: 'qa-review-technical-integrity', when: 'independent', focus: 'This is the efficiency pass only: count Admin API calls per hot path (loader, action, webhook, job), database writes per request, N+1 queries, cache churn and invalidation, and asset or bundle size on storefront paths; cite each with file:line and an estimate.' },
+  { pass: 'adversarial-pass', agent: 'qa-review-security-governance', when: 'risky', focus: 'This is the adversarial pass: assume the change to the files listed under "independentFor files" is wrong and try to break it (redirect and auth loops, replayed or reordered webhooks, partial writes, mass updates, entitlement or billing state that diverges from Shopify). Report only what you can show.' },
 ]
 
 const opts = typeof args === 'string' ? { base: args } : (args && typeof args === 'object' ? args : {})
+const SHA = /^[0-9a-f]{40}$/
+const prior = opts.delta && typeof opts.delta === 'object' && opts.delta.receipt && SHA.test(opts.delta.receipt.sha || '') ? opts.delta.receipt : null
+if (opts.delta && !prior) throw new Error('args.delta needs { receipt } with the earlier receipt and its 40-hex sha')
+const riskyFiles = Array.isArray(opts.independentFiles) ? opts.independentFiles.filter((f) => typeof f === 'string' && f) : []
 
 const SCOPE_MODEL = 'haiku' // the scoping pass's default model
-// Every agent() names its model by role; args.models ({ scope, reviewer, skeptic, judgment }, model names) overrides any.
+// Every agent() names its model by role; args.models ({ scope, reviewer, skeptic, judgment } or an agent name) overrides any.
 // @shared models
 const JUDGMENT = new Set(['design-review-architecture', 'design-review-feasibility', 'design-review-product-intent', 'design-review-risk-governance', 'qa-review-divergence-hunter', 'qa-review-security-governance'])
-const MODELS = { scope: SCOPE_MODEL, reviewer: 'sonnet', skeptic: 'sonnet', judgment: 'opus' }
-for (const [k, v] of Object.entries(opts.models && typeof opts.models === 'object' ? opts.models : {})) if (Object.hasOwn(MODELS, k) && typeof v === 'string' && v) MODELS[k] = v
-const modelFor = (name) => (JUDGMENT.has(name) ? MODELS.judgment : MODELS.reviewer)
+const MODELS = { scope: SCOPE_MODEL, reviewer: 'sonnet', skeptic: 'sonnet', judgment: 'sonnet' }
+const BY_AGENT = Object.create(null) // an agent-name key (review-gate.mjs models maps the manifest's review.models here)
+for (const [k, v] of Object.entries(opts.models && typeof opts.models === 'object' ? opts.models : {})) {
+  if (typeof v !== 'string' || !v) continue
+  if (Object.hasOwn(MODELS, k)) MODELS[k] = v
+  else if (/^[a-z0-9]+(-[a-z0-9]+)+$/.test(k)) BY_AGENT[k] = v
+}
+const modelFor = (name) => BY_AGENT[name] ?? (JUDGMENT.has(name) ? MODELS.judgment : MODELS.reviewer)
 // @end
 
 const SCOPE_SCHEMA = {
@@ -59,6 +77,7 @@ const SCOPE_SCHEMA = {
     base: { type: 'string' },
     baseRef: { type: 'string' },
     head: { type: 'string' },
+    headSha: { type: 'string' },
     pr: { type: 'string' },
     changedFiles: { type: 'array', items: { type: 'string' } },
     diffStat: { type: 'string' },
@@ -68,9 +87,10 @@ const SCOPE_SCHEMA = {
     extensionsDeclared: { type: 'boolean' },
     touchesExtensions: { type: 'boolean' },
     refsResolved: { type: 'boolean' },
+    houseRules: { type: 'array', items: { type: 'string' } },
     notes: { type: 'string' },
   },
-  required: ['manifestFound', 'base', 'baseRef', 'head', 'pr', 'changedFiles', 'diffStat', 'intentSource', 'intent',
+  required: ['manifestFound', 'base', 'baseRef', 'head', 'headSha', 'pr', 'houseRules', 'changedFiles', 'diffStat', 'intentSource', 'intent',
     'touchesPrisma', 'extensionsDeclared', 'touchesExtensions', 'refsResolved', 'notes'],
 }
 
@@ -126,13 +146,16 @@ in the structured shape requested.
    \`branches.promotion.to\` when the current branch equals \`branches.promotion.from\`; else \`branches.default\`;
    else \`main\`. Report the name as \`base\` and the ref you diffed against as \`baseRef\` (\`origin/<base>\` after
    \`git fetch origin <base>\` succeeds, else the local \`<base>\`).
-3. Head: \`git rev-parse --abbrev-ref HEAD\`. Diff: \`git diff <baseRef>...HEAD --stat\` (diffStat) and
-   \`git diff <baseRef>...HEAD --name-only\` (changedFiles, repo-relative).
+3. Head: \`git rev-parse --abbrev-ref HEAD\` (head) and \`git rev-parse HEAD\` (headSha, 40 hex). ${prior ? `This is a delta
+   re-check: diff \`${prior.sha}..HEAD\` instead of \`<baseRef>...HEAD\` below (still report base and baseRef).` : ''} Diff:
+   \`git diff <baseRef>...HEAD --stat\` (diffStat) and \`git diff <baseRef>...HEAD --name-only\` (changedFiles, repo-relative).
 4. PR: ${opts.pr ? `"${opts.pr}"` : 'the number of the open PR for this head branch (`gh pr view --json number,body` when gh is installed and authenticated), else ""'}.
-5. Intent: the PR body when a PR exists (intentSource "PR #<n> body"); else the contents of a plan file this branch
+5. Intent: ${opts.independent ? `this is an independent review, so never the PR body or any session transcript: the issue the PR
+   body links with Closes/Fixes/Resolves #<n> (\`gh issue view <n> --json title,body\`; intentSource "issue #<n>"),
+   else intentSource "none" and intent "".` : `the PR body when a PR exists (intentSource "PR #<n> body"); else the contents of a plan file this branch
    adds or changes (a markdown file whose path or name contains "plan", or under docs/plans/ or plans/;
-   intentSource "plan file <path>"); else intentSource "none" and intent "". Truncate intent to about 6000
-   characters and say so in notes if you did.
+   intentSource "plan file <path>"); else intentSource "none" and intent "".`} Truncate intent to about 6000
+   characters and say so in notes if you did. houseRules: the repo's CLAUDE.md and .claude/rules/*.md paths that exist.
 6. touchesPrisma: any changed file under \`paths.prisma\`, or named schema.prisma, or under a migrations/
    directory. extensionsDeclared: \`paths.extensions\` is a non-empty array. touchesExtensions: any changed file
    under one of the \`paths.extensions\` directories.
@@ -153,12 +176,15 @@ if (scope.changedFiles.length === 0) {
 log(`${scope.head} vs ${scope.baseRef}: ${scope.changedFiles.length} files; intent from ${scope.intentSource}`)
 
 // ---------------------------------------------------------------------------------------------------------
-// Pick the roster.
-const wanted = Array.isArray(opts.reviewers) && opts.reviewers.length ? new Set(opts.reviewers) : null
+// Pick the roster. A delta re-checks with the reviewers named in args.reviewers, by default two.
+const wanted = Array.isArray(opts.reviewers) && opts.reviewers.length ? new Set(opts.reviewers)
+  : prior ? new Set(['qa-review-technical-integrity', 'qa-review-security-governance', ...(opts.independent && riskyFiles.length ? ['adversarial-pass'] : [])]) : null
 const skipped = []
-const selected = ROSTER.filter((r) => {
+const selected = ROSTER.map((r) => ({ ...r, name: r.name || r.pass, agent: r.agent || r.name })).filter((r) => {
+  if ((r.when === 'independent' || r.when === 'risky') && !opts.independent) return false // outsider mode only
   if (wanted && !wanted.has(r.name)) { skipped.push({ name: r.name, reason: 'not in args.reviewers' }); return false }
-  if (opts.all || r.when === 'always') return true
+  if (r.when === 'risky' && !riskyFiles.length) { skipped.push({ name: r.name, reason: 'no independentFor file changed' }); return false }
+  if (opts.all || r.when !== 'prisma' && r.when !== 'extensions') return true
   if (r.when === 'prisma' && !scope.touchesPrisma) { skipped.push({ name: r.name, reason: 'no Prisma schema or migration in the diff' }); return false }
   if (r.when === 'extensions' && !scope.extensionsDeclared) { skipped.push({ name: r.name, reason: 'paths.extensions is empty or absent' }); return false }
   if (r.when === 'extensions' && !scope.touchesExtensions) { skipped.push({ name: r.name, reason: 'no extension file in the diff' }); return false }
@@ -178,6 +204,11 @@ ${scope.diffStat.split('\n').map((l) => `  ${l}`).join('\n')}
 - intent (${scope.intentSource}):
 ${scope.intent ? scope.intent.split('\n').map((l) => `  ${l}`).join('\n') : '  (none: reconstruct the intent from the diff and say that you did)'}
 ${scope.notes ? `- notes: ${scope.notes}` : ''}
+${(scope.houseRules || []).length ? `- house rules (read them; they bind the change): ${scope.houseRules.join(', ')}` : ''}
+${riskyFiles.length ? `- independentFor files (high-risk paths changed here): ${riskyFiles.join(', ')}` : ''}
+${prior ? `- DELTA RE-CHECK: review only \`git diff ${prior.sha}..HEAD\`, the commits since the earlier review. Check that each earlier
+  finding below is fixed and that the fix breaks nothing; this is not a fresh full review.
+${String(opts.delta.findings || '(no earlier findings passed)').split('\n').map((l) => `  ${l}`).join('\n')}` : ''}
 
 Do the review exactly as your own instructions say: read the diff and the changed files in full from the checkout,
 run only read-only tooling against it, and never modify a file. Then return the structured shape requested: your
@@ -189,9 +220,12 @@ An empty findings list still needs the headline and the checked paragraph.`
 // ---------------------------------------------------------------------------------------------------------
 // Review: a barrier is right here, because dedupe below needs every reviewer's findings at once.
 phase('Review')
-const reports = await parallel(selected.map((r) => () =>
-  agent(context, { agentType: `shopify-app-kit:${r.name}`, label: r.name, phase: 'Review', model: modelFor(r.name), schema: FINDINGS_SCHEMA })
-    .then((out) => ({ name: r.name, out }))))
+const used = {}
+const reports = await parallel(selected.map((r) => () => {
+  const model = (used[r.name] = modelFor(r.agent))
+  return agent(r.focus ? `${context}\n\nYour lens in this run: ${r.focus}` : context, { agentType: `shopify-app-kit:${r.agent}`, label: r.name, phase: 'Review', model, schema: FINDINGS_SCHEMA })
+    .then((out) => ({ name: r.name, out }))
+}))
 
 const ran = []
 const failed = []
@@ -291,6 +325,14 @@ for (const f of merged) counts[f.severity]++
 const verdict = counts.blocker > 0 ? 'block' : (counts.major > 0 || failed.length > 0) ? 'changes-needed' : 'approve'
 log(`verdict: ${verdict} (${counts.blocker} blocker, ${counts.major} major, ${counts.minor} minor, ${counts.note} note; ${refuted.length} refuted${failed.length ? `; uncovered: ${failed.join(', ')}` : ''})`)
 
+// The receipt (format and checks: hooks/review-gate.mjs, the one source of truth); the session splices it into the PR body.
+const kind = prior ? (opts.independent ? 'independent-delta' : 'delta') : (opts.independent ? 'independent' : 'pre-pr-review')
+const receipt = { v: 1, kind, sha: scope.headSha, base: scope.base, verdict, confirmed: counts.blocker + counts.major, counts,
+  roster: ran.map((r) => r.name), models: { ...used, skeptic: MODELS.skeptic }, independent: prior && Array.isArray(prior.independent) ? prior.independent : null }
+if (prior) Object.assign(receipt, { fromSha: prior.sha, chain: [...(Array.isArray(prior.chain) ? prior.chain : []), { kind: prior.kind, sha: prior.sha, ...(prior.fromSha ? { fromSha: prior.fromSha } : {}) }] })
+if (typeof opts.reviewerSession === 'string' && opts.reviewerSession) receipt.reviewerSession = opts.reviewerSession.slice(0, 200)
+if (!SHA.test(scope.headSha || '')) log(`the scoping pass returned no 40-hex head sha (${scope.headSha}); the receipt will not pass the gate`)
+
 return {
   verdict,
   base: scope.base,
@@ -304,5 +346,6 @@ return {
   reviewers: ran,
   skipped,
   failed,
+  receipt,
   notes: scope.notes,
 }

@@ -1,7 +1,7 @@
 # Release
 
 1. Bump `version` in `.claude-plugin/plugin.json`, `KIT_VERSION` in `hooks/lib.sh` (the `Cases:` line reads it)
-   and every `# shopify-app-kit vX.Y.Z` header on line 2 of `hooks/*.sh` (the header test fails otherwise).
+   and every `# shopify-app-kit vX.Y.Z` header on line 2 of `hooks/*.sh`, `hooks/review-gate.mjs` (`//`) and `hooks/kit-review-gate.yml` (the header tests fail otherwise).
    `grep -rn "<old version>"` should then hit only `CHANGELOG.md`.
 2. Add a `## X.Y.Z` section to `CHANGELOG.md`; the release notes are extracted from it verbatim. An old section may be
    compacted to a few lines when every `## X.Y.Z` heading, every `### Budget` section `raisedIn` can name and every

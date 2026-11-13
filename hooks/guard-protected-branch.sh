@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shopify-app-kit v0.20.0
+# shopify-app-kit v0.21.0
 # hooks/guard-protected-branch.sh: PreToolUse(Bash and GitHub MCP) guard that keeps a session off the protected branches named in
 # .claude/shopify-app.json (branches.protected, branches.default, branches.promotion, deploy.protectedWorkflows).
 #

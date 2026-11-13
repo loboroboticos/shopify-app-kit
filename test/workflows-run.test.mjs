@@ -41,7 +41,7 @@ function runtime({ scope, reviews, verdicts, reviewPhase = 'Review', byLabel = f
 const run = (name, rt, args) => load(name)(rt.agent, rt.parallel, rt.pipeline, rt.phase, rt.log, args, rt.budget);
 
 const baseScope = {
-  manifestFound: true, refsResolved: true, base: 'beta', baseRef: 'origin/beta', head: 'feature/x', pr: '12',
+  manifestFound: true, refsResolved: true, base: 'beta', baseRef: 'origin/beta', head: 'feature/x', headSha: 'a'.repeat(40), pr: '12', houseRules: [],
   changedFiles: ['web/app/routes/app.tsx', 'web/prisma/schema.prisma', 'web/prisma/migrations/1_x/migration.sql'],
   diffStat: ' 3 files changed', intentSource: 'PR #12 body', intent: 'Add a widget.',
   touchesPrisma: true, extensionsDeclared: false, touchesExtensions: false, notes: '',
@@ -71,7 +71,7 @@ describe('pre-pr-review under a stub runtime', () => {
     assert.deepEqual(launched, [
       'shopify-app-kit:prisma-migration-reviewer',
       'shopify-app-kit:qa-review-divergence-hunter', 'shopify-app-kit:qa-review-security-governance', 'shopify-app-kit:qa-review-spec-conformance',
-      'shopify-app-kit:qa-review-technical-integrity', 'shopify-app-kit:qa-review-usability',
+      'shopify-app-kit:qa-review-technical-integrity', 'shopify-app-kit:qa-review-usability', 'shopify-app-kit:review-quality',
     ]);
     assert.deepEqual(result.skipped, [{ name: 'storefront-extension-reviewer', reason: 'paths.extensions is empty or absent' }]);
     assert.deepEqual(result.failed, []);
@@ -125,8 +125,45 @@ describe('pre-pr-review under a stub runtime', () => {
     const ok = await load()(quiet.agent, quiet.parallel, quiet.pipeline, quiet.phase, quiet.log, { all: true }, quiet.budget);
     assert.equal(ok.verdict, 'approve');
     assert.equal(ok.findings.length, 0);
-    assert.equal(quiet.calls.filter((c) => c.opts.agentType).length, 7, 'args.all runs the whole roster');
+    assert.equal(quiet.calls.filter((c) => c.opts.agentType).length, 8, 'args.all runs the whole roster');
     assert.equal(quiet.calls.filter((c) => c.opts.label?.startsWith('verify:')).length, 0);
+  });
+
+  test('returns a receipt the gate parses; independent mode reads the issue, adds the passes and names its session', async () => {
+    const { parseReceipt, renderReceipt } = await import('../hooks/review-gate.mjs');
+    const rt = runtime({ scope: { ...baseScope, touchesPrisma: false }, reviews: {}, verdicts: {} });
+    const result = await run('pre-pr-review', rt, 'beta');
+    assert.equal(parseReceipt(renderReceipt(result.receipt)).error, undefined);
+    assert.deepEqual({ kind: result.receipt.kind, sha: result.receipt.sha, verdict: result.receipt.verdict, confirmed: result.receipt.confirmed },
+      { kind: 'pre-pr-review', sha: 'a'.repeat(40), verdict: 'approve', confirmed: 0 });
+    assert.equal(result.receipt.models['qa-review-security-governance'], 'sonnet');
+    assert.ok(rt.calls.find((c) => c.opts.label === 'review-quality').prompt.includes('Your lens in this run: qa-review-technical-integrity covers performance'));
+
+    const out = runtime({ scope: { ...baseScope, touchesPrisma: false, houseRules: ['CLAUDE.md'] }, reviews: {}, verdicts: {} });
+    const ind = await run('pre-pr-review', out, { pr: 7, independent: true, all: true, independentFiles: ['web/app/routes/webhooks.tsx'], reviewerSession: 's1' });
+    assert.match(out.calls[0].prompt, /never the PR body or any session transcript/);
+    assert.ok(!out.calls[0].prompt.includes('the PR body when a PR exists'));
+    const labels = out.calls.filter((c) => c.opts.agentType).map((c) => c.opts.label);
+    for (const l of ['review-correctness', 'efficiency-pass', 'adversarial-pass', 'review-quality']) assert.ok(labels.includes(l), l);
+    assert.equal(out.calls.find((c) => c.opts.label === 'adversarial-pass').opts.agentType, 'shopify-app-kit:qa-review-security-governance');
+    assert.match(out.calls.find((c) => c.opts.label === 'adversarial-pass').prompt, /independentFor files \(high-risk paths changed here\): web\/app\/routes\/webhooks\.tsx/);
+    assert.deepEqual([ind.receipt.kind, ind.receipt.reviewerSession], ['independent', 's1']);
+    const plain = runtime({ scope: baseScope, reviews: {}, verdicts: {} });
+    await run('pre-pr-review', plain, { independent: true });
+    assert.ok(!plain.calls.some((c) => c.opts.label === 'adversarial-pass'), 'no risky file, no adversarial pass');
+  });
+
+  test('a delta re-checks the fix commits with two reviewers and extends the earlier chain', async () => {
+    const { parseReceipt, renderReceipt } = await import('../hooks/review-gate.mjs');
+    const prior = { v: 1, kind: 'pre-pr-review', sha: 'b'.repeat(40), verdict: 'changes-needed', confirmed: 1, independent: null };
+    const rt = runtime({ scope: baseScope, reviews: {}, verdicts: {} });
+    const result = await run('pre-pr-review', rt, { delta: { receipt: prior, findings: 'loader has no authenticator' } });
+    assert.deepEqual(rt.calls.filter((c) => c.opts.agentType).map((c) => c.opts.label).sort(), ['qa-review-security-governance', 'qa-review-technical-integrity']);
+    assert.match(rt.calls[0].prompt, new RegExp(`diff \`${'b'.repeat(40)}\.\.HEAD\``));
+    assert.match(rt.calls[1].prompt, /DELTA RE-CHECK[\s\S]*loader has no authenticator/);
+    assert.deepEqual([result.receipt.kind, result.receipt.fromSha, result.receipt.chain], ['delta', prior.sha, [{ kind: 'pre-pr-review', sha: prior.sha }]]);
+    assert.equal(parseReceipt(renderReceipt(result.receipt)).error, undefined);
+    await assert.rejects(run('pre-pr-review', runtime({ scope: baseScope, reviews: {}, verdicts: {} }), { delta: { receipt: { sha: 'x' } } }), /args\.delta needs/);
   });
 
   test('an empty diff returns approve without launching a reviewer', async () => {
@@ -433,7 +470,8 @@ describe('plan-review under a stub runtime', () => {
   });
 });
 
-// Every agent() names a model by role (#135): judgment for the six named agents, scope, reviewer, skeptic.
+// Every agent() names a model by role (#135): judgment for the six named agents, scope, reviewer, skeptic; sonnet by
+// default for every reviewer (0.21.0), an agent-name key overriding that agent only.
 describe('every agent() call names its model', () => {
   const JUDGMENT = ['design-review-architecture', 'design-review-feasibility', 'design-review-product-intent', 'design-review-risk-governance', 'qa-review-divergence-hunter', 'qa-review-security-governance'];
   const roleOf = (c) => (c.opts.label === 'scope' ? 'scope' : c.opts.label.startsWith('verify:') ? 'skeptic' : JUDGMENT.includes(c.opts.agentType.replace('shopify-app-kit:', '')) ? 'judgment' : 'reviewer');
@@ -443,10 +481,10 @@ describe('every agent() call names its model', () => {
     ['plan-review', 'sonnet', () => runtime({ scope: planScope, reviews: { 'design-review-feasibility': { headline: 'h', checked: 'c', findings: [planFinding('major', 'x', 'Rollout')] } }, verdicts: {} })],
   ];
   for (const [name, scopeModel, make] of cases) {
-    test(`${name}: scope ${scopeModel}, judgment opus, reviewer and skeptic sonnet; args.models overrides`, async () => {
+    test(`${name}: scope ${scopeModel}, judgment, reviewer and skeptic sonnet; args.models overrides by role and by agent`, async () => {
       const rt = make();
       await run(name, rt, name === 'plan-review' ? { plan: 'plan.md' } : {});
-      const want = { scope: scopeModel, reviewer: 'sonnet', skeptic: 'sonnet', judgment: 'opus' };
+      const want = { scope: scopeModel, reviewer: 'sonnet', skeptic: 'sonnet', judgment: 'sonnet' };
       for (const r of ['scope', 'skeptic', 'judgment']) assert.ok(rt.calls.some((c) => roleOf(c) === r), `${name} launches a ${r} call`);
       for (const c of rt.calls) assert.equal(c.opts.model, want[roleOf(c)], `${c.opts.label} (${roleOf(c)})`);
       const over = make();
@@ -457,6 +495,12 @@ describe('every agent() call names its model', () => {
       const junk = make();
       await run(name, junk, { ...(name === 'plan-review' ? { plan: 'plan.md' } : {}), models: { scope: 42, reviewer: '', skeptic: null, judgment: { x: 1 }, toString: 'haiku', constructor: 'haiku' } });
       for (const c of junk.calls) assert.equal(c.opts.model, want[roleOf(c)], `${c.opts.label} keeps its default`);
+      // an agent-name key changes that agent only
+      const one = make();
+      const target = { 'pre-pr-review': 'qa-review-usability', 'release-readiness': 'review-correctness', 'plan-review': 'design-review-feasibility' }[name];
+      await run(name, one, { ...(name === 'plan-review' ? { plan: 'plan.md' } : {}), models: { [target]: 'opus' } });
+      for (const c of one.calls) assert.equal(c.opts.model, c.opts.agentType === `shopify-app-kit:${target}` ? 'opus' : want[roleOf(c)], `${c.opts.label} per-agent`);
+      assert.ok(one.calls.some((c) => c.opts.agentType === `shopify-app-kit:${target}`), `${name} launches ${target}`);
     });
   }
 });

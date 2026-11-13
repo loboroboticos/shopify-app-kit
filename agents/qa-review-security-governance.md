@@ -1,7 +1,7 @@
 ---
 name: qa-review-security-governance
 description: After a change is built, checks whether it is safe to release — how it could be attacked or misused, what could leak, and whether it keeps the privacy, compliance and change-control rules it must — on the diff against the manifest's default branch, with .claude/shopify-app.json's scopes, webhook compliance, RLS and billing posture in hand. Reports findings; the operator decides. Use when a branch or PR is about to be opened or merged and you want the built change probed for the working result that should not ship.
-model: opus
+model: sonnet
 effort: high
 tools: Read, Grep, Glob, Bash
 disallowedTools: Edit, Write, NotebookEdit

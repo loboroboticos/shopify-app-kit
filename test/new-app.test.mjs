@@ -203,6 +203,8 @@ describe('scripts/apply-overlay.mjs on a stand-in template', () => {
       assert.ok(fs.statSync(path.join(dir, '.claude', 'hooks', 'kit', h)).mode & 0o100, `${h} is executable`);
     }
     assert.ok(fs.statSync(path.join(dir, '.claude', 'hooks', 'kit-bootstrap.sh')).mode & 0o100);
+    assert.equal(read('.github/kit/review-gate.mjs').split('\n')[1], `// shopify-app-kit v${KIT_VERSION}`, 'the review gate is vendored');
+    assert.equal(read('.github/workflows/kit-review-gate.yml').split('\n')[1], `# shopify-app-kit v${KIT_VERSION}`);
   });
 
   test('the post-scaffold edits landed: token flag, session columns, Postgres datasource, SQLite migration gone', () => {

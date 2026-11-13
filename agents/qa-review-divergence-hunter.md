@@ -1,7 +1,7 @@
 ---
 name: qa-review-divergence-hunter
 description: After a change is built, the second, adversarial pass that runs alongside the spec-conformance check — it assumes a divergence exists and hunts for it in the diff against the manifest's default branch: something built to pass its tests while doing the wrong thing, a test named for one behaviour that asserts another, a guardrail that can be slipped past, a requirement only half-done, or code added that nothing asked for. Reports findings; the operator decides. Use when a branch or PR is about to be opened or merged and you want the quiet divergence a systematic requirement walk reads straight past found before it lands.
-model: opus
+model: sonnet
 effort: high
 tools: Read, Grep, Glob, Bash
 disallowedTools: Edit, Write, NotebookEdit

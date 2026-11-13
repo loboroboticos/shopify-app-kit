@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shopify-app-kit v0.20.0
+# shopify-app-kit v0.21.0
 # hooks/doctor.sh: SessionStart briefing for a consumer repo. Validates .claude/shopify-app.json structurally
 # (required keys, enums, patterns of schema v1), prints one paragraph of facts to stdout, reports vendored-hook
 # drift and a kit.routines entry that is not a consumer routine this kit ships, checks the two companions (the
@@ -35,7 +35,7 @@ fi
 # The known top-level keys and the kit.* patterns come from the schema next to this hook, never from a second copy
 # here: the doctor follows a schema change in the same commit. Without the schema those checks are skipped.
 schema="$(dirname "${BASH_SOURCE[0]}")/../schemas/shopify-app.v1.schema.json"
-rules="$(jq -c '.properties as $p | {keys: ($p | keys), portfolioId: $p.kit.properties.portfolioId.pattern, routine: $p.kit.properties.routines.items.pattern}' "$schema" 2>/dev/null || echo null)"
+rules="$(jq -c '.properties as $p | {keys: ($p | keys), portfolioId: $p.kit.properties.portfolioId.pattern, routine: $p.kit.properties.routines.items.pattern, model: $p.review.properties.models.additionalProperties.pattern}' "$schema" 2>/dev/null || echo null)"
 
 problems="$(jq -r --argjson rules "$rules" '
   def policies: ["config-required", "operator-only", "allowed"];
@@ -63,6 +63,9 @@ problems="$(jq -r --argjson rules "$rules" '
   + prob((.apiVersion == null) or (.apiVersion.expected | isstr and test("^20[0-9][0-9]-(01|04|07|10)$")); "apiVersion.expected must look like 2026-07")
   + prob((.database == null) or (.database.provider | isstr); "database.provider must be a string")
   + prob((.deploy.protectedWorkflows == null) or (.deploy.protectedWorkflows | strarr); "deploy.protectedWorkflows must be an array of strings (a string reads as no protected workflow)")
+  + (((.review | objects) // {}) as $r | prob((.review == null) or (.review | isobj); "review must be an object")
+    + prob(($r.independentFor == null) or ($r.independentFor | strarr); "review.independentFor must be an array of path globs")
+    + prob(($r.models == null) or (($r.models | isobj) and all($r.models[]; isstr and ($rules.model == null or test($rules.model)))); "review.models must map default, mechanical or an agent name to a model name"))
   + (if $rules.keys == null then [] else ((keys - $rules.keys) | map("unknown top-level key: " + .)) end)
   | .[]
 ' "$manifest" 2>&1)"
@@ -144,6 +147,14 @@ if [ -d "$hookdir" ]; then
   [ -z "$nofail" ] || echo "Drift: $nofail registered without \"onFailure\": \"block\", so a guard that times out or crashes lets the call through; /shopify-app-kit:sync prints the snippet."
 elif [ -n "$kv" ]; then
   echo "Drift: the manifest says kit.version $kv but $root/.claude/hooks/kit/ does not exist; run /shopify-app-kit:sync."
+fi
+# The review gate sync vendors beside the guards: once synced to this kit, both files are there and stamped like them.
+if [ -n "$kv" ] && [ "$kv" = "$KIT_VERSION" ]; then
+  for g in .github/kit/review-gate.mjs .github/workflows/kit-review-gate.yml; do
+    gv="$(sed -n '2s/^[#/]* shopify-app-kit v//p' "$root/$g" 2>/dev/null)"
+    if [ -z "$gv" ]; then echo "Drift: $g is missing or has no version header, so PRs are not review-gated; run /shopify-app-kit:sync."
+    elif [ "$gv" != "$kv" ]; then echo "Drift: $g is v$gv but the manifest's kit.version is $kv; re-run /shopify-app-kit:sync."; fi
+  done
 fi
 
 # kit.routines names the routines this product runs (the registry's maintainer step makes one per entry). An entry

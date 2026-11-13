@@ -188,6 +188,22 @@
         "tripwireDir": { "type": "string" }
       }
     },
+    "review": {
+      "description": "The review gate (hooks/kit-review-gate.yml, vendored by sync) and the reviewers' models. Additive: absent means the derived defaults below and the kit's built-in models.",
+      "type": "object",
+      "properties": {
+        "independentFor": {
+          "description": "Repo-relative globs (*, **, ?; a plain path also covers what is under it) whose change needs an independent review before a PR into branches.default merges. Added to the derived set: paths.webhookHandlers, paths.appTomls, paths.prisma, paths.extensions and the gate's own files. List billing and entitlement code here.",
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "models": {
+          "description": "Reviewer model per role or agent: default (reviewers, skeptics, judgment agents), mechanical (scoping passes), or an agent name. Skills pass these to the agents they launch, over the agents' frontmatter.",
+          "type": "object",
+          "additionalProperties": { "type": "string", "pattern": "^[a-z0-9][a-z0-9.\\-\\[\\]]*$" }
+        }
+      }
+    },
     "docs": {
       "description": "Where the repo keeps its decision records and its docs map, so the docs-owner skill and the docs-consistency test know where to look.",
       "type": "object",

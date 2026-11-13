@@ -4,6 +4,7 @@
 | --- | --- |
 | `hooks/lib.sh` | shared bash: manifest resolution, `block()`, path helpers, command walker with cd tracking |
 | `hooks/guard-*.sh` | PreToolUse guards, vendored into consumers by `/shopify-app-kit:sync` |
+| `hooks/review-gate.mjs`, `hooks/kit-review-gate.yml` | the review receipt and the CI gate, vendored by `sync` to `.github/kit/` and `.github/workflows/`; `test/review-gate.test.mjs` |
 | `hooks/doctor.sh` | SessionStart briefing; the only hook `hooks/hooks.json` registers |
 | `schemas/` | the manifest JSON Schema; `test/schema.test.mjs` pins the draft and that only the top level is closed |
 | `skills/<name>/SKILL.md` | skills; `test/skills-parity.test.mjs` holds the frontmatter, the line cap and the links |

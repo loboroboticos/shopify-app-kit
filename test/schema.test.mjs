@@ -44,6 +44,8 @@ describe('schema v1', () => {
     ['config-required deploy without configs.deploy', (m) => { delete m.shopifyCli.configs.deploy; }, /shopifyCli\.configs: missing required deploy/],
     ['config-required dev without configs', (m) => { delete m.shopifyCli.configs; }, /shopifyCli: missing required configs/],
     ['database without provider', (m) => { delete m.database.provider; }, /database: missing required provider/],
+    ['review.independentFor not an array', (m) => { m.review = { independentFor: 'app/billing/**' }; }, /review\.independentFor: expected type array/],
+    ['review.models value not a model name', (m) => { m.review = { models: { default: 'Sonnet 4!' } }; }, /review\.models\.default: must match/],
   ];
   for (const [label, fn, re] of mutants) {
     test(`mutant (npm-root): ${label} fails`, () => {
