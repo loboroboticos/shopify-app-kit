@@ -300,14 +300,17 @@ Every review writes a receipt into the PR body (`skills/review/references/receip
 and `kit-review-gate / gate`, a required check the consumer turns on, fails a PR into `branches.default` when the
 receipt is missing or malformed, was made on another commit than the head (a `delta` receipt chained to an earlier
 full one re-checks only the fix commits), says `block`, or when an `independentFor` path changed without an
-independent review chain ending at the head, each link a real, undismissed COMMENT review on that PR at that commit,
-by an owner, member or collaborator, whose own body carries the matching receipt. `changes-needed` passes with a warning. It runs on `pull_request_target`
-from the base branch, so a PR cannot edit the gate or the manifest to pass itself; it never checks out or runs PR
-code, reads only (`contents`, `pull-requests`) and uses no secret. Override for an emergency: the label
-`review-gate:override` plus a `Review-gate override: <reason>` line in the PR body; the job summary names both and the
-labeler, and anyone with triage rights can apply it, so the PR timeline is the audit. What it proves: a session ran
-the review on this commit and wrote it down; the body receipt is an attestation, not a proof, and independence means
-a session without the author's context, not another GitHub account (every session may post as one).
+independent review chain ending at the head, each link a standing COMMENT review on that PR at that commit, by an
+owner, member or collaborator (`MEMBER` includes org members without write access), whose own body carries the
+matching receipt. A PR whose author has none of those roles needs that chain whatever it touches. `changes-needed`
+passes with a warning. It runs on `pull_request_target` from the base branch, so a PR cannot edit the gate or the
+manifest to pass itself; it never checks out or runs PR code, reads only (`contents`, `pull-requests`, `issues`) and
+uses no secret. Override for an emergency: the label `review-gate:override` plus a PR comment by an owner, member or
+collaborator with the line `Review-gate override <head sha>: <reason>`; a push needs a new one, and the job summary
+names the commenter and the reason. A dismissed review or a base manifest change does not re-run the gate on open PRs
+(re-run it by hand). What it proves: a session ran the review on this commit and wrote it down; a role-holder's body
+receipt is an attestation, not a proof, and independence means a session without the author's context, not another
+GitHub account (every session may post as one).
 
 ## Lessons
 

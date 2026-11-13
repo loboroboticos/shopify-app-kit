@@ -4,14 +4,14 @@
   "dirs": {
     "agents": 760,
     "docs": 190,
-    "hooks": 2290,
+    "hooks": 2300,
     "lessons": 45,
     "routines": 715,
     "schemas": 280,
     "scripts": 70,
     "skills": 3460,
     "templates": 1285,
-    "test": 4010,
+    "test": 4025,
     "workflows": 1090
   },
   "files": {

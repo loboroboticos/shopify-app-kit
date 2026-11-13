@@ -18,8 +18,9 @@ const receipt = (o = {}) => ({ v: 1, kind: 'pre-pr-review', sha: A, base: 'main'
 const body = (r, pre = 'What changed.\n') => `${pre}\n${g.renderReceipt(r)}\n`;
 const manifest = (o = {}) => ({ branches: { default: 'main' }, paths: { webhookHandlers: 'app/routes/webhooks', prisma: 'prisma', appTomls: ['shopify.app.toml'], extensions: ['extensions/theme'] }, ...o });
 const url = (id) => `https://github.com/o/r/pull/7#pullrequestreview-${id}`;
-const pull = (o = {}) => ({ number: 7, draft: false, base: { ref: 'main' }, head: { sha: A }, body: body(receipt()), labels: [], user: { login: 'dev' }, ...o });
-const api = ({ reviews = {}, ancestors = [A, B, C] } = {}) => ({
+const pull = (o = {}) => ({ number: 7, draft: false, base: { ref: 'main' }, head: { sha: A }, body: body(receipt()), labels: [], user: { login: 'dev' }, author_association: 'COLLABORATOR', ...o });
+const api = ({ reviews = {}, ancestors = [A, B, C], comments = [] } = {}) => ({
+  comments: async () => comments,
   review: async (id) => reviews[id] ?? null,
   isAncestor: async (sha) => ancestors.includes(sha),
 });
@@ -140,14 +141,27 @@ describe('the gate', () => {
     assert.equal((await gate({ manifest: {} })).status, 'fail');
   });
 
-  test('the override passes with its reason and labeler only when the body says why', async () => {
+  test('the override needs the label and a role-holder comment naming this exact head', async () => {
     const labels = [{ name: g.OVERRIDE_LABEL }];
-    const ok = await gate({ pull: pull({ labels, body: 'Review-gate override: prod down; hotfix #12\n' }), event: { action: 'labeled', label: { name: g.OVERRIDE_LABEL }, sender: { login: 'maint' } } });
-    assert.equal(ok.status, 'pass'); assert.match(ok.warnings[0], /applied by maint\): prod down/);
+    const said = (sha, o = {}) => ({ body: `Going in.\nReview-gate override ${sha}: prod down; hotfix #12\n::error::x`, author_association: 'MEMBER', user: { login: 'maint' }, ...o });
+    const ok = await gate({ pull: pull({ labels, body: 'none' }), api: api({ comments: [said(A)] }) });
+    assert.equal(ok.status, 'pass'); assert.match(ok.warnings[0], /overridden for aaaaaaa by maint: prod down/);
     assert.deepEqual(ok.override, { reason: 'prod down; hotfix \\#12', by: 'maint' });
-    assert.equal((await gate({ pull: pull({ labels, body: 'please' }) })).status, 'fail');
-    const quiet = await gate({ pull: pull({ labels, body: 'Review-gate override: x\n::error::injected' }) });
-    assert.doesNotMatch(quiet.warnings[0], /::error/);
+    for (const [label, comments, body] of [
+      ['no comment, only a body line', [], `Review-gate override ${A}: me`],
+      ['a comment for an earlier head (a push after the override)', [said(B)], ''],
+      ['a comment by someone with no role (the fork author)', [said(A, { author_association: 'CONTRIBUTOR' })], ''],
+      ['a short sha', [said(A.slice(0, 12))], ''],
+    ]) assert.equal((await gate({ pull: pull({ labels, body }), api: api({ comments }) })).status, 'fail', label);
+  });
+
+  test('a PR whose author has no role needs an independent review on any path; only a standing COMMENT review counts', async () => {
+    const res = await gate({ pull: pull({ author_association: 'FIRST_TIME_CONTRIBUTOR' }) });
+    assert.equal(res.status, 'fail'); assert.match(res.errors[0], /no independent review/);
+    assert.ok(res.notes.some((n) => /PR author \(FIRST\\_TIME\\_CONTRIBUTOR\) has no role/.test(n)), res.notes.join('|'));
+    const linked = pull({ author_association: 'NONE', body: body(receipt({ independent: [{ url: url(5), sha: A }] })) });
+    assert.equal((await gate({ pull: linked, api: api({ reviews: { 5: ind(A) } }) })).status, 'pass');
+    assert.match((await gate({ pull: linked, api: api({ reviews: { 5: ind(A, { state: 'APPROVED' }) } }) })).errors.join(), /APPROVED, not a standing COMMENT/);
   });
 
   test('a changed independentFor path needs a verified independent review chain ending at the head', async () => {
@@ -161,7 +175,7 @@ describe('the gate', () => {
       ['another PR', [{ url: 'https://github.com/o/r/pull/8#pullrequestreview-5', sha: A }], {}, /not a review on this PR/],
       ['another repo', [{ url: 'https://github.com/o/rr/pull/7#pullrequestreview-5', sha: A }], {}, /not a review on this PR/],
       ['a missing review', [{ url: url(6), sha: A }], {}, /does not exist/],
-      ['a dismissed review', [{ url: url(5), sha: A }], { 5: ind(A, { state: 'DISMISSED' }) }, /dismissed/],
+      ['a dismissed review', [{ url: url(5), sha: A }], { 5: ind(A, { state: 'DISMISSED' }) }, /DISMISSED, not a standing/],
       ['a review by someone with no role on the repo', [{ url: url(5), sha: A }], { 5: ind(A, { author_association: 'CONTRIBUTOR', user: { login: 'forker' } }) }, /forker \(CONTRIBUTOR\), who has no role/],
       ['a review on another commit', [{ url: url(5), sha: A }], { 5: ind(B) }, /posted on bbbbbbb/],
       ['a review body without a receipt', [{ url: url(5), sha: A }], { 5: ind(A, { body: 'LGTM' }) }, /does not carry a independent receipt/],
@@ -196,7 +210,7 @@ describe('the workflow file', () => {
     assert.doesNotMatch(yml, /^\s+pull_request:/m);
   });
   test('reads only, uses no secret, never checks out PR code and never puts expression text in a run line', () => {
-    assert.match(yml, /^permissions:\n {2}contents: read\n {2}pull-requests: read\n\n/m);
+    assert.match(yml, /^permissions:\n {2}contents: read\n {2}pull-requests: read\n {2}issues: read\n\n/m);
     assert.equal((yml.match(/permissions:/g) ?? []).length, 1, 'no job-level permissions widen it');
     assert.doesNotMatch(yml, /secrets\./);
     assert.doesNotMatch(yml, /^\s+ref:/m, 'the checkout is the base');

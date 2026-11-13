@@ -22,9 +22,10 @@ manifest-driven reviewer models because every session overrode the agents' `opus
   gate or the manifest it reads), read-only (`contents`, `pull-requests`), no secrets, no PR code checked out, the PR
   always re-fetched. Fails a PR into `branches.default` with no receipt, a stale or broken chain, verdict `block`, or
   a changed `independentFor` path without an independent chain at the head whose every link is a real, undismissed
-  COMMENT review on that PR and commit, by an owner, member or collaborator, carrying its own receipt; `changes-needed` warns; drafts and other bases skip.
-  Override: label `review-gate:override` (in `labels.json`) plus a `Review-gate override: <reason>` body line, both
-  and the labeler in the job summary.
+  COMMENT review on that PR and commit, by an owner, member or collaborator, carrying its own receipt (a PR whose
+  author has no such role needs that chain on every path); `changes-needed` warns; drafts and other bases skip.
+  Override: label `review-gate:override` (in `labels.json`) plus a role-holder's PR comment
+  `Review-gate override <head sha>: <reason>`, so a push needs a new one; the job summary names both.
 - Manifest: optional `review.independentFor` (globs added to the derived set: `paths.webhookHandlers`,
   `paths.appTomls`, `paths.prisma`, `paths.extensions`, the gate's files, any workflow and the manifest) and `review.models`
   (`default`, `mechanical` or an agent name). Additive; `schemaVersion` stays 1. The doctor validates both and
@@ -41,9 +42,9 @@ manifest-driven reviewer models because every session overrode the agents' `opus
 
 ### Budget
 
-- `hooks/` 1950 -> 2290 (the gate script and its workflow, vendored beside the guards; the doctor's checks),
+- `hooks/` 1950 -> 2300 (the gate script and its workflow, vendored beside the guards; the doctor's checks),
   `workflows/` 1035 -> 1090 (independent and delta modes, the receipt), `skills/` 3380 -> 3460 (`independent-review`,
-  the receipt reference), `schemas/` 270 -> 280, `test/` 3750 -> 4010 (`test/review-gate.test.mjs`): app-1's two
+  the receipt reference), `schemas/` 270 -> 280, `test/` 3750 -> 4025 (`test/review-gate.test.mjs`): app-1's two
   unreviewed high-risk merges and #1176 above.
 
 ## 0.20.0

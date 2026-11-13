@@ -55,8 +55,8 @@ the full roster again. On an `independentFor` path the independent chain must re
 
 ## The override
 
-For an emergency only: the label `review-gate:override` plus a line `Review-gate override: <reason>` in the PR body.
-The gate passes with a warning naming the reason and, on the run the label triggered, who applied it; the PR
-timeline keeps the rest. Anyone who can label can override, so a `human:decision` follow-up issue records why.
+For an emergency only: the label `review-gate:override` plus a PR comment by an owner, member or collaborator
+with the line `Review-gate override <full head sha>: <reason>`. The gate passes that head with a warning naming the
+commenter and the reason; a later push needs a new comment. A `human:decision` follow-up issue records why.
 
 Sources: app-1 (two high-risk PRs merged before the independent reviewer found a redirect loop; reviewer-model cost).

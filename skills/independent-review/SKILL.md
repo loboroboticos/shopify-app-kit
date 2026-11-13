@@ -2,7 +2,7 @@
 name: independent-review
 description: Outsider review of a Shopify app PR that the review gate requires when review.independentFor paths change (billing, entitlement, webhooks, app tomls, Prisma, extensions). Runs the full review roster from the diff, the linked issue and the house rules only, adds an efficiency pass and an adversarial pass on the risky files, posts one COMMENT review carrying its receipt, and links it in the PR body's receipt. Use when a PR touching high-risk paths needs its independent review, or when asked to review someone else's PR as an outsider.
 disable-model-invocation: true
-allowed-tools: Read, Write, Grep, Glob, Bash(git *), Bash(jq *), Bash(node *), Bash(gh pr view *), Bash(gh pr edit *), Bash(gh issue view *), Bash(gh api user *), Bash(gh api repos/*)
+allowed-tools: Read, Write, Grep, Glob, Bash(git fetch *), Bash(git checkout --detach *), Bash(git show *), Bash(git diff *), Bash(git rev-parse *), Bash(git merge-base *), Bash(git ls-tree *), Bash(jq *), Bash(node *hooks/review-gate.mjs *), Bash(gh pr view *), Bash(gh pr edit *), Bash(gh issue view *), Bash(gh api user *), Bash(gh api repos/*/pulls/*/reviews*)
 argument-hint: "<PR number>"
 ---
 

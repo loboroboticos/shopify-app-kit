@@ -1,8 +1,9 @@
 # .github/workflows/kit-review-gate.yml: vendored by /shopify-app-kit:sync with .github/kit/review-gate.mjs; never edit here.
 # shopify-app-kit v0.21.0
 # Fails a PR into branches.default whose body has no current review receipt, or whose independentFor paths changed
-# without a verified independent review; the label review-gate:override plus a "Review-gate override: <reason>" body
-# line passes it with a warning. Make "kit-review-gate / gate" a required status check on the default branch.
+# without a verified independent review; the label review-gate:override plus a role-holder's PR comment
+# "Review-gate override <head sha>: <reason>" passes that head with a warning. Make "kit-review-gate / gate" a
+# required status check on the default branch.
 #
 # Why pull_request_target: it runs THIS file and the script from the base branch, so a PR cannot edit the gate or the
 # manifest's independentFor to pass itself, and fork PRs are checked too. It is safe only because the job never checks
@@ -17,6 +18,7 @@ on:
 permissions:
   contents: read
   pull-requests: read
+  issues: read
 
 # Every event re-judges the live PR. Runs never cancel each other; GitHub keeps one pending run per group and may
 # replace an older pending one, which is harmless because the run that executes re-reads the PR.

@@ -158,7 +158,7 @@ export function modelsArgs(manifest) {
 export const clean = (s, n = 200) => String(s ?? '').replace(/[\r\n%]+/g, ' ').replace(/::/g, ': ').replace(/[\\`*_[\]<>|#!@]/g, '\\$&').trim().slice(0, n);
 
 // The gate. ctx: { manifest, pull (GET pulls/{n}), files (changed paths, or null over the cap), repo 'owner/name',
-// event (the workflow event payload), api: { review(id) -> review|null, isAncestor(sha) -> bool } }.
+// event (the workflow event payload), api: { review(id) -> review|null, isAncestor(sha) -> bool, comments() -> [] } }.
 export async function gate({ manifest, pull, files, repo, event, api }) {
   const res = { status: 'pass', errors: [], warnings: [], notes: [] };
   const fail = (m) => { res.errors.push(m); res.status = 'fail'; };
@@ -168,12 +168,15 @@ export async function gate({ manifest, pull, files, repo, event, api }) {
   if (pull.draft) { res.status = 'skip'; res.notes.push('draft PR; checked again when it is marked ready for review'); return res; }
   const head = pull.head?.sha;
 
+  // The override is the label plus a PR comment by someone with a role on the repository naming this exact head, so a
+  // push after it, or a line the PR author writes, never carries it.
   if ((pull.labels ?? []).some((l) => l?.name === OVERRIDE_LABEL)) {
-    const reason = /^Review-gate override:[ \t]*(\S.*)$/m.exec(String(pull.body ?? '').replace(/\r\n/g, '\n'))?.[1];
-    if (!reason) { fail(`the ${OVERRIDE_LABEL} label needs a "Review-gate override: <reason>" line in the PR body`); return res; }
-    const by = event?.action === 'labeled' && event?.label?.name === OVERRIDE_LABEL ? clean(event?.sender?.login, 60) : 'see the PR timeline';
-    res.warnings.push(`review gate overridden (label ${OVERRIDE_LABEL}, applied by ${by}): ${clean(reason)}`);
-    res.override = { reason: clean(reason), by };
+    const re = /^Review-gate override ([0-9a-f]{40}):[ \t]*(\S.*)$/m;
+    const hit = (await api.comments()).filter((c) => REVIEWER_ROLES.includes(c?.author_association))
+      .map((c) => ({ by: c.user?.login, m: re.exec(String(c.body ?? '').replace(/\r\n/g, '\n')) })).filter((c) => c.m && c.m[1] === head).pop();
+    if (!hit) { fail(`the ${OVERRIDE_LABEL} label needs a PR comment by an owner, member or collaborator with the line "Review-gate override ${String(head)}: <reason>" (the current head; a push needs a new one)`); return res; }
+    res.override = { reason: clean(hit.m[2]), by: clean(hit.by, 60) };
+    res.warnings.push(`review gate overridden for ${String(head).slice(0, 7)} by ${res.override.by}: ${res.override.reason}`);
     return res;
   }
 
@@ -188,7 +191,9 @@ export async function gate({ manifest, pull, files, repo, event, api }) {
   res.notes.push(`receipt: ${links.map((l) => `${l.kind} ${l.sha.slice(0, 7)}`).join(' -> ')}, verdict ${r.verdict}`);
 
   const globs = independentGlobs(manifest).map((g) => [g, globToRegExp(g)]);
-  const touched = files === null ? [`more than ${FILE_CAP} changed files`] : files.filter((f) => globs.some(([, re]) => re.test(f)));
+  // A PR by an author with no role on the repository wrote its own receipt; only a role-holder's review counts.
+  const untrusted = REVIEWER_ROLES.includes(pull.author_association) ? [] : [`the PR author (${String(pull.author_association)}) has no role on this repository`];
+  const touched = [...untrusted, ...(files === null ? [`more than ${FILE_CAP} changed files`] : files.filter((f) => globs.some(([, re]) => re.test(f))))];
   if (touched.length === 0) return res;
   res.notes.push(`independentFor paths changed: ${touched.slice(0, 5).map((f) => clean(f, 120)).join(', ')}${touched.length > 5 ? ` and ${touched.length - 5} more` : ''}`);
   const ind = Array.isArray(r.independent) ? r.independent : [];
@@ -200,7 +205,7 @@ export async function gate({ manifest, pull, files, repo, event, api }) {
     if (!id) { fail(`independent link ${i + 1} is not a review on this PR (https://github.com/${clean(repo)}/pull/${pull.number}#pullrequestreview-<id>)`); return res; }
     const rv = await api.review(id);
     if (!rv) { fail(`independent review ${id} does not exist on this PR`); return res; }
-    if (rv.state === 'DISMISSED') { fail(`independent review ${id} was dismissed`); return res; }
+    if (rv.state !== 'COMMENTED') { fail(`independent review ${id} is ${clean(rv.state, 30)}, not a standing COMMENT review`); return res; }
     if (!REVIEWER_ROLES.includes(rv.author_association)) { fail(`independent review ${id} is by ${clean(rv.user?.login, 60)} (${clean(rv.author_association, 30)}), who has no role on this repository (${REVIEWER_ROLES.join(', ')})`); return res; }
     if (rv.commit_id !== l.sha) { fail(`independent review ${id} was posted on ${String(rv.commit_id).slice(0, 7)}, not ${l.sha.slice(0, 7)}`); return res; }
     const pr = parseReceipt(rv.body);
@@ -246,13 +251,14 @@ async function check(manifestPath) {
   const res = await gate({ manifest, pull, files, repo: process.env.GITHUB_REPOSITORY, event, api: {
     review: (id) => github(`/pulls/${n}/reviews/${id}`, { allow404: true }),
     isAncestor: async (sha) => ['ahead', 'identical'].includes((await github(`/compare/${sha}...${pull.head.sha}`, { allow404: true }))?.status),
+    comments: async () => { const all = []; for (let p = 1; p <= 10; p++) { const b = await github(`/issues/${n}/comments?per_page=100&page=${p}`); all.push(...b); if (b.length < 100) break; } return all; },
   } });
   for (const m of res.notes) console.log(m);
   for (const m of res.warnings) console.log(`::warning::${m}`);
   for (const m of res.errors) console.log(`::error::${m}`);
   if (process.env.GITHUB_STEP_SUMMARY) {
     const lines = [`### Review gate: ${res.status}`, '', ...res.errors.map((m) => `- **fail:** ${m}`), ...res.warnings.map((m) => `- **warning:** ${m}`), ...res.notes.map((m) => `- ${m}`)];
-    if (res.override) lines.push('', `**Override** by ${res.override.by}: ${res.override.reason}`);
+    if (res.override) lines.push('', `**Override** of ${pull.head.sha} by ${res.override.by}: ${res.override.reason}`);
     fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${lines.join('\n')}\n`);
   }
   return res.status === 'fail' ? 1 : 0;

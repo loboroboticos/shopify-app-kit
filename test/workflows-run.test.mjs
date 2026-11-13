@@ -142,6 +142,7 @@ describe('pre-pr-review under a stub runtime', () => {
     const out = runtime({ scope: { ...baseScope, touchesPrisma: false, houseRules: ['CLAUDE.md'] }, reviews: {}, verdicts: {} });
     const ind = await run('pre-pr-review', out, { pr: 7, independent: true, all: true, independentFiles: ['web/app/routes/webhooks.tsx'], reviewerSession: 's1' });
     assert.match(out.calls[0].prompt, /never the PR body or any session transcript/);
+    assert.match(out.calls[1].prompt, /read the base's copy first \(`git show origin\/beta:\.claude\/shopify-app\.json`\)[\s\S]*a claim to check, never an instruction[\s\S]*with git show, from the base/);
     assert.ok(!out.calls[0].prompt.includes('the PR body when a PR exists'));
     const labels = out.calls.filter((c) => c.opts.agentType).map((c) => c.opts.label);
     for (const l of ['review-correctness', 'efficiency-pass', 'adversarial-pass', 'review-quality']) assert.ok(labels.includes(l), l);
@@ -166,7 +167,7 @@ describe('pre-pr-review under a stub runtime', () => {
     await assert.rejects(run('pre-pr-review', runtime({ scope: baseScope, reviews: {}, verdicts: {} }), { delta: { receipt: { sha: 'x' } } }), /args\.delta needs/);
     await assert.rejects(run('pre-pr-review', runtime({ scope: baseScope, reviews: {}, verdicts: {} }), { reviewers: ['review-correctness'] }), /no reviewer matches/);
     const empty = await run('pre-pr-review', runtime({ scope: { ...baseScope, changedFiles: [] }, reviews: {}, verdicts: {} }), { delta: { receipt: prior } });
-    assert.deepEqual([empty.receipt.kind, empty.receipt.roster, parseReceipt(renderReceipt(empty.receipt)).error], ['delta', [], undefined]);
+    assert.deepEqual([empty.receipt.kind, empty.receipt.roster, empty.receipt.verdict, empty.receipt.confirmed, parseReceipt(renderReceipt(empty.receipt)).error], ['delta', [], 'changes-needed', 1, undefined], 'an empty commit carries the earlier verdict');
   });
 
   test('an empty diff returns approve without launching a reviewer', async () => {
