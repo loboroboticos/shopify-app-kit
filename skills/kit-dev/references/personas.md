@@ -16,8 +16,8 @@ how many upstream persona files changed since that commit, and a maintainer port
    one section at a time; that rewrite, and step 3's frontmatter and findings rules, are the port rules.
 3. Port the substantive deltas (a new check, a sharpened mandate, a removed boundary) in the persona's own voice;
    leave wording-only churn. Keep the frontmatter to the allowlist and the `disallowedTools` that
-   `test/agents-parity.test.mjs` requires, `tools: Read, Grep, Glob, Bash`, `effort: high`, `model: opus` where
-   upstream names its top tier, and the findings shape every persona reports on (the workflows' severity set, claim,
+   `test/agents-parity.test.mjs` requires, `tools: Read, Grep, Glob, Bash`, `effort: high`, `model: sonnet` even where
+   upstream names its top tier (a consumer raises one agent through `review.models`), and the findings shape every persona reports on (the workflows' severity set, claim,
    evidence, fix); a persona must work when launched with only "review this branch" and a checkout.
 4. `node --test test/agents-parity.test.mjs` (headings, standing clause, "you report; the operator decides", no
    Engine machinery string), then the whole suite: `workflows/pre-pr-review.js`, `plan-review.js` and

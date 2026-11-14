@@ -9,7 +9,7 @@ allowed-tools: Read, Write, Edit, Grep, Glob, Bash(git rev-parse *), Bash(jq *),
 
 Guards are vendored so they fire even when the plugin has not loaded (a fresh clone, a session without the
 marketplace); the plugin itself registers only the SessionStart doctor. This skill copies the hooks, never edits
-their logic, and touches nothing outside `.claude/`.
+their logic, and touches nothing outside `.claude/` but the review gate's two files under `.github/`.
 
 ## Steps
 
@@ -21,10 +21,11 @@ their logic, and touches nothing outside `.claude/`.
    When files already existed, show a `diff -r` before and after so local edits are noticed (they are lost by
    design: the kit is the source of truth; repo-specific behaviour belongs in the manifest). Then delete every
    `.claude/hooks/kit/guard-*.sh` with no counterpart under `${CLAUDE_PLUGIN_ROOT}/hooks/` (a guard the kit
-   removed) together with its `settings.json` entry, and say which; the doctor reports such a copy as stale.
+   removed) together with its `settings.json` entry, and say which; the doctor reports such a copy as stale. Then the
+   review gate (`mkdir -p` both): `hooks/review-gate.mjs` to `<root>/.github/kit/`, `hooks/kit-review-gate.yml` to `<root>/.github/workflows/`.
 3. **Stamp the headers.** Line 2 of every copied file is `# shopify-app-kit v<version>`. The kit ships them
    stamped; verify with `awk 'FNR==2 {print FILENAME ": " $0}' "<root>"/.claude/hooks/kit/*.sh`
-   (line 2 of every file) and fix any that differ.
+   and `awk 'FNR==2' "<root>"/.github/kit/review-gate.mjs "<root>"/.github/workflows/kit-review-gate.yml`; fix any that differ.
    Consumers' tripwire tests compare this line with the manifest's `kit.version`.
 4. **Record the version.** Edit the manifest in place (the Edit tool, never a `jq` rewrite, which reformats the
    file): set `kit.version` to the plugin version and, when `$schema` is present, point its ref at the tag
@@ -54,6 +55,6 @@ their logic, and touches nothing outside `.claude/`.
    install; `npx prisma migrate reset`, `npx prisma migrate status`. MCP: `{"tool_name":"mcp__github__merge_pull_request",
    "tool_input":{"owner":"o","repo":"r","pullNumber":1},"cwd":"<root>"}` through `guard-protected-branch.sh` exits 2. Then run the
    `doctor` skill and confirm it reports no drift.
-7. **Commit** `.claude/hooks/kit/`, the manifest and the settings change together on a branch, with a message
-   like `chore: sync shopify-app-kit v<version> hooks`, and open a PR to `branches.default`; never commit to a
-   protected branch.
+7. **Commit** `.claude/hooks/kit/`, the gate's two files, the manifest and settings together on a branch (`chore:
+   sync shopify-app-kit v<version> hooks`) and open a PR to `branches.default`, never a protected branch. That PR
+   touches the gate, so it needs `/shopify-app-kit:independent-review` (`skills/review/references/receipt.md`).

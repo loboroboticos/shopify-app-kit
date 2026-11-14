@@ -42,5 +42,7 @@ Each is enforced by the named hook or test; the sentence here is the pointer, no
 - Docs map: `docs/README.md`, "Docs map" section; one owner per fact.
 - Decisions: `docs/adr/` (`SEEDS.md` lists the ones still to take).
 - Path-scoped rules: `.claude/rules/` (billing, prisma, docs, PRs and issues).
+- Reviews: every PR into the default branch carries a current review receipt (`/shopify-app-kit:pre-pr-review`,
+  spliced into the body); a change to a `review.independentFor` path also needs `/shopify-app-kit:independent-review`.
 - Kit skills: `/shopify-app-kit:doctor`, `/shopify-app-kit:sync`, `/shopify-app-kit:review`, and the
   model-invoked `dev-loop`, `admin-api`, `tenancy`, `mcp-connector`, `tripwire`, `docs-owner`, `issue-filing`.

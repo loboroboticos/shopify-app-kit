@@ -22,7 +22,7 @@ Checks the consumer repo you are in, never the kit itself. Report findings as a 
    Then compare the manifest with `${CLAUDE_PLUGIN_ROOT}/schemas/shopify-app.v1.schema.json` for anything the
    structural check does not cover: unknown top-level keys (the top level is closed), `configs.dev` / `configs.deploy`
    present whenever the matching policy is `config-required`, `apiVersion.expected` shaped like `2026-07`,
-   `packageManagers` values in `npm | pnpm`.
+   `packageManagers` values in `npm | pnpm`, `review.independentFor` globs and `review.models` model names.
 
 3. **Print the facts.** From the manifest: app name and kind, default and protected branches, promotion, Shopify CLI
    configs and the four policies (`devPolicy`, `deployPolicy`, `configUsePolicy`, `themeDevFromRoot`), package
@@ -30,7 +30,7 @@ Checks the consumer repo you are in, never the kit itself. Report findings as a 
 
 4. **Check vendored hooks.** For every `<root>/.claude/hooks/kit/*.sh`, line 2 must read
    `# shopify-app-kit v<kit.version>` where `kit.version` comes from the manifest. Report each mismatch or missing
-   file (expected: `lib.sh` plus every `guard-*.sh` under `${CLAUDE_PLUGIN_ROOT}/hooks/`). Compare `kit.version` with the
+   file (expected: `lib.sh` plus every `guard-*.sh` under `${CLAUDE_PLUGIN_ROOT}/hooks/`; the gate's two `.github/` files too). Compare `kit.version` with the
    plugin's version in `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json`; a lower `kit.version` means a sync is due.
 
 5. **Check settings registration.** `.claude/settings.json` or `settings.local.json` must register each vendored

@@ -1,7 +1,7 @@
 ---
 name: design-review-architecture
 description: Before a change gets built, checks whether the plan is soundly designed — clean boundaries, a sensible data model, good seams, a safe build order, and something that stays maintainable rather than turning brittle — judged against the app as its .claude/shopify-app.json declares it. Reports findings; the operator decides. Use when a plan file, ADR or PR description describes a change that has not been built yet and you want the structure challenged before code exists.
-model: opus
+model: sonnet
 effort: high
 tools: Read, Grep, Glob, Bash
 disallowedTools: Edit, Write, NotebookEdit

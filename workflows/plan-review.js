@@ -23,7 +23,7 @@ export const meta = {
 //   pr         a PR number; its body is the plan
 //   issue      an issue number; its body is the plan
 //   reviewers  restrict the roster to these agent names
-//   models     per-role model overrides: { scope, reviewer, skeptic, judgment }
+//   models     model overrides by role { scope, reviewer, skeptic, judgment } or by agent name
 
 // @shared constants
 const SEVERITIES = ['blocker', 'major', 'minor', 'note']
@@ -52,12 +52,17 @@ const opts = (() => {
 })()
 
 const SCOPE_MODEL = 'sonnet' // the scoping pass's default model
-// Every agent() names its model by role; args.models ({ scope, reviewer, skeptic, judgment }, model names) overrides any.
+// Every agent() names its model by role; args.models ({ scope, reviewer, skeptic, judgment } or an agent name) overrides any.
 // @shared models
 const JUDGMENT = new Set(['design-review-architecture', 'design-review-feasibility', 'design-review-product-intent', 'design-review-risk-governance', 'qa-review-divergence-hunter', 'qa-review-security-governance'])
-const MODELS = { scope: SCOPE_MODEL, reviewer: 'sonnet', skeptic: 'sonnet', judgment: 'opus' }
-for (const [k, v] of Object.entries(opts.models && typeof opts.models === 'object' ? opts.models : {})) if (Object.hasOwn(MODELS, k) && typeof v === 'string' && v) MODELS[k] = v
-const modelFor = (name) => (JUDGMENT.has(name) ? MODELS.judgment : MODELS.reviewer)
+const MODELS = { scope: SCOPE_MODEL, reviewer: 'sonnet', skeptic: 'sonnet', judgment: 'sonnet' }
+const BY_AGENT = Object.create(null) // an agent-name key (review-gate.mjs models maps the manifest's review.models here)
+for (const [k, v] of Object.entries(opts.models && typeof opts.models === 'object' ? opts.models : {})) {
+  if (typeof v !== 'string' || !v) continue
+  if (Object.hasOwn(MODELS, k)) MODELS[k] = v
+  else if (/^[a-z0-9]+(-[a-z0-9]+)+$/.test(k)) BY_AGENT[k] = v
+}
+const modelFor = (name) => BY_AGENT[name] ?? (JUDGMENT.has(name) ? MODELS.judgment : MODELS.reviewer)
 // @end
 
 const SCOPE_SCHEMA = {

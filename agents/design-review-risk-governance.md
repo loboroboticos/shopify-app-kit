@@ -1,7 +1,7 @@
 ---
 name: design-review-risk-governance
 description: Before a change gets built, checks how the plan could fail, be abused, or break a rule it must keep — security, merchant and shopper privacy, Shopify compliance obligations, traceability, and resilience — thinking like someone trying to misuse it, with the trust boundaries and scopes from .claude/shopify-app.json in hand. Reports findings; the operator decides. Use when a plan file, ADR or PR description describes a change that has not been built yet and you want its abuse cases and governance gaps found before code exists.
-model: opus
+model: sonnet
 effort: high
 tools: Read, Grep, Glob, Bash
 disallowedTools: Edit, Write, NotebookEdit

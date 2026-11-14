@@ -27,7 +27,9 @@ The repo root is the plugin root and its own marketplace.
 | `agents/qa-review-divergence-hunter.md` | Diff-stage reviewer that assumes a divergence exists and hunts for it: green tests that check the wrong thing, guardrails that can be slipped past, half-done requirements, code nobody asked for. |
 | `agents/prisma-migration-reviewer.md` | Diff-stage reviewer for `schema.prisma` and migrations, keyed to `database.*`, `paths.prisma` and `deploy.scaleToZeroBeforeMigrate`: destructive operations, schema/migration parity, hand-edited SQL, RLS on new tables, the scale-to-zero step, shared-beta drift, refresh-token columns for expiring offline tokens. Never proposes editing a generated migration in place. |
 | `agents/storefront-extension-reviewer.md` | Diff-stage reviewer for theme app extensions, a one-line no-op when `paths.extensions` is empty: settings-schema compatibility, platform-minted block uids, edge-cache assumptions, asset size limits, vendored-copy parity with a drift test under `checks.tripwireDir`, no server round-trip on the render path, locales in step with the schema. |
-| `/shopify-app-kit:pre-pr-review` | Workflow (`workflows/pre-pr-review.js`): scopes the branch from the manifest, runs the diff-stage roster in parallel (the stack reviewers only when the diff touches their files), merges findings on the same spot, sends every blocker and major to a skeptic, and returns one verdict (`block`, `changes-needed`, `approve`) with the merged findings. Takes an optional base branch or `{ base, pr, reviewers, all }`. |
+| `/shopify-app-kit:pre-pr-review` | Workflow (`workflows/pre-pr-review.js`): scopes the branch from the manifest, runs the diff-stage roster in parallel (the stack reviewers only when the diff touches their files), merges findings on the same spot, sends every blocker and major to a skeptic, and returns one verdict (`block`, `changes-needed`, `approve`) with the merged findings and the review receipt for the PR body. Takes an optional base branch or `{ base, pr, reviewers, all, models, independent, independentFiles, delta, reviewerSession }`. |
+| `/shopify-app-kit:independent-review <PR>` | The outsider review the gate requires on `review.independentFor` paths: pre-pr-review in independent mode (intent from the linked issue and the house rules only, the full roster plus `review-correctness`, an efficiency pass, an adversarial pass on the risky files), one COMMENT review carrying its receipt, and the link recorded in the PR body's receipt. Run it from a session that did not author the branch. |
+| `hooks/kit-review-gate.yml` + `hooks/review-gate.mjs` | The review gate, vendored by `sync` to `.github/workflows/` and `.github/kit/`. See [The review gate](#the-review-gate). |
 | `/shopify-app-kit:release-readiness` | Workflow (`workflows/release-readiness.js`): scopes the promotion range (`branches.promotion.from` -> `.to`, or `{ base, head }`), runs only the release dimensions the manifest enables (`api-version`, `webhooks`, `migrations` when the range touches `paths.prisma`, `branch-model`, `billing` when `billing.live`, `extension` when `paths.extensions` is set, `app-store-review` for a public app, its auth and scope checks over the whole checkout), each as one read-only kit agent on the shared finding shape, verifies every blocker and major, and returns `go`, `go-with-notes` or `no-go` with the findings and a pasteable checklist for the promotion PR body (the `release` skill's list, pre-ticked where a dimension passed). A dimension that returns nothing keeps the verdict off `go`. |
 | `/shopify-app-kit:plan-review` | Workflow (`workflows/plan-review.js`): runs the four `design-review-*` agents in parallel on a plan (a markdown file path, a PR number whose body is the plan, or `#<issue>`), with the manifest facts the plan touches and the ADR directory in their prompts; merges findings on the same section, verifies every blocker and major, and returns `sound`, `revise` or `rethink` with the findings and the decisions the plan should record as ADRs (findings a reviewer tags `adr: true`). |
 | `hooks/guard-shopify-cli.sh` | PreToolUse guard for `shopify app dev`, `shopify app deploy`, `shopify app config use`, `<pm> run deploy` and `shopify theme dev`, driven by the manifest's `shopifyCli` policies, read from this checkout only: a checkout that predates a stricter policy enforces the older one until its `.claude/shopify-app.json` is updated from `origin/<default>`; the doctor reports the difference at session start, the drift notice after the next guarded `git` or `gh` call. Fails closed when the manifest or `jq` is missing. |
@@ -202,6 +204,7 @@ Keys the doctor prints and the skills and review agents read (no guard behaviour
 | `billing.method` | `billing-api` / `app-pricing` / `none` | App Pricing (the successor of Managed Pricing) is the default for public apps and public-apps-only, delivers no subscription webhooks (status comes from the Partner Active Subscription API); the Billing API is legacy but functional and public-apps-only too; a custom-distribution app cannot bill through Shopify. `doctor` prints it; `release` and the billing rule seed read it. |
 | `docs.adrDir`, `docs.mapFile`, `docs.mapHeading` | repo-relative paths and a heading | Where the ADR series and the docs map live; `docs-owner` and the templates' `docs-consistency` test read them. |
 | `classify.provider`, `classify.labelSets`, `classify.budget`, `classify.defaultEscalateThreshold` | `jev`; a label-set registry; a per-tenant `monthlyCap`; a 0..1 floor | How the app calls a classifier: the `classify` skill reads the section, `classifier-reviewer` checks each call names a declared label set, is budgeted and gated on confidence. Absent means the app classifies nothing. |
+| `review.independentFor`, `review.models` | globs; `{ "default", "mechanical", "<agent>": model }` | The review gate requires an independent review when a changed file matches these or the derived set (`paths.webhookHandlers`, `paths.appTomls`, `paths.prisma`, `paths.extensions`, the gate's own files, any workflow and the manifest); `node <kit>/hooks/review-gate.mjs globs` prints the set. `models` is what the review skills pass to the agents they launch (`review-gate.mjs models` maps it to the workflows' `args.models`); unset, every reviewer runs on `sonnet` and every scoping pass on `haiku` (plan-review's on `sonnet`). |
 | `kit.portfolioId`, `kit.routines` | an opaque id; routine file names under the kit's `routines/`; each matching its `pattern` in the schema | The doctor prints both, validates them against the schema and reports an entry that is not a consumer routine its kit version ships; a cross-repo routine discovers the product by the id (`routines/REGISTRY.md`, "Discovering the portfolio"). |
 
 `operator-only` blocks tell the session to ask the maintainer to run the command from their terminal.
@@ -239,8 +242,9 @@ checkout are enough to launch it (`subagent_type: "shopify-app-kit:<name>"`).
   `design-review-product-intent`, `design-review-risk-governance`. Is the plan sound, buildable, the right thing, safe.
   `/shopify-app-kit:plan-review` runs all four and merges the findings.
 - **Before a PR, on a diff:** `qa-review-security-governance`, `qa-review-spec-conformance`,
-  `qa-review-technical-integrity`, `qa-review-usability`, `qa-review-divergence-hunter`, plus the two stack reviewers
-  `prisma-migration-reviewer` and `storefront-extension-reviewer`. `/shopify-app-kit:pre-pr-review` runs them.
+  `qa-review-technical-integrity`, `qa-review-usability`, `qa-review-divergence-hunter`, `review-quality` (structure
+  only; technical-integrity keeps performance), plus the two stack reviewers `prisma-migration-reviewer` and
+  `storefront-extension-reviewer`, and `review-correctness` in independent mode. `/shopify-app-kit:pre-pr-review` runs them.
 - **Before a promotion PR, on the range:** `/shopify-app-kit:release-readiness` runs one dimension per manifest
   section (API version, webhooks, migrations, branch model, billing, extensions, App Store review), each as one of
   the agents above, and returns a verdict with the PR-body checklist.
@@ -284,10 +288,36 @@ directory in their prompts; findings on the same section merge into one carrying
 `rethink` on a surviving blocker, `revise` on a major or an uncovered lens, else `sound`, and the decisions the
 plan should record as ADRs (findings tagged `adr: true`) are listed separately.
 
-Every `agent()` call in the three workflows names its model by role: `judgment` (`opus`) for the four
+Every `agent()` call in the three workflows names its model by role: `judgment` (`sonnet`) for the four
 `design-review-*` agents, `qa-review-divergence-hunter` and `qa-review-security-governance`; `scope` (`haiku`,
 `sonnet` in plan-review); `reviewer` and `skeptic` (`sonnet`). `"models": { "scope", "reviewer", "skeptic",
-"judgment" }` overrides any role.
+"judgment" }` overrides any role and an agent-name key that agent only; the manifest's `review.models` reaches a
+workflow that way (`node <kit>/hooks/review-gate.mjs models`).
+
+### The review gate
+
+Every review writes a receipt into the PR body (`skills/review/references/receipt.md`: the format, `splice`, deltas).
+The commit status `shopify-app-kit/review-gate` fails a PR into `branches.default` when the receipt is missing or
+malformed, names another commit than the head (a `delta` chained to an earlier full review re-checks only the fix
+commits), says `block`, or when an `independentFor` path changed without an independent chain ending at the head: each
+link a standing COMMENT review on that PR and commit, by an owner, member or collaborator (`MEMBER` includes org members
+without write access), whose own body carries the matching receipt. A PR whose author has none of those roles, bots
+such as Dependabot included, needs that chain whatever it touches. `changes-needed` passes with a warning.
+
+Security: `pull_request_target` runs the base branch's workflow, script and manifest, so a PR cannot weaken the gate;
+no job checks out or runs PR code or uses a secret. The `gate` job reads only (`contents`, `pull-requests`, `issues`);
+a `status` job holding only `statuses: write` posts the verdict, because a PR's own job named `gate` could shadow a
+required job check while a fork's token cannot post a status. A writer's branch workflow can still overwrite it (visible
+in the PR's workflow diff and runs); an org ruleset requiring this workflow closes that. Gate outside contributors' runs.
+
+Override, for an emergency: a PR comment by an owner, member or collaborator with the line
+`Review-gate override <head sha>: <reason>`, then the label `review-gate:override` (the label event runs the gate; a
+comment alone does not: after a late comment, re-apply the label or re-run the job). A push needs a new comment; the
+job summary names the commenter and the reason. Every session may post as one account, so the commenter may be the PR
+author. A dismissed review or a base manifest change does not re-run the gate on open PRs either: re-run it by hand.
+
+What it proves: a session ran the review on this commit and wrote it down. A role-holder's body receipt is an
+attestation, not a proof, and independence means a session without the author's context, not another account.
 
 ## Lessons
 
@@ -307,7 +337,7 @@ body says what closing it needs. Scheduled Claude Code Routines are the workforc
   workflow with the repo's existing secrets), `agent:cloud` (reaches the store, no login) and `agent:local` (the
   maintainer's logged-in machine), the human rungs `human:bootstrap` (a one-time maintainer action whose Unlocks
   become agent work), `human:decision` (answered by a `decision:` comment), `human:account` and `human:legal`;
-  `p1`/`p2`/`p3`; `roi:5`…`roi:1`; `launch-gate`, `blocked`, `deploy`; `qa`, `dependencies`, `bug`,
+  `p1`/`p2`/`p3`; `roi:5`…`roi:1`; `launch-gate`, `blocked`, `review-gate:override`, `deploy`; `qa`, `dependencies`, `bug`,
   `documentation`. Its `ladder` array is the executor order. `node scripts/sync-labels.mjs [--repo <owner>/<repo>]
   [--dry-run]` creates or updates them with `gh label create --force` and never deletes one.
 - **`issue-filing`** (model-invocable) applies the ten rules in `skills/issue-filing/references/rules.md`: the

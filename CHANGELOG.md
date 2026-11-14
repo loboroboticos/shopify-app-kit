@@ -5,6 +5,57 @@ vendored hook carries it on line 2 (`# shopify-app-kit vX.Y.Z`). A version that 
 `### Deprecated`; the next minor deletes it and lists it under `### Removed` (`kit-dev`: "Remove a skill, agent,
 hook, workflow or routine"). Sections up to 0.9.0 are compacted; `git log -p CHANGELOG.md` has their full text.
 
+## 0.21.0
+
+The review gate becomes the default. Evidence: on app-1, reviews ran only when a session remembered to, two PRs on
+high-risk paths (a production entitlement mass write; a webhook-URI and pre-auth-redirect change) merged before an
+independent reviewer reported, and that reviewer then found a real redirect loop; app-1's issue #1176 asks for
+manifest-driven reviewer models because every session overrode the agents' `opus` by hand.
+
+- Review receipt: `hooks/review-gate.mjs` owns a machine-readable block in the PR body (`kind`, the reviewed `sha`,
+  roster, models, verdict, confirmed count, the independent-review chain) and parses, renders, splices and links it;
+  `skills/review/references/receipt.md` documents it. A `delta` receipt (`fromSha`, `chain`) re-checks only the fix
+  commits after a full review, so a push needs no full re-run. `pre-pr-review` returns `receipt`; the `review` skill
+  splices one when a PR exists (its only unasked write).
+- Review gate: `hooks/kit-review-gate.yml`, vendored with the script by `sync` (and `new-app`) to
+  `.github/workflows/` and `.github/kit/`. On `pull_request_target`, from the base branch (a PR cannot weaken the
+  gate or the manifest it reads), no secrets, no PR code checked out, the PR always re-fetched. The `gate` job reads
+  only; a `status` job with only `statuses: write` posts the verdict as the commit status
+  `shopify-app-kit/review-gate`, the required context (a PR's own job named `gate` could shadow a job check).
+  Fails a PR into `branches.default` with no receipt, a stale or broken chain, verdict `block`, or
+  a changed `independentFor` path without an independent chain at the head whose every link is a standing
+  COMMENT review on that PR and commit, by an owner, member or collaborator, carrying its own receipt (a PR whose
+  author has no such role needs that chain on every path); `changes-needed` warns; drafts and other bases skip.
+  Override: label `review-gate:override` (in `labels.json`) plus a role-holder's PR comment
+  `Review-gate override <head sha>: <reason>`, so a push needs a new one; the job summary names both.
+- Manifest: optional `review.independentFor` (globs added to the derived set: `paths.webhookHandlers`,
+  `paths.appTomls`, `paths.prisma`, `paths.extensions`, the gate's files, any workflow and the manifest) and
+  `review.models`
+  (`default`, `mechanical` or an agent name). Additive; `schemaVersion` stays 1. The doctor validates both and
+  reports a synced repo without the gate's two files.
+- `/shopify-app-kit:independent-review <PR>`: pre-pr-review in independent mode (intent from the linked issue and the
+  house rules, never the PR body or a transcript; the full roster plus `review-correctness`; an efficiency pass and an
+  adversarial pass on the risky files, both with existing agents), one COMMENT review, its link spliced into the
+  receipt, a delta only after this reviewer's own earlier independent review. It runs the plugin's gate script and
+  the base's manifest, never the PR's copies, and never executes the branch.
+- `review-quality` joins pre-pr-review's roster with a lens split against `qa-review-technical-integrity`.
+- Review hardening from the kit's own independent review: an empty delta carries the earlier verdict, and a delta
+  clears a `block` only with that block's findings to re-check; the scope pass fails when the delta's base is not an
+  ancestor. Independent mode reads the manifest and house rules from the base and treats the linked issue as a claim;
+  `independent-review` and `review` pre-approve only commands with no option that writes, executes or reaches GitHub
+  (`git rev-parse`, `merge-base`, `ls-tree`, `checkout --detach`, `gh pr view`, `gh issue view`); `git show`, `diff`
+  and `fetch` (`--output`, `--upload-pack`), the gate script and GitHub writes ask. A test pins both lists.
+- Models: the six agents that pinned `model: opus` now say `sonnet`, as does the workflows' `judgment` default;
+  `args.models` takes an agent-name key, and `review-gate.mjs models` maps `review.models` onto it. The persona port
+  rule (`kit-dev`'s `personas.md`) keeps `sonnet`.
+
+### Budget
+
+- `hooks/` 1950 -> 2350 (the gate script and its workflow, vendored beside the guards; the doctor's checks),
+  `workflows/` 1035 -> 1090 (independent and delta modes, the receipt), `skills/` 3380 -> 3460 (`independent-review`,
+  the receipt reference), `schemas/` 270 -> 280, `test/` 3750 -> 4075 (`test/review-gate.test.mjs`): app-1's two
+  unreviewed high-risk merges and #1176 above. `README.md` 400 -> 405 (the gate's security and override paragraphs).
+
 ## 0.20.0
 
 The Built for Shopify gates (#165): what a consumer's admin, storefront output, auth and release must show before

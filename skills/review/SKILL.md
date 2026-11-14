@@ -1,7 +1,7 @@
 ---
 name: review
 description: Deep pre-merge review of a Shopify app branch. Runs the kit's correctness/security and code-quality review agents in parallel, each checking the diff against this repo's .claude/shopify-app.json, then synthesizes one verdict. Use when a branch or PR needs a harsh, thorough audit before merge or promotion, or when asked for a deep, thermonuclear or full review.
-allowed-tools: Read, Grep, Glob, Agent, Bash(git *), Bash(jq *), Bash(gh pr *)
+allowed-tools: Read, Write, Grep, Glob, Agent, Bash(git rev-parse *), Bash(git merge-base *), Bash(gh pr view *)
 argument-hint: "[base-branch | PR number | commit]"
 ---
 
@@ -27,7 +27,8 @@ maintainability against the app's canonical layers. Both are diff-scoped and evi
 
 2. **Launch both agents in one message**, in the background, with the same context: the manifest JSON verbatim
    (or "none"), base, head and PR number, the diff, and the changed files (path, then contents or "read from
-   checkout").
+   checkout"). Pass `model` on every launch: the agent's key in `node "${CLAUDE_PLUGIN_ROOT}/hooks/review-gate.mjs"
+   models "<root>/.claude/shopify-app.json"`, else its `reviewer` value, else `sonnet`.
 
    - `subagent_type: "shopify-app-kit:review-correctness"` for bugs, breakage, security, manifest contracts, devex.
    - `subagent_type: "shopify-app-kit:review-quality"` for structure, spaghetti growth, file size, layers, conventions.
@@ -44,8 +45,9 @@ maintainability against the app's canonical layers. Both are diff-scoped and evi
    top findings (at most ~7: severity, path:line, claim, fix), one line per manifest section reviewed (ok or a
    finding reference), and one line per disagreement or uncertainty.
 
-5. **Posting.** Only when the user asks, post the verdict to the PR (`gh pr comment`) or as a review; never
-   approve or merge on their behalf.
+5. **Receipt.** When a PR exists, splice a `kind: "review"` receipt for `git rev-parse HEAD` into its body
+   (`references/receipt.md`); that is the only write this skill makes unasked. Only when the user asks, post
+   the verdict to the PR (`gh pr comment`) or as a review; never approve or merge on their behalf.
 
 ## Notes
 

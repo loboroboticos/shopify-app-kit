@@ -207,6 +207,11 @@ for (const name of fs.readdirSync(path.join(kitRoot, 'hooks')).filter((n) => n =
   write(path.join(hookDir, name), fs.readFileSync(path.join(kitRoot, 'hooks', name), 'utf8'), 0o755);
   log('vendor', `.claude/hooks/kit/${name}`);
 }
+// The review gate (the sync skill's step 2): the script beside the workflow that runs it from the base branch.
+for (const [from, to] of [['review-gate.mjs', '.github/kit/review-gate.mjs'], ['kit-review-gate.yml', '.github/workflows/kit-review-gate.yml']]) {
+  write(path.join(target, to), fs.readFileSync(path.join(kitRoot, 'hooks', from), 'utf8'));
+  log('vendor', to);
+}
 
 // ---------------------------------------------------------------- 3. docs map, history, first ADR
 fs.mkdirSync(path.join(target, 'docs', 'history'), { recursive: true });

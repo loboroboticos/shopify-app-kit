@@ -20,6 +20,7 @@
     { "name": "roi:1", "color": "e6f4e6", "description": "ROI bucket 1 of 5: lowest value per unit of effort" },
     { "name": "launch-gate", "color": "5319e7", "description": "Gating: must close before the first real install" },
     { "name": "blocked", "color": "000000", "description": "Gating: waiting on another issue; the body says which one (\"after #N\")" },
+    { "name": "review-gate:override", "color": "b60205", "description": "Gating: passes the review gate for the head a role-holder's override comment names" },
     { "name": "deploy", "color": "0052cc", "description": "Gating: registration or deployment work" },
     { "name": "qa", "color": "d876e3", "description": "Origin: opened by a scheduled QA workflow on failure" },
     { "name": "dependencies", "color": "0366d6", "description": "Origin: dependency advisories and deliberate major upgrades" },

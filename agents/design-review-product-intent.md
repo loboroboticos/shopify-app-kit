@@ -1,7 +1,7 @@
 ---
 name: design-review-product-intent
 description: Before a change gets built, checks the plan against what was actually asked for — is it solving the right problem, is the scope right, will the result be usable, and are the success criteria clear enough to check later — reading the raw request separately from the plan so the author's framing is not adopted by default. Reports findings; the operator decides. Use when a plan file, ADR or PR description describes a change that has not been built yet and you want its purpose, scope and success criteria challenged before code exists.
-model: opus
+model: sonnet
 effort: high
 tools: Read, Grep, Glob, Bash
 disallowedTools: Edit, Write, NotebookEdit
