@@ -174,7 +174,7 @@ export async function gate({ manifest, pull, files, repo, event, api }) {
     const re = /^Review-gate override ([0-9a-f]{40}):[ \t]*(\S.*)$/m;
     const hit = (await api.comments()).filter((c) => REVIEWER_ROLES.includes(c?.author_association))
       .map((c) => ({ by: c.user?.login, m: re.exec(String(c.body ?? '').replace(/\r\n/g, '\n')) })).filter((c) => c.m && c.m[1] === head).pop();
-    if (!hit) { fail(`the ${OVERRIDE_LABEL} label needs a PR comment by an owner, member or collaborator with the line "Review-gate override ${String(head)}: <reason>" (the current head; a push needs a new one)`); return res; }
+    if (!hit) { fail(`the ${OVERRIDE_LABEL} label needs a PR comment by an owner, member or collaborator with the line "Review-gate override ${String(head)}: <reason>" (the current head; a push needs a new one). A comment posted after the label does not re-run the gate: re-apply the label or re-run the job`); return res; }
     res.override = { reason: clean(hit.m[2]), by: clean(hit.by, 60) };
     res.warnings.push(`review gate overridden for ${String(head).slice(0, 7)} by ${res.override.by}: ${res.override.reason}`);
     return res;

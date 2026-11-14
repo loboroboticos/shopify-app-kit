@@ -52,7 +52,7 @@ manifest-driven reviewer models because every session overrode the agents' `opus
 
 - `hooks/` 1950 -> 2350 (the gate script and its workflow, vendored beside the guards; the doctor's checks),
   `workflows/` 1035 -> 1090 (independent and delta modes, the receipt), `skills/` 3380 -> 3460 (`independent-review`,
-  the receipt reference), `schemas/` 270 -> 280, `test/` 3750 -> 4060 (`test/review-gate.test.mjs`): app-1's two
+  the receipt reference), `schemas/` 270 -> 280, `test/` 3750 -> 4075 (`test/review-gate.test.mjs`): app-1's two
   unreviewed high-risk merges and #1176 above. `README.md` 400 -> 405 (the gate's security and override paragraphs).
 
 ## 0.20.0

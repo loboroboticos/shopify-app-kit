@@ -242,6 +242,18 @@ describe('the workflow file', () => {
   });
 });
 
+describe('the independent-review allowlist', () => {
+  // Pinned exactly: widening it fails here. Each entry is checked for option injection: `git -c`/`--config` cannot
+  // follow a subcommand prefix; `git fetch origin` names an https remote, so `--upload-pack`/`--receive-pack` are
+  // ignored, and `ext::` stays off (protocol.ext.allow defaults to never); diff and textconv drivers need git config,
+  // which a PR cannot set; jq, gh pr view and gh issue view only read. Running node, gh api, gh pr edit always asks.
+  test('pre-approves exactly the read-only commands its steps use', () => {
+    const line = read('skills', 'independent-review', 'SKILL.md').split('\n').find((l) => l.startsWith('allowed-tools:'));
+    assert.equal(line, 'allowed-tools: Read, Write, Grep, Glob, Bash(git fetch origin *), Bash(git checkout --detach *), Bash(git show *), Bash(git diff *), Bash(git rev-parse *), Bash(git merge-base *), Bash(git ls-tree *), Bash(jq *), Bash(gh pr view *), Bash(gh issue view *)');
+    for (const bad of ['Bash(node', 'Bash(gh api', 'Bash(gh pr edit', 'Bash(git *)', 'Bash(git -c', 'Bash(git fetch *)', 'Bash(git push', 'Bash(gh pr *)']) assert.ok(!line.includes(bad), bad);
+  });
+});
+
 describe('the status outputs', () => {
   test('fail is failure, pass, skip and override are success; one ASCII line each; a bad sha posts none', () => {
     const out = (res, sha = A) => Object.fromEntries(g.statusOutputs({ errors: [], warnings: [], notes: [], ...res }, sha).split('\n').filter(Boolean).map((l) => [l.slice(0, l.indexOf('=')), l.slice(l.indexOf('=') + 1)]));

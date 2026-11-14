@@ -312,12 +312,12 @@ in the PR's workflow diff and runs); an org ruleset requiring this workflow clos
 
 Override, for an emergency: a PR comment by an owner, member or collaborator with the line
 `Review-gate override <head sha>: <reason>`, then the label `review-gate:override` (the label event runs the gate; a
-comment alone does not). A push needs a new comment; the job summary names the commenter and the reason. A dismissed
-review or a base manifest change does not re-run the gate on open PRs either: re-run it by hand.
+comment alone does not: after a late comment, re-apply the label or re-run the job). A push needs a new comment; the
+job summary names the commenter and the reason. Every session may post as one account, so the commenter may be the PR
+author. A dismissed review or a base manifest change does not re-run the gate on open PRs either: re-run it by hand.
 
 What it proves: a session ran the review on this commit and wrote it down. A role-holder's body receipt is an
-attestation, not a proof, and independence means a session without the author's context, not another GitHub account
-(every session may post as one, and a role-holder may override their own PR).
+attestation, not a proof, and independence means a session without the author's context, not another account.
 
 ## Lessons
 
