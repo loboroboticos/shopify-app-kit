@@ -21,14 +21,16 @@ manifest-driven reviewer models because every session overrode the agents' `opus
   `.github/workflows/` and `.github/kit/`. On `pull_request_target`, from the base branch (a PR cannot weaken the
   gate or the manifest it reads), no secrets, no PR code checked out, the PR always re-fetched. The `gate` job reads
   only; a `status` job with only `statuses: write` posts the verdict as the commit status
-  `shopify-app-kit/review-gate`, the required context (a PR's own job named `gate` could shadow a job check). Fails a PR into `branches.default` with no receipt, a stale or broken chain, verdict `block`, or
-  a changed `independentFor` path without an independent chain at the head whose every link is a real, undismissed
+  `shopify-app-kit/review-gate`, the required context (a PR's own job named `gate` could shadow a job check).
+  Fails a PR into `branches.default` with no receipt, a stale or broken chain, verdict `block`, or
+  a changed `independentFor` path without an independent chain at the head whose every link is a standing
   COMMENT review on that PR and commit, by an owner, member or collaborator, carrying its own receipt (a PR whose
   author has no such role needs that chain on every path); `changes-needed` warns; drafts and other bases skip.
   Override: label `review-gate:override` (in `labels.json`) plus a role-holder's PR comment
   `Review-gate override <head sha>: <reason>`, so a push needs a new one; the job summary names both.
 - Manifest: optional `review.independentFor` (globs added to the derived set: `paths.webhookHandlers`,
-  `paths.appTomls`, `paths.prisma`, `paths.extensions`, the gate's files, any workflow and the manifest) and `review.models`
+  `paths.appTomls`, `paths.prisma`, `paths.extensions`, the gate's files, any workflow and the manifest) and
+  `review.models`
   (`default`, `mechanical` or an agent name). Additive; `schemaVersion` stays 1. The doctor validates both and
   reports a synced repo without the gate's two files.
 - `/shopify-app-kit:independent-review <PR>`: pre-pr-review in independent mode (intent from the linked issue and the
@@ -37,6 +39,11 @@ manifest-driven reviewer models because every session overrode the agents' `opus
   receipt, a delta only after this reviewer's own earlier independent review. It runs the plugin's gate script and
   the base's manifest, never the PR's copies, and never executes the branch.
 - `review-quality` joins pre-pr-review's roster with a lens split against `qa-review-technical-integrity`.
+- Review hardening from the kit's own independent review: an empty delta carries the earlier verdict, and a delta
+  clears a `block` only with that block's findings to re-check; the scope pass fails when the delta's base is not an
+  ancestor. Independent mode reads the manifest and house rules from the base and treats the linked issue as a claim;
+  `independent-review` pre-approves only read-only git and `gh pr view`/`gh issue view`, so its gate-script runs and
+  GitHub writes each ask.
 - Models: the six agents that pinned `model: opus` now say `sonnet`, as does the workflows' `judgment` default;
   `args.models` takes an agent-name key, and `review-gate.mjs models` maps `review.models` onto it. The persona port
   rule (`kit-dev`'s `personas.md`) keeps `sonnet`.
@@ -45,8 +52,8 @@ manifest-driven reviewer models because every session overrode the agents' `opus
 
 - `hooks/` 1950 -> 2350 (the gate script and its workflow, vendored beside the guards; the doctor's checks),
   `workflows/` 1035 -> 1090 (independent and delta modes, the receipt), `skills/` 3380 -> 3460 (`independent-review`,
-  the receipt reference), `schemas/` 270 -> 280, `test/` 3750 -> 4040 (`test/review-gate.test.mjs`): app-1's two
-  unreviewed high-risk merges and #1176 above.
+  the receipt reference), `schemas/` 270 -> 280, `test/` 3750 -> 4060 (`test/review-gate.test.mjs`): app-1's two
+  unreviewed high-risk merges and #1176 above. `README.md` 400 -> 405 (the gate's security and override paragraphs).
 
 ## 0.20.0
 

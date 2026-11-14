@@ -11,11 +11,11 @@
     "scripts": 70,
     "skills": 3460,
     "templates": 1285,
-    "test": 4040,
+    "test": 4060,
     "workflows": 1090
   },
   "files": {
-    "README.md": 400,
+    "README.md": 405,
     "CHANGELOG.md": 950,
     ".claude/rules/kit.md": 40
   },

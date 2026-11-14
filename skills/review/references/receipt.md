@@ -55,8 +55,9 @@ the full roster again. On an `independentFor` path the independent chain must re
 
 ## The override
 
-For an emergency only: the label `review-gate:override` plus a PR comment by an owner, member or collaborator
-with the line `Review-gate override <full head sha>: <reason>`. The gate passes that head with a warning naming the
-commenter and the reason; a later push needs a new comment. A `human:decision` follow-up issue records why.
+For an emergency only: a PR comment by an owner, member or collaborator with the line
+`Review-gate override <full head sha>: <reason>`, then the label `review-gate:override` (a comment alone does not
+re-run the gate; the label does). The gate passes that head with a warning naming the commenter and the reason; a
+later push needs a new comment, and a re-run or a relabel. A `human:decision` follow-up issue records why.
 
 Sources: app-1 (two high-risk PRs merged before the independent reviewer found a redirect loop; reviewer-model cost).

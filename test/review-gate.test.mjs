@@ -153,6 +153,8 @@ describe('the gate', () => {
       ['a comment by someone with no role (the fork author)', [said(A, { author_association: 'CONTRIBUTOR' })], ''],
       ['a short sha', [said(A.slice(0, 12))], ''],
     ]) assert.equal((await gate({ pull: pull({ labels, body }), api: api({ comments }) })).status, 'fail', label);
+    // By design a role-holder may override their own PR (every session may post as one account); the comment names them.
+    assert.equal((await gate({ pull: pull({ labels }), api: api({ comments: [said(A, { user: { login: 'dev' }, author_association: 'COLLABORATOR' })] }) })).override.by, 'dev');
   });
 
   test('a PR whose author has no role needs an independent review on any path; only a standing COMMENT review counts', async () => {
@@ -222,6 +224,9 @@ describe('the workflow file', () => {
     assert.equal((yml.match(/: write/g) ?? []).length, 1, 'statuses: write is the only write anywhere');
     assert.doesNotMatch(status, /^\s+(- )?uses:|actions\/checkout/m, 'the status job checks nothing out and runs no action');
     assert.match(status, /context: 'shopify-app-kit\/review-gate'/);
+    assert.match(status, /^ {4}needs: gate\n {4}if: always\(\)$/m, 'a failed or crashed gate still posts a status');
+    for (const o of ['state', 'sha', 'description']) assert.match(yml, new RegExp(`^ {6}${o}: \\$\\{\\{ steps\\.check\\.outputs\\.${o} \\}\\}$`, 'm'), o);
+    assert.match(yml, /^ {8}id: check$/m);
     // A fork can only reach this workflow through pull_request_target, which runs the base's copy; no pull_request
     // trigger means no run where a fork's code and a token that can write statuses meet.
     assert.doesNotMatch(yml, /^\s+(pull_request|push|workflow_run):/m);
@@ -234,6 +239,18 @@ describe('the workflow file', () => {
     assert.doesNotMatch(yml.slice(yml.indexOf('POST: |')), /\$\{\{/, 'the posting code holds no expression');
     assert.match(yml, /cancel-in-progress: false/);
     assert.match(yml, /^name: kit-review-gate$/m); assert.match(yml, /^ {2}gate:\n {4}name: gate$/m);
+  });
+});
+
+describe('the status outputs', () => {
+  test('fail is failure, pass, skip and override are success; one ASCII line each; a bad sha posts none', () => {
+    const out = (res, sha = A) => Object.fromEntries(g.statusOutputs({ errors: [], warnings: [], notes: [], ...res }, sha).split('\n').filter(Boolean).map((l) => [l.slice(0, l.indexOf('=')), l.slice(l.indexOf('=') + 1)]));
+    assert.deepEqual(out({ status: 'fail', errors: ['bad ::error:: x\ny é'] }), { state: 'failure', sha: A, description: '1 problem(s): bad ::error:: x y  ' });
+    assert.equal(out({ status: 'pass' }).state, 'success');
+    assert.equal(out({ status: 'pass', override: { reason: 'prod down' } }).description, 'overridden: prod down');
+    assert.equal(out({ status: 'skip', notes: ['draft PR'] }).description, 'not gated: draft PR');
+    assert.equal(out({ status: 'pass' }, 'nope\nstate=success').sha, '');
+    assert.equal(g.statusOutputs({ status: 'fail', errors: ['x'.repeat(500)] }, A).split('\n').length, 4);
   });
 });
 

@@ -297,22 +297,27 @@ workflow that way (`node <kit>/hooks/review-gate.mjs models`).
 ### The review gate
 
 Every review writes a receipt into the PR body (`skills/review/references/receipt.md`: the format, `splice`, deltas).
-The commit status `shopify-app-kit/review-gate`, which the consumer makes required, fails a PR into `branches.default` when the
-receipt is missing or malformed, was made on another commit than the head (a `delta` receipt chained to an earlier
-full one re-checks only the fix commits), says `block`, or when an `independentFor` path changed without an
-independent review chain ending at the head, each link a standing COMMENT review on that PR at that commit, by an
-owner, member or collaborator (`MEMBER` includes org members without write access), whose own body carries the
-matching receipt. A PR whose author has none of those roles needs that chain whatever it touches. `changes-needed`
-passes with a warning. It runs on `pull_request_target` from the base branch, so a PR cannot edit the gate or the
-manifest to pass itself; it never checks out or runs PR code and uses no secret. Its `gate` job only reads
-(`contents`, `pull-requests`, `issues`); a separate `status` job holding nothing but `statuses: write` posts the verdict,
-because a required job check can be shadowed by a PR's own job named `gate` while a fork's token cannot post a status.
-Recommended hardening still: require approval for outside contributors' workflow runs. Override for an emergency: the label `review-gate:override` plus a PR comment by an owner, member or
-collaborator with the line `Review-gate override <head sha>: <reason>`; a push needs a new one, and the job summary
-names the commenter and the reason. A dismissed review or a base manifest change does not re-run the gate on open PRs
-(re-run it by hand). What it proves: a session ran the review on this commit and wrote it down; a role-holder's body
-receipt is an attestation, not a proof, and independence means a session without the author's context, not another
-GitHub account (every session may post as one).
+The commit status `shopify-app-kit/review-gate` fails a PR into `branches.default` when the receipt is missing or
+malformed, names another commit than the head (a `delta` chained to an earlier full review re-checks only the fix
+commits), says `block`, or when an `independentFor` path changed without an independent chain ending at the head: each
+link a standing COMMENT review on that PR and commit, by an owner, member or collaborator (`MEMBER` includes org members
+without write access), whose own body carries the matching receipt. A PR whose author has none of those roles, bots
+such as Dependabot included, needs that chain whatever it touches. `changes-needed` passes with a warning.
+
+Security: `pull_request_target` runs the base branch's workflow, script and manifest, so a PR cannot weaken the gate;
+no job checks out or runs PR code or uses a secret. The `gate` job reads only (`contents`, `pull-requests`, `issues`);
+a `status` job holding only `statuses: write` posts the verdict, because a PR's own job named `gate` could shadow a
+required job check while a fork's token cannot post a status. Require the context with GitHub Actions as its source,
+since a writer's branch workflow could post it; also require approval for outside contributors' workflow runs.
+
+Override, for an emergency: a PR comment by an owner, member or collaborator with the line
+`Review-gate override <head sha>: <reason>`, then the label `review-gate:override` (the label event runs the gate; a
+comment alone does not). A push needs a new comment; the job summary names the commenter and the reason. A dismissed
+review or a base manifest change does not re-run the gate on open PRs either: re-run it by hand.
+
+What it proves: a session ran the review on this commit and wrote it down. A role-holder's body receipt is an
+attestation, not a proof, and independence means a session without the author's context, not another GitHub account
+(every session may post as one, and a role-holder may override their own PR).
 
 ## Lessons
 

@@ -223,6 +223,13 @@ export async function gate({ manifest, pull, files, repo, event, api }) {
   return res;
 }
 
+// What the status job posts as the shopify-app-kit/review-gate commit status: three GITHUB_OUTPUT lines, printable ASCII.
+export function statusOutputs(res, sha) {
+  const line = (s) => String(s).replace(/[^\x20-\x7e]/g, ' ').slice(0, 140);
+  const description = res.status === 'fail' ? `${res.errors.length} problem(s): ${res.errors[0]}` : res.override ? `overridden: ${res.override.reason}` : res.status === 'skip' ? `not gated: ${res.notes[0] ?? ''}` : 'review receipt current';
+  return `state=${res.status === 'fail' ? 'failure' : 'success'}\nsha=${SHA.test(sha ?? '') ? sha : ''}\ndescription=${line(description)}\n`;
+}
+
 // ------------------------------------------------------------------------------------------------------------ CLI
 async function github(path, { allow404 = false } = {}) {
   const api = process.env.GITHUB_API_URL || 'https://api.github.com';
@@ -251,6 +258,7 @@ async function check(manifestPath) {
   const res = await gate({ manifest, pull, files, repo: process.env.GITHUB_REPOSITORY, event, api: {
     review: (id) => github(`/pulls/${n}/reviews/${id}`, { allow404: true }),
     isAncestor: async (sha) => ['ahead', 'identical'].includes((await github(`/compare/${sha}...${pull.head.sha}`, { allow404: true }))?.status),
+    // At most 1000 comments: an override further down is missed, which fails closed.
     comments: async () => { const all = []; for (let p = 1; p <= 10; p++) { const b = await github(`/issues/${n}/comments?per_page=100&page=${p}`); all.push(...b); if (b.length < 100) break; } return all; },
   } });
   for (const m of res.notes) console.log(m);
@@ -261,12 +269,7 @@ async function check(manifestPath) {
     if (res.override) lines.push('', `**Override** of ${pull.head.sha} by ${res.override.by}: ${res.override.reason}`);
     fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${lines.join('\n')}\n`);
   }
-  // The status job posts these as the shopify-app-kit/review-gate commit status: one line each, printable ASCII only.
-  if (process.env.GITHUB_OUTPUT) {
-    const line = (s) => String(s).replace(/[^\x20-\x7e]/g, ' ').slice(0, 140);
-    const description = res.status === 'fail' ? `${res.errors.length} problem(s): ${res.errors[0]}` : res.override ? `overridden: ${res.override.reason}` : res.status === 'skip' ? `not gated: ${res.notes[0] ?? ''}` : 'review receipt current';
-    fs.appendFileSync(process.env.GITHUB_OUTPUT, `state=${res.status === 'fail' ? 'failure' : 'success'}\nsha=${/^[0-9a-f]{40}$/.test(pull.head?.sha ?? '') ? pull.head.sha : ''}\ndescription=${line(description)}\n`);
-  }
+  if (process.env.GITHUB_OUTPUT) fs.appendFileSync(process.env.GITHUB_OUTPUT, statusOutputs(res, pull.head?.sha));
   return res.status === 'fail' ? 1 : 0;
 }
 

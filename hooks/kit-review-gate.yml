@@ -11,8 +11,9 @@
 # run line (the script reads the payload and re-fetches the PR), and the token can only read, except in `status`.
 #
 # Why a commit status and not the job's check: a PR can add its own workflow with a job named `gate`, and a required
-# check matched by name would take whichever ran last. A fork's pull_request token cannot write statuses, so only this
-# workflow posts the context. The one write, statuses, sits in its own job that runs no code but an inline POST.
+# check matched by name would take whichever ran last. A fork's pull_request token cannot write statuses; a writer's
+# own branch workflow could, so pin the required context's source to GitHub Actions in the branch protection. The one
+# write, statuses, sits in its own job that runs no code but an inline POST.
 name: kit-review-gate
 
 on:
