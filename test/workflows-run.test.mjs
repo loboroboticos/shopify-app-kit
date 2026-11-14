@@ -166,6 +166,11 @@ describe('pre-pr-review under a stub runtime', () => {
     assert.equal(parseReceipt(renderReceipt(result.receipt)).error, undefined);
     await assert.rejects(run('pre-pr-review', runtime({ scope: baseScope, reviews: {}, verdicts: {} }), { delta: { receipt: { sha: 'x' } } }), /args\.delta needs/);
     await assert.rejects(run('pre-pr-review', runtime({ scope: baseScope, reviews: {}, verdicts: {} }), { reviewers: ['review-correctness'] }), /no reviewer matches/);
+    const c = 'c'.repeat(40);
+    const second = { v: 1, kind: 'independent-delta', sha: prior.sha, fromSha: c, chain: [{ kind: 'independent', sha: c }], verdict: 'approve', confirmed: 0, independent: [{ url: 'u', sha: prior.sha }] };
+    const third = (await run('pre-pr-review', runtime({ scope: baseScope, reviews: {}, verdicts: {} }), { independent: true, delta: { receipt: second, findings: 'x' } })).receipt;
+    assert.deepEqual([third.kind, third.fromSha, third.chain.map((l) => l.kind)], ['independent-delta', prior.sha, ['independent', 'independent-delta']]);
+    assert.equal(parseReceipt(renderReceipt(third)).error, undefined, 'a chain of three links validates');
     const kept = await run('pre-pr-review', runtime({ scope: baseScope, reviews: {}, verdicts: {} }), { delta: { receipt: { ...prior, verdict: 'block' } } });
     assert.equal(kept.receipt.verdict, 'block', 'a delta without the blocking findings cannot clear a block');
     const empty = await run('pre-pr-review', runtime({ scope: { ...baseScope, changedFiles: [] }, reviews: {}, verdicts: {} }), { delta: { receipt: prior } });

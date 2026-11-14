@@ -307,8 +307,8 @@ such as Dependabot included, needs that chain whatever it touches. `changes-need
 Security: `pull_request_target` runs the base branch's workflow, script and manifest, so a PR cannot weaken the gate;
 no job checks out or runs PR code or uses a secret. The `gate` job reads only (`contents`, `pull-requests`, `issues`);
 a `status` job holding only `statuses: write` posts the verdict, because a PR's own job named `gate` could shadow a
-required job check while a fork's token cannot post a status. Require the context with GitHub Actions as its source,
-since a writer's branch workflow could post it; also require approval for outside contributors' workflow runs.
+required job check while a fork's token cannot post a status. A writer's branch workflow can still overwrite it (visible
+in the PR's workflow diff and runs); an org ruleset requiring this workflow closes that. Gate outside contributors' runs.
 
 Override, for an emergency: a PR comment by an owner, member or collaborator with the line
 `Review-gate override <head sha>: <reason>`, then the label `review-gate:override` (the label event runs the gate; a
