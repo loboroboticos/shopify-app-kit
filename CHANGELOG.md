@@ -42,8 +42,9 @@ manifest-driven reviewer models because every session overrode the agents' `opus
 - Review hardening from the kit's own independent review: an empty delta carries the earlier verdict, and a delta
   clears a `block` only with that block's findings to re-check; the scope pass fails when the delta's base is not an
   ancestor. Independent mode reads the manifest and house rules from the base and treats the linked issue as a claim;
-  `independent-review` pre-approves only read-only git and `gh pr view`/`gh issue view`, so its gate-script runs and
-  GitHub writes each ask.
+  `independent-review` and `review` pre-approve only commands with no option that writes, executes or reaches GitHub
+  (`git rev-parse`, `merge-base`, `ls-tree`, `checkout --detach`, `gh pr view`, `gh issue view`); `git show`, `diff`
+  and `fetch` (`--output`, `--upload-pack`), the gate script and GitHub writes ask. A test pins both lists.
 - Models: the six agents that pinned `model: opus` now say `sonnet`, as does the workflows' `judgment` default;
   `args.models` takes an agent-name key, and `review-gate.mjs models` maps `review.models` onto it. The persona port
   rule (`kit-dev`'s `personas.md`) keeps `sonnet`.

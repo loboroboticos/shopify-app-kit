@@ -243,14 +243,16 @@ describe('the workflow file', () => {
 });
 
 describe('the independent-review allowlist', () => {
-  // Pinned exactly: widening it fails here. Each entry is checked for option injection: `git -c`/`--config` cannot
-  // follow a subcommand prefix; `git fetch origin` names an https remote, so `--upload-pack`/`--receive-pack` are
-  // ignored, and `ext::` stays off (protocol.ext.allow defaults to never); diff and textconv drivers need git config,
-  // which a PR cannot set; jq, gh pr view and gh issue view only read. Running node, gh api, gh pr edit always asks.
-  test('pre-approves exactly the read-only commands its steps use', () => {
+  // Pinned exactly: widening it fails here. Kept entries have no option that writes a file, runs a command or reaches
+  // GitHub (`git -c` cannot follow a subcommand prefix; ext:: is off by default). Dropped, so they ask: git fetch
+  // (--upload-pack), git show and git diff (--output writes any file, .git/config included), jq (reads the
+  // environment), node, gh api, gh pr edit. The review skill, which reads PR text too, is held to the same rule.
+  test('pre-approves exactly the read-only commands its steps use, and review nothing wider', () => {
     const line = read('skills', 'independent-review', 'SKILL.md').split('\n').find((l) => l.startsWith('allowed-tools:'));
-    assert.equal(line, 'allowed-tools: Read, Write, Grep, Glob, Bash(git fetch origin *), Bash(git checkout --detach *), Bash(git show *), Bash(git diff *), Bash(git rev-parse *), Bash(git merge-base *), Bash(git ls-tree *), Bash(jq *), Bash(gh pr view *), Bash(gh issue view *)');
-    for (const bad of ['Bash(node', 'Bash(gh api', 'Bash(gh pr edit', 'Bash(git *)', 'Bash(git -c', 'Bash(git fetch *)', 'Bash(git push', 'Bash(gh pr *)']) assert.ok(!line.includes(bad), bad);
+    assert.equal(line, 'allowed-tools: Read, Write, Grep, Glob, Bash(git checkout --detach *), Bash(git rev-parse *), Bash(git merge-base *), Bash(git ls-tree *), Bash(gh pr view *), Bash(gh issue view *)');
+    const review = read('skills', 'review', 'SKILL.md').split('\n').find((l) => l.startsWith('allowed-tools:'));
+    assert.equal(review, 'allowed-tools: Read, Write, Grep, Glob, Agent, Bash(git rev-parse *), Bash(git merge-base *), Bash(gh pr view *)');
+    for (const l of [line, review]) for (const bad of ['Bash(node', 'Bash(gh api', 'Bash(gh pr edit', 'Bash(gh pr *)', 'Bash(git *)', 'Bash(git -c', 'Bash(git fetch', 'Bash(git show', 'Bash(git diff', 'Bash(git push', 'Bash(git log', 'Bash(jq']) assert.ok(!l.includes(bad), bad);
   });
 });
 
