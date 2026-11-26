@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// shopify-app-kit v0.21.0
+// shopify-app-kit v0.21.1
 // review-gate.mjs: the review receipt (parse, render, splice into a PR body) and the CI gate that checks it. Vendored by
 // /shopify-app-kit:sync to .github/kit/review-gate.mjs and run by .github/workflows/kit-review-gate.yml from the BASE
 // branch (pull_request_target), so a PR never runs its own copy. Zero dependencies; node 20+.

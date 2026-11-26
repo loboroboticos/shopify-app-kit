@@ -254,6 +254,8 @@ describe('the independent-review allowlist', () => {
     assert.equal(review, 'allowed-tools: Read, Write, Grep, Glob, Agent, Bash(git rev-parse *), Bash(git merge-base *), Bash(gh pr view *)');
     for (const l of [line, review]) for (const bad of ['Bash(node', 'Bash(gh api', 'Bash(gh pr edit', 'Bash(gh pr *)', 'Bash(git *)', 'Bash(git -c', 'Bash(git fetch', 'Bash(git show', 'Bash(git diff', 'Bash(git push', 'Bash(git log', 'Bash(jq']) assert.ok(!l.includes(bad), bad);
   });
+  test('an orchestrator can start it (no disable-model-invocation), and the body keeps every independence rule', () => { const s = read('skills', 'independent-review', 'SKILL.md'), body = s.replace(/\s+/g, ' ');
+    assert.ok(!/^disable-model-invocation:/m.test(s)); for (const r of ['session that did not write the branch', "Refuse, saying why, when this session authored any of the PR's head commits or its prompt carries the author's plan, notes or transcript", "Never read the author's transcript, plan file or PR body for intent", 'posts one COMMENT review', 'Anything else is a full run', 'splice <scratch>/empty.md <scratch>/receipt.json']) assert.ok(body.includes(r), r); });
 });
 
 describe('the status outputs', () => {

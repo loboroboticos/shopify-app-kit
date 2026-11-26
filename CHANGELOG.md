@@ -5,6 +5,19 @@ vendored hook carries it on line 2 (`# shopify-app-kit vX.Y.Z`). A version that 
 `### Deprecated`; the next minor deletes it and lists it under `### Removed` (`kit-dev`: "Remove a skill, agent,
 hook, workflow or routine"). Sections up to 0.9.0 are compacted; `git log -p CHANGELOG.md` has their full text.
 
+## 0.21.1
+
+`independent-review` can be started by the model. Evidence: a consumer's issue: with `disable-model-invocation: true`
+an orchestrating session could not start it in a fresh child session, so every gated PR waited for a person to type
+the command. Independence comes from a fresh session without the author's context plus the maintainer's merge, not
+from who types the command.
+
+- `skills/independent-review/SKILL.md`: drops `disable-model-invocation: true` and adds a rule: refuse when this
+  session authored any of the PR's head commits or its prompt carries the author's plan, notes or transcript. The kit
+  records no author session, so the rule is stated plainly. Every other independence rule stays.
+- `test/review-gate.test.mjs` pins both: no `disable-model-invocation`, and the body keeps the rules.
+- README: the skill's row and "The review gate" say who may start it.
+
 ## 0.21.0
 
 The review gate becomes the default. Evidence: on app-1, reviews ran only when a session remembered to, two PRs on

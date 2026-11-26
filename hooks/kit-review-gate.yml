@@ -1,5 +1,5 @@
 # .github/workflows/kit-review-gate.yml: vendored by /shopify-app-kit:sync with .github/kit/review-gate.mjs; never edit here.
-# shopify-app-kit v0.21.0
+# shopify-app-kit v0.21.1
 # Fails a PR into branches.default whose body has no current review receipt, or whose independentFor paths changed
 # without a verified independent review; the label review-gate:override plus a role-holder's PR comment
 # "Review-gate override <head sha>: <reason>" passes that head with a warning. The verdict is the commit status
